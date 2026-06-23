@@ -1,0 +1,38 @@
+{
+  "name": "AWS Certified Security – Specialty (SCS-C03)",
+  "version": "",
+  "color": "#7f8c9c",
+  "description": "Specialty certification for security practitioners securing AWS workloads. Validates ability to implement detection, incident response, infrastructure security, IAM, data protection, and governance. 3-5 years experience securing cloud solutions. 65 questions (50 scored + 15 unscored), 170 minutes, 750/1000 passing score.",
+  "domains": [
+    {
+      "name": "Detection",
+      "order": 1,
+      "description": "Domain 1 (16%): Design and implement security monitoring and alerting. Troubleshoot security monitoring. Design logging solutions (CloudTrail, VPC Flow Logs, Config, GuardDuty, Security Hub)."
+    },
+    {
+      "name": "Incident Response",
+      "order": 2,
+      "description": "Domain 2 (14%): Design and implement incident response plans. Detect security threats and anomalies. Respond to compromised resources and credentials."
+    },
+    {
+      "name": "Infrastructure Security",
+      "order": 3,
+      "description": "Domain 3 (18%): Design security controls for edge services (CloudFront, WAF, Shield). Design network security (VPC, security groups, NACLs, Network Firewall). Troubleshoot network connectivity."
+    },
+    {
+      "name": "Identity and Access Management",
+      "order": 4,
+      "description": "Domain 4 (20%): Design authentication and authorization (IAM, SSO, federation, Organizations). Design authorization policies. Troubleshoot access issues."
+    },
+    {
+      "name": "Data Protection",
+      "order": 5,
+      "description": "Domain 5 (18%): Design data encryption strategies (KMS, CloudHSM). Implement key management and rotation. Design data access controls."
+    },
+    {
+      "name": "Security Foundations and Governance",
+      "order": 6,
+      "description": "Domain 6 (14%): Develop security governance strategy (Organizations, SCPs, Control Tower). Implement compliance automation. Manage security findings and remediation."
+    }
+  ]
+}

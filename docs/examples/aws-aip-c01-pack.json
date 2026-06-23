@@ -1,0 +1,33 @@
+{
+  "name": "AWS Certified Generative AI Developer – Professional (AIP-C01)",
+  "version": "",
+  "color": "#6c5ce7",
+  "description": "Professional-level certification for GenAI developers integrating foundation models into applications and business workflows on AWS. Validates ability to design RAG solutions, implement agentic AI, apply prompt engineering, optimize GenAI apps, and enforce security/governance. Target: 2+ years building production apps on AWS + 1 year hands-on GenAI. 65 scored questions + 10 unscored, 170 minutes, 750/1000 passing score.",
+  "domains": [
+    {
+      "name": "Foundation Model Integration, Data Management, and Compliance",
+      "order": 1,
+      "description": "Domain 1 (31%): Task 1.1 Analyze requirements and design GenAI solutions. Task 1.2 Select and configure FMs (benchmarks, cross-region inference, lifecycle). Task 1.3 Implement data validation and processing pipelines for FM consumption. Task 1.4 Design and implement vector store solutions. Task 1.5 Design retrieval mechanisms for FM augmentation (RAG). Task 1.6 Implement prompt engineering strategies and governance."
+    },
+    {
+      "name": "Implementation and Integration",
+      "order": 2,
+      "description": "Domain 2 (26%): Task 2.1 Implement agentic AI solutions and tool integrations (Strands Agents, MCP, multi-agent systems). Task 2.2 Implement model deployment strategies (Lambda, Bedrock, SageMaker endpoints). Task 2.3 Design enterprise integration architectures. Task 2.4 Implement FM API integrations. Task 2.5 Implement application integration patterns and development tools."
+    },
+    {
+      "name": "AI Safety, Security, and Governance",
+      "order": 3,
+      "description": "Domain 3 (20%): Task 3.1 Implement input and output safety controls (guardrails, content moderation, hallucination reduction). Task 3.2 Implement data security and privacy controls (VPC, PII detection, data masking). Task 3.3 Implement AI governance and compliance mechanisms (model cards, data lineage). Task 3.4 Implement responsible AI principles."
+    },
+    {
+      "name": "Operational Efficiency and Optimization for GenAI Applications",
+      "order": 4,
+      "description": "Domain 4 (12%): Task 4.1 Implement cost optimization and resource efficiency (token management, caching, tiered models). Task 4.2 Optimize application performance (latency, retrieval, throughput). Task 4.3 Implement monitoring systems for GenAI applications."
+    },
+    {
+      "name": "Testing, Validation, and Troubleshooting",
+      "order": 5,
+      "description": "Domain 5 (11%): Task 5.1 Implement evaluation systems for GenAI (quality metrics, A/B testing, LLM-as-a-Judge, RAG evaluation, agent performance). Task 5.2 Troubleshoot GenAI applications (context overflow, API errors, latency, drift)."
+    }
+  ]
+}

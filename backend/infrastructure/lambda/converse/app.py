@@ -1,0 +1,85 @@
+"""Cert Study Assistant — Flask streaming app for Lambda Web Adapter.
+
+Receives POST /converse, calls Bedrock converse_stream with Amazon Nova,
+and streams response tokens back via NDJSON chunks.
+"""
+
+import json
+import os
+
+import boto3
+from flask import Flask, Response, request
+
+bedrock = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+DEFAULT_MODEL_ID = os.environ.get("MODEL_ID", "amazon.nova-lite-v1:0")
+
+# Allowlist of Amazon Nova models the frontend is allowed to request.
+ALLOWED_MODEL_IDS = {
+    "amazon.nova-micro-v1:0",
+    "amazon.nova-lite-v1:0",
+    "amazon.nova-pro-v1:0",
+}
+
+app = Flask(__name__)
+
+
+@app.route("/converse", methods=["POST"])
+def converse():
+    """Stream Bedrock converse response as NDJSON."""
+    body = request.get_json(force=True) or {}
+    messages = body.get("messages", [])
+    system_prompt = body.get("system_prompt", "")
+    max_tokens = body.get("max_tokens", 2000)
+    model_id = body.get("model_id") or DEFAULT_MODEL_ID
+
+    if not messages:
+        return _error_response("messages is required", 400)
+
+    if model_id not in ALLOWED_MODEL_IDS:
+        return _error_response(f"invalid model_id: {model_id}", 400)
+
+    # Build converse params
+    params = {
+        "modelId": model_id,
+        "messages": messages,
+        "inferenceConfig": {"maxTokens": max_tokens, "temperature": 0.7},
+    }
+    if system_prompt:
+        params["system"] = [{"text": system_prompt}]
+
+    def generate():
+        try:
+            response = bedrock.converse_stream(**params)
+            for event in response["stream"]:
+                if "contentBlockDelta" in event:
+                    delta = event["contentBlockDelta"]["delta"]
+                    if "text" in delta:
+                        yield json.dumps({"type": "TOKEN", "text": delta["text"]}) + "\n"
+                elif "messageStop" in event:
+                    yield json.dumps({"type": "END", "stopReason": event["messageStop"].get("stopReason", "end_turn")}) + "\n"
+                elif "metadata" in event:
+                    usage = event["metadata"].get("usage", {})
+                    yield json.dumps({"type": "METADATA", "usage": usage}) + "\n"
+        except Exception as e:
+            yield json.dumps({"type": "ERROR", "message": str(e)}) + "\n"
+
+    return Response(generate(), mimetype="text/event-stream", headers={
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+    })
+
+
+@app.route("/", methods=["GET"])
+def health():
+    """Readiness check for Lambda Web Adapter."""
+    return "OK"
+
+
+def _error_response(message, status_code):
+    return Response(
+        json.dumps({"type": "ERROR", "message": message}) + "\n",
+        status=status_code,
+        mimetype="text/event-stream",
+        headers={"Access-Control-Allow-Origin": "*"},
+    )

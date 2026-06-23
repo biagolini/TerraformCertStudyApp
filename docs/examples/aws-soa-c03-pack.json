@@ -1,0 +1,33 @@
+{
+  "name": "AWS Certified CloudOps Engineer – Associate (SOA-C03)",
+  "version": "",
+  "color": "#00b894",
+  "description": "Associate-level certification (formerly SysOps Administrator) for cloud operations engineers deploying, managing, and operating workloads on AWS. Validates ability to monitor, remediate, ensure reliability, automate provisioning, and secure AWS environments. 1+ years hands-on experience. 65 questions (50 scored + 15 unscored), 130 minutes, 720/1000 passing score.",
+  "domains": [
+    {
+      "name": "Monitoring, Logging, Analysis, Remediation, and Performance Optimization",
+      "order": 1,
+      "description": "Domain 1 (22%): Implement metrics, alarms, and filters using CloudWatch. Collect and analyze logs. Remediate issues based on monitoring data. Implement performance optimization strategies."
+    },
+    {
+      "name": "Reliability and Business Continuity",
+      "order": 2,
+      "description": "Domain 2 (22%): Implement scalability and elasticity, design highly available and resilient environments, implement backup and restore strategies."
+    },
+    {
+      "name": "Deployment, Provisioning, and Automation",
+      "order": 3,
+      "description": "Domain 3 (22%): Provision and maintain cloud resources (CloudFormation, CDK, Service Catalog). Automate manual or repeatable processes. Manage multi-account, multi-Region architectures."
+    },
+    {
+      "name": "Security and Compliance",
+      "order": 4,
+      "description": "Domain 4 (16%): Implement and manage security and compliance policies. Implement data and infrastructure protection strategies."
+    },
+    {
+      "name": "Networking and Content Delivery",
+      "order": 5,
+      "description": "Domain 5 (18%): Implement networking features and connectivity (VPC, Direct Connect, VPN). Configure domains, DNS, and content delivery."
+    }
+  ]
+}

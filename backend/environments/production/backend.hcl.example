@@ -1,0 +1,8 @@
+# Backend S3 Configuration
+# Copy this file to backend.hcl and fill with your values
+# DO NOT commit backend.hcl to version control
+
+bucket  = "your-terraform-state-bucket"
+key     = "cert-study-app/prod/terraform.tfstate"
+region  = "us-east-1"
+profile = "your-aws-profile"
