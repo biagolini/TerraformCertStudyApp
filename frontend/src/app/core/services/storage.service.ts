@@ -156,6 +156,37 @@ export class StorageService {
   }
 
   // ==========================================================================
+  // Individual item API calls (for immediate backend persistence)
+  // ==========================================================================
+
+  /** Delete a single question from DynamoDB. Returns true on success. */
+  async deleteQuestion(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.apiUrl}/data/questions/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${this.token}` },
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Update a single question in DynamoDB. Returns true on success. */
+  async updateQuestion(question: Question): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.apiUrl}/data/questions/${question.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}` },
+        body: JSON.stringify(question),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  // ==========================================================================
   // Remote API calls
   // ==========================================================================
 

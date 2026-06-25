@@ -1,20 +1,24 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { MatDialog } from '@angular/material/dialog';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Question } from '../../core/models/question.model';
 import { BedrockService } from '../../core/services/bedrock.service';
 import { ModelsService } from '../../core/services/models.service';
 import { PacksService } from '../../core/services/packs.service';
 import { QuestionsService } from '../../core/services/questions.service';
 import { SettingsService } from '../../core/services/settings.service';
+import { StorageService } from '../../core/services/storage.service';
 import { stripInferredMetadata } from '../../core/utils/domain-inference.util';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
+import { ConfirmDeleteDialogComponent } from '../../shared/components/confirm-delete-dialog.component';
 import { DomainBadgeComponent } from '../../shared/components/domain-badge.component';
 import { MarkdownRendererComponent } from './markdown-renderer.component';
 
 @Component({
   selector: 'app-review-viewer',
   standalone: true,
-  imports: [FormsModule, AiDisclaimerComponent, DomainBadgeComponent, MarkdownRendererComponent],
+  imports: [FormsModule, MatProgressSpinnerModule, AiDisclaimerComponent, DomainBadgeComponent, MarkdownRendererComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="viewer">
@@ -68,20 +72,24 @@ import { MarkdownRendererComponent } from './markdown-renderer.component';
             <button
               type="button"
               class="icon-btn delete-btn"
-              (click)="onDelete(question.id)"
+              (click)="onDelete(question)"
               aria-label="Delete this question"
-              [disabled]="refining()"
+              [disabled]="refining() || deleting()"
             >
-              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-                <path
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.8"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"
-                />
-              </svg>
+              @if (deleting()) {
+                <mat-spinner diameter="18"></mat-spinner>
+              } @else {
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                  <path
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"
+                  />
+                </svg>
+              }
             </button>
           </div>
         </header>
@@ -90,22 +98,35 @@ import { MarkdownRendererComponent } from './markdown-renderer.component';
           @if (editing()) {
             <div class="edit-mode">
               <p class="edit-hint">
-                Editing review (Markdown). Save to keep your changes; Cancel to discard.
+                Editing title and review (Markdown). Save to keep your changes; Cancel to discard.
               </p>
+              <label class="edit-label">
+                <span>Title</span>
+                <input
+                  type="text"
+                  class="edit-title-input"
+                  [(ngModel)]="editTitleDraft"
+                  aria-label="Edit question title"
+                />
+              </label>
               <textarea
                 class="edit-textarea"
                 [(ngModel)]="editDraft"
                 aria-label="Edit review markdown"
               ></textarea>
               <div class="edit-actions">
-                <button type="button" class="btn btn-ghost" (click)="onCancelEdit()">Cancel</button>
+                <button type="button" class="btn btn-ghost" (click)="onCancelEdit()" [disabled]="saving()">Cancel</button>
                 <button
                   type="button"
                   class="btn btn-primary"
-                  (click)="onSaveEdit(question.id)"
-                  [disabled]="!editDraft.trim()"
+                  (click)="onSaveEdit(question)"
+                  [disabled]="!editDraft.trim() || saving()"
                 >
-                  Save
+                  @if (saving()) {
+                    <mat-spinner diameter="18"></mat-spinner>
+                  } @else {
+                    Save
+                  }
                 </button>
               </div>
             </div>
@@ -278,6 +299,25 @@ import { MarkdownRendererComponent } from './markdown-renderer.component';
       .edit-hint {
         color: var(--text-muted);
         font-size: var(--font-size-sm);
+      }
+      .edit-label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: var(--font-size-sm);
+        color: var(--text-secondary);
+      }
+      .edit-title-input {
+        padding: var(--space-sm) var(--space-md);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--bg-border);
+        background: var(--bg-input);
+        color: var(--text-primary);
+        font-size: var(--font-size-base);
+      }
+      .edit-title-input:focus-visible {
+        outline: none;
+        border-color: var(--color-purple);
       }
       .edit-textarea {
         flex: 1;
@@ -469,10 +509,12 @@ import { MarkdownRendererComponent } from './markdown-renderer.component';
 })
 export class ReviewViewerComponent {
   private readonly questionsService = inject(QuestionsService);
+  private readonly storage = inject(StorageService);
   private readonly bedrock = inject(BedrockService);
   private readonly settings = inject(SettingsService);
   private readonly modelsService = inject(ModelsService);
   private readonly packs = inject(PacksService);
+  private readonly dialog = inject(MatDialog);
 
   readonly question = input<Question | null>(null);
   readonly showBackButton = input<boolean>(false);
@@ -483,9 +525,12 @@ export class ReviewViewerComponent {
 
   protected readonly editing = signal(false);
   protected readonly refining = signal(false);
+  protected readonly deleting = signal(false);
+  protected readonly saving = signal(false);
   protected readonly refineError = signal<string | null>(null);
   protected readonly refineModelOverride = signal<string | null>(null);
   protected editDraft = '';
+  protected editTitleDraft = '';
   protected refineDraft = '';
   private refineController: AbortController | null = null;
 
@@ -500,14 +545,28 @@ export class ReviewViewerComponent {
       // Reset transient UI state whenever the displayed question changes.
       this.editing.set(false);
       this.editDraft = q?.review ?? '';
+      this.editTitleDraft = q?.title ?? '';
       this.refineDraft = '';
       this.refineError.set(null);
     });
   }
 
-  onDelete(id: string): void {
-    this.questionsService.remove(id);
-    this.deleted.emit(id);
+  onDelete(question: Question): void {
+    const dialogRef = this.dialog.open(ConfirmDeleteDialogComponent, {
+      data: { title: question.title },
+      width: '400px',
+    });
+
+    dialogRef.afterClosed().subscribe(async (result) => {
+      if (result !== 'confirm') return;
+      this.deleting.set(true);
+      const success = await this.storage.deleteQuestion(question.id);
+      this.deleting.set(false);
+      if (success) {
+        this.questionsService.remove(question.id);
+        this.deleted.emit(question.id);
+      }
+    });
   }
 
   onSelectRefineModel(value: string): void {
@@ -516,9 +575,11 @@ export class ReviewViewerComponent {
 
   onToggleEdit(question: Question): void {
     if (this.editing()) {
-      this.onCancelEdit();
+      // Clicking the pencil again while editing = save
+      this.onSaveEdit(question);
     } else {
       this.editDraft = question.review;
+      this.editTitleDraft = question.title;
       this.refineError.set(null);
       this.editing.set(true);
     }
@@ -528,13 +589,21 @@ export class ReviewViewerComponent {
     this.editing.set(false);
     const q = this.question();
     this.editDraft = q?.review ?? '';
+    this.editTitleDraft = q?.title ?? '';
   }
 
-  onSaveEdit(id: string): void {
+  async onSaveEdit(question: Question): Promise<void> {
     const value = this.editDraft.trim();
+    const title = this.editTitleDraft.trim() || question.title;
     if (!value) return;
-    this.questionsService.updateReview(id, value);
-    this.editing.set(false);
+    this.saving.set(true);
+    const updated = { ...question, review: value, title };
+    const success = await this.storage.updateQuestion(updated);
+    this.saving.set(false);
+    if (success) {
+      this.questionsService.updatePartial(question.id, { review: value, title });
+      this.editing.set(false);
+    }
   }
 
   async onRefine(question: Question): Promise<void> {
