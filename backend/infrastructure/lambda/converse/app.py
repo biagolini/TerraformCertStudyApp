@@ -29,7 +29,10 @@ def converse():
     body = request.get_json(force=True) or {}
     messages = body.get("messages", [])
     system_prompt = body.get("system_prompt", "")
-    max_tokens = body.get("max_tokens", 2000)
+    # max_tokens is optional. When omitted, Bedrock defaults to the maximum
+    # allowed value for the model (10K for Amazon Nova), so we let the model
+    # use its full capacity unless the caller explicitly caps it.
+    max_tokens = body.get("max_tokens")
     model_id = body.get("model_id") or DEFAULT_MODEL_ID
 
     if not messages:
@@ -39,10 +42,14 @@ def converse():
         return _error_response(f"invalid model_id: {model_id}", 400)
 
     # Build converse params
+    inference_config = {"temperature": 0.7}
+    if max_tokens is not None:
+        inference_config["maxTokens"] = max_tokens
+
     params = {
         "modelId": model_id,
         "messages": messages,
-        "inferenceConfig": {"maxTokens": max_tokens, "temperature": 0.7},
+        "inferenceConfig": inference_config,
     }
     if system_prompt:
         params["system"] = [{"text": system_prompt}]

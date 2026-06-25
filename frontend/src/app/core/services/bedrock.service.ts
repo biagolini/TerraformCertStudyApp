@@ -5,8 +5,6 @@ import { PackContext, buildSystemPrompt } from '../utils/review-prompt.util';
 import { buildTranscriptScriptPrompt } from '../utils/transcript-prompt.util';
 import { AuthService } from './auth.service';
 
-const MAX_TOKENS = 2000;
-
 interface BedrockMessage {
   role: 'user' | 'assistant';
   content: Array<{ text: string }>;
@@ -112,7 +110,8 @@ Return the FULL refined review. Apply only the changes needed to address the fee
         model_id: model || DEFAULT_MODEL,
         system_prompt: system,
         messages,
-        max_tokens: MAX_TOKENS,
+        // max_tokens intentionally omitted: Bedrock then defaults to the
+        // model's maximum allowed output (10K for Amazon Nova).
       }),
       signal,
     });

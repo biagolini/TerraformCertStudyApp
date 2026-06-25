@@ -32,7 +32,7 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
           [(ngModel)]="draft"
           [disabled]="streaming()"
           rows="8"
-          placeholder="Paste the question stem and all alternatives (A, B, C, D) here..."
+          placeholder="Paste the full question and all alternatives here, exactly as copied from the practice exam..."
           class="textarea"
         ></textarea>
       </label>

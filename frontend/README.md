@@ -190,9 +190,9 @@ By using this app you accept that the author, contributors, and any model provid
 
 ## Privacy & cost notes
 
-- The Anthropic API key is stored as plain text in your browser's `localStorage`. Use a key scoped to this purpose if possible, and revoke it when you stop using the app.
-- Each generated review is one streaming call to the configured Claude model with `max_tokens: 2000`. Your costs are between you and Anthropic.
-- Requests go from your browser directly to `api.anthropic.com` (or the AWS endpoint). No proxy, no third party, no telemetry.
+- Authentication uses Amazon Cognito (email/password). No third-party AI API keys are stored in the browser.
+- Each generated review is one streaming call to the selected Amazon Nova model (Micro/Lite/Pro) via Amazon Bedrock. `maxTokens` is not set, so Bedrock defaults to the model's maximum allowed output (10K tokens for Nova), avoiding truncation of long reviews.
+- Requests go from your browser to the API Gateway endpoint, which invokes a Lambda that calls Bedrock. No third-party proxy and no telemetry.
 
 ---
 
