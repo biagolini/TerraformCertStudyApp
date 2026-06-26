@@ -20,9 +20,13 @@ graph LR
     A[Angular SPA] -->|HTTPS| B[CloudFront]
     B --> C[S3]
     A -->|POST /converse<br/>JWT auth| D[API Gateway]
-    D --> E[Lambda]
-    E -->|converse_stream| F[Bedrock Nova]
-    D -.->|Authorizer| G[Cognito]
+    A -->|GET /data/models<br/>JWT auth| D
+    D --> E[Lambda converse]
+    D --> F[Lambda data]
+    E -->|converse_stream| G[Bedrock]
+    F -->|ListFoundationModels<br/>ListInferenceProfiles| G
+    F -->|CRUD| H[DynamoDB]
+    D -.->|Authorizer| I[Cognito]
 ```
 
 ## Project Structure
@@ -65,11 +69,25 @@ terraform apply
 
 ## Available Models
 
+The model list is **loaded dynamically** from Bedrock at login (`GET /data/models`). The app discovers all text-in/text-out models with streaming support that are active and invocable in your account. Models requiring inference profiles (e.g., Nova 2) are resolved automatically.
+
+Static fallback (if the API call fails):
+
 | Model | Tier | Best For |
 |-------|------|----------|
 | Nova Micro | Fast | Quick reviews, low cost |
 | Nova Lite | Balanced | Default, good quality/speed tradeoff |
 | Nova Pro | Deep | Complex questions, best quality |
+
+### Reasoning (Extended Thinking)
+
+Models that support reasoning are marked with **(reasoning)** in the model selector. When a reasoning-capable model is selected, the backend automatically enables extended thinking (`reasoningConfig` with effort `low`), which makes the model internally plan its response step-by-step before generating output. This improves accuracy for structured tasks (like maintaining correct option ordering in reviews).
+
+**Current limitations:**
+- Reasoning is currently enabled only for **Amazon Nova 2** models (pattern `nova-2` in the model ID). The `reasoningConfig` parameter is Amazon-specific.
+- Other providers (Anthropic Claude, DeepSeek) have their own thinking/reasoning mechanisms with different API parameters. These are **not** automatically enabled — extending support would require provider-specific logic.
+- During the reasoning phase, the user sees a brief pause before text starts streaming (the model is "thinking" internally). This is expected behavior, not an error.
+- Reasoning tokens are **charged** even though the reasoning content appears as `[REDACTED]` in the API response.
 
 ## Pack Examples
 
@@ -77,10 +95,10 @@ Pre-built study packs for all current AWS certifications are in [`docs/examples/
 
 ## Tech Stack
 
-- **Frontend**: Angular 21, standalone components, Signals, SCSS, zero UI libraries
+- **Frontend**: Angular 21, standalone components, Signals, Angular Material (dialogs/spinners), SCSS
 - **Backend**: Terraform (AWS provider ~> 6.0), Python 3.13 (Flask + Gunicorn)
-- **Cloud**: S3, CloudFront, Route53, ACM, Cognito, API Gateway, Lambda, Bedrock
-- **AI**: Amazon Nova (Micro/Lite/Pro) via `converse_stream` API
+- **Cloud**: S3, CloudFront, Route53, ACM, Cognito, API Gateway, Lambda, DynamoDB, Bedrock
+- **AI**: Any text/streaming model in Bedrock (dynamically discovered); Amazon Nova (Micro/Lite/Pro, Nova 2 Lite) via `converse_stream` API
 
 ## Author
 
