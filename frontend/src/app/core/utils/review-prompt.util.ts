@@ -42,26 +42,38 @@ ${domainSection}
 ${languageInstruction}
 
 INPUT STRUCTURE — READ CAREFULLY:
-The user pastes raw text copied directly from a practice exam (simulado). This pasted text is unstructured and typically contains, in this order:
-1. A scenario/context paragraph that provides background for the question.
-2. The actual question sentence (what is being asked).
-3. The list of answer options, in the ORDER they were originally presented to the student.
-4. Frequently, a separate explanation block (labeled "Correct option(s)", "Incorrect options", "Explicação geral", "References", "Domínio", etc.), followed by reference links and a domain label.
+The user pastes raw text copied directly from a practice exam platform (simulado). The text is unstructured and noisy. Before writing the review, you MUST first mentally parse the input following these steps:
 
-Rules for interpreting the pasted input:
-- NUMBER OF OPTIONS VARIES: a question may have four, five, six or more options. Identify every option present and letter them sequentially (A, B, C, D, E, F, ...) following ONLY the original presentation order described in item 3. Do not assume there are always four options.
-- STRIP STATUS MARKERS: the practice tool interleaves status labels such as "Sua seleção está correta", "Sua resposta está incorreta", "Resposta correta", "Correct answer", "Your answer is incorrect". These labels are NOT part of the option text — ignore and remove them.
-- CRITICAL — PRESERVE OPTION ORDER: Determine the options and their order ONLY from the original options list (item 3). The explanation block (item 4) almost always lists the CORRECT answer(s) FIRST — you MUST NOT use that block to decide ordering or lettering. The letter assigned to each option and the order of options in EVERY section of your review must match the original presentation order, never the order in which they appear in the explanation block.
-- IDENTIFY CORRECT ANSWERS: use the explanation block only to determine WHICH options are correct, but always refer to each option by the letter/position it had in the original options list.
-- NUMBER OF CORRECT ANSWERS: if the question explicitly asks to select a specific quantity (e.g., "Select two", "Selecione duas", "Choose three"), mark exactly that many options as correct. If no quantity is stated, assume there is exactly ONE correct answer.
-- OUTPUT ORDERING WITHIN SECTIONS: in the "Correct answer and explanation" and "Incorrect answers and justifications" sections, when there is more than one item, list them in ASCENDING order of their original letter (A, then B, then C, ...). NEVER follow the order used in the source explanation block (which typically lists the correct answers first). Example: if A and D are both correct, present A before D.
-- DO NOT echo the practice exam's own explanation block, reference links, or domain label into your output. Produce your own independent review using the format below.
+STEP 1 — IDENTIFY THE QUESTION TEXT:
+Everything from the beginning up to (but NOT including) the first answer option is the question (scenario + question sentence). The question ends where the first option begins.
+
+STEP 2 — IDENTIFY THE ANSWER OPTIONS IN THEIR ORIGINAL ORDER:
+After the question text, the options appear one after another. They are NOT lettered in the source — they are just paragraphs of text. Your job is to assign letters (A, B, C, D, E, F, ...) sequentially based on the order they appear BEFORE any explanation block.
+
+IMPORTANT — STATUS MARKERS TO IGNORE:
+The practice platform injects status labels between or around options. These are artifacts of the platform UI and must be COMPLETELY IGNORED when identifying options:
+• "Sua seleção está correta" — means the student selected this option and it was correct. NOT part of the option text.
+• "Sua resposta está incorreta" — means the student selected an option that was wrong. NOT part of any option text.
+• "Resposta correta" — appears next to the correct option when the student got it wrong, to show which one was right. NOT part of the option text.
+• "Correct answer", "Your answer is incorrect", "Your selection is correct" — English equivalents. NOT part of option text.
+
+These markers help you determine which option is correct, but they are NOT option text and must NOT affect the ordering.
+
+STEP 3 — IDENTIFY THE EXPLANATION BLOCK:
+After all options, there is usually a section starting with "Explicação geral", "Correct option:", "Incorrect options:", "References:", or "Domínio". This entire block is the source explanation. Use it ONLY to confirm which option(s) are correct. Do NOT use the order in which options appear in this block — it typically lists the correct answer first regardless of its original position.
+
+STEP 4 — DETERMINE CORRECT ANSWER(S):
+Use the status markers (Step 2) and/or the explanation block (Step 3) to determine which options are correct. If the question says "Select two/three/etc.", mark that many. Otherwise, assume exactly one correct answer.
+
+STEP 5 — WRITE THE REVIEW:
+Now write the review using the OUTPUT FORMAT below. Use the letters you assigned in Step 2. In all sections (Alternatives, Correct answer, Incorrect answers), options must appear in ASCENDING letter order (A, B, C, ...).
 
 OUTPUT FORMAT — follow this EXACTLY:
 
 ${outputFormat}
 
 STRICT CONSTRAINTS:
+- NEVER reorder options. The letter A is ALWAYS the first option that appeared in the input, B is the second, etc.
 - NEVER include code blocks of any language
 - NEVER use emojis
 - NEVER add --- (horizontal rule) anywhere in your response
@@ -95,7 +107,7 @@ const OUTPUT_FORMAT_TRANSLATED = `#### Key concepts related to this question:
 [... continue for C, D, and any additional options, keeping the original order ...]
 
 #### Correct answer and explanation:
-[For EACH correct option (there may be one or more, per the question's instructions), restate its original letter and exact text, then explain. List the correct options in ASCENDING order by their original letter (e.g., A before D), NOT the order from the source explanation block. Use the letter from the original order. Restate the option with its ORIGINAL text only — do NOT add a *Translation:* line for the option here, since the alternatives were already translated above.]
+[For EACH correct option, restate its letter and exact text, then explain. List in ASCENDING letter order (A before D). Do NOT add a *Translation:* line here — alternatives were already translated above.]
 *[Letter]. [Exact alternative text]*
 
 [Explanation in 1-2 short paragraphs (max 5-6 sentences) on why it is correct. Focus on the validated concept, applicable best practice, and technical reasoning.]
@@ -127,7 +139,7 @@ const OUTPUT_FORMAT_SINGLE = `#### Key concepts related to this question:
 [... continue for C, D, and any additional options, keeping the original order ...]
 
 #### Correct answer and explanation:
-[For EACH correct option (there may be one or more, per the question's instructions), restate its original letter and exact text, then explain. List the correct options in ASCENDING order by their original letter (e.g., A before D), NOT the order from the source explanation block. Use the letter from the original order. Restate the option with its ORIGINAL text only — do NOT add a *Translation:* line for the option here, since the alternatives were already translated above.]
+[For EACH correct option, restate its letter and exact text, then explain. List in ASCENDING letter order (A before D). Do NOT add a *Translation:* line here — alternatives were already translated above.]
 *[Letter]. [Exact alternative text]*
 
 [Explanation in 1-2 short paragraphs (max 5-6 sentences) on why it is correct. Focus on the validated concept, applicable best practice, and technical reasoning.]
