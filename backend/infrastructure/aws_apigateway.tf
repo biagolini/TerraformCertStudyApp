@@ -288,6 +288,33 @@ resource "aws_api_gateway_integration" "data_proxy_delete" {
   }
 }
 
+# --- GET /data/{proxy+} (model discovery: GET /data/models) ---
+
+resource "aws_api_gateway_method" "data_proxy_get" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.data_proxy.id
+  http_method   = "GET"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+
+  request_parameters = {
+    "method.request.path.proxy" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "data_proxy_get" {
+  rest_api_id             = aws_api_gateway_rest_api.main.id
+  resource_id             = aws_api_gateway_resource.data_proxy.id
+  http_method             = aws_api_gateway_method.data_proxy_get.http_method
+  type                    = "AWS_PROXY"
+  integration_http_method = "POST"
+  uri                     = aws_lambda_function.data.invoke_arn
+
+  request_parameters = {
+    "integration.request.header.x-user-id" = "context.authorizer.claims.sub"
+  }
+}
+
 # --- OPTIONS /data/{proxy+} (CORS) ---
 
 resource "aws_api_gateway_method" "data_proxy_options" {
@@ -348,6 +375,7 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_integration.data_put.uri,
       aws_api_gateway_integration.data_proxy_put.uri,
       aws_api_gateway_integration.data_proxy_delete.uri,
+      aws_api_gateway_integration.data_proxy_get.uri,
       aws_api_gateway_gateway_response.default_4xx.response_parameters,
       aws_api_gateway_gateway_response.default_5xx.response_parameters,
     ]))
@@ -372,6 +400,8 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.data_proxy_put,
     aws_api_gateway_method.data_proxy_delete,
     aws_api_gateway_integration.data_proxy_delete,
+    aws_api_gateway_method.data_proxy_get,
+    aws_api_gateway_integration.data_proxy_get,
     aws_api_gateway_method.data_proxy_options,
     aws_api_gateway_integration.data_proxy_options,
     aws_api_gateway_gateway_response.default_4xx,

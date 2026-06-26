@@ -83,7 +83,42 @@ STRICT CONSTRAINTS:
 - Use **bold** for important terms and key concepts
 - Keep explanations concise — prioritize clarity over completeness
 - When there is ambiguity between alternatives, explain the elimination reasoning
-- Base explanations on official vendor documentation and production best practices`;
+- Base explanations on official vendor documentation and production best practices
+
+EXAMPLE — generic illustration of structure and ordering ONLY (do NOT reuse this content; the language/translation rules above still apply):
+
+#### Key concepts related to this question:
+- Caching strategies
+- Read-heavy workloads
+
+#### Question Context:
+This question checks whether the candidate selects the most appropriate storage for a small, read-heavy, rarely-changing dataset.
+
+#### Question:
+A team needs to store a small amount of configuration data that is read very often and changes rarely. Which option is the best fit?
+
+#### Alternatives:
+*A. Store it in a relational database with hourly backups*
+
+*B. Store it in an in-memory cache loaded at startup*
+
+*C. Recompute it from logs on every request*
+
+#### Correct answer and explanation:
+*B. Store it in an in-memory cache loaded at startup*
+
+An **in-memory cache** is ideal for small, read-heavy, rarely-changing data because it offers the lowest latency and avoids repeated lookups.
+
+#### Incorrect answers and justifications:
+*A. Store it in a relational database with hourly backups*
+
+- **Why it is incorrect**: A relational database adds unnecessary overhead and latency for such a tiny, rarely-changing dataset.
+
+*C. Recompute it from logs on every request*
+
+- **Why it is incorrect**: Recomputing on every request wastes compute and adds latency with no benefit.
+
+(Notice that the correct answer keeps its original letter **B** and the incorrect ones are listed in ascending order A then C — never reordered.)`;
 }
 
 const OUTPUT_FORMAT_TRANSLATED = `#### Key concepts related to this question:

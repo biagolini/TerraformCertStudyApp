@@ -48,7 +48,7 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
             aria-label="Model for this generation"
           >
             @for (model of availableModels(); track model.id) {
-              <option [value]="model.id">{{ model.displayName }} — {{ model.tier }}</option>
+              <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (reasoning)' : '' }} — {{ model.tier }}</option>
             }
           </select>
         </label>

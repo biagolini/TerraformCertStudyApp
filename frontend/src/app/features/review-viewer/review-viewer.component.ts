@@ -162,7 +162,7 @@ import { MarkdownRendererComponent } from './markdown-renderer.component';
                     aria-label="Model for refinement"
                   >
                     @for (model of availableModels(); track model.id) {
-                      <option [value]="model.id">{{ model.displayName }} — {{ model.tier }}</option>
+                      <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (reasoning)' : '' }} — {{ model.tier }}</option>
                     }
                   </select>
                 </label>

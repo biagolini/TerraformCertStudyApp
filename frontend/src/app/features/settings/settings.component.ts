@@ -37,7 +37,7 @@ import { SettingsService } from '../../core/services/settings.service';
           <header class="section-header">
             <h3>Default model</h3>
             <p class="helper">
-              Amazon Nova model used for Generate Review and Refine. You can override per call. Lighter tiers (fast) respond quicker and cost less.
+              Foundation model used for Generate Review and Refine. You can override per call. Lighter tiers (fast) respond quicker and cost less. Models marked "(reasoning)" think before answering for higher accuracy.
             </p>
           </header>
           <select
@@ -47,7 +47,7 @@ import { SettingsService } from '../../core/services/settings.service';
             aria-label="Default model"
           >
             @for (model of availableModels(); track model.id) {
-              <option [value]="model.id">{{ model.displayName }} — {{ model.tier }}</option>
+              <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (reasoning)' : '' }} — {{ model.tier }}</option>
             }
             @if (!availableHas(defaultModel())) {
               <option [value]="defaultModel()">{{ defaultModel() }} (not in current list)</option>

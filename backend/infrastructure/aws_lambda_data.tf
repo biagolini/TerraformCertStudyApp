@@ -100,6 +100,25 @@ resource "aws_iam_role_policy" "lambda_data_dynamodb" {
   })
 }
 
+# --- Bedrock model discovery (control-plane list APIs) ---
+
+resource "aws_iam_role_policy" "lambda_data_bedrock_list" {
+  name = "${var.project_prefix}-lambda-data-bedrock-list"
+  role = aws_iam_role.lambda_data.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "bedrock:ListFoundationModels",
+        "bedrock:ListInferenceProfiles",
+      ]
+      Resource = "*"
+    }]
+  })
+}
+
 # --- Lambda Permission for API Gateway ---
 
 resource "aws_lambda_permission" "apigw_data" {
