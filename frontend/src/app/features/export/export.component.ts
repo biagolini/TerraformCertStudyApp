@@ -83,7 +83,7 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
 
       @if (selectedBreakdown().length > 0) {
         <div class="card">
-          <h3>By domain</h3>
+          <h3>By domain (selected)</h3>
           <ul class="domain-grid">
             @for (entry of selectedBreakdown(); track entry.domain) {
               <li>
@@ -98,6 +98,39 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
               </li>
             }
           </ul>
+        </div>
+      }
+
+      @if (allDomains().length > 0) {
+        <div class="card">
+          <h3>By domain (all questions)</h3>
+          <p class="helper">Select one or more domains to download all questions from those domains, regardless of selection above.</p>
+          <ul class="domain-check-grid">
+            @for (entry of allDomains(); track entry.domain) {
+              <li class="domain-check-item">
+                <label class="domain-check-label">
+                  <input
+                    type="checkbox"
+                    [checked]="isDomainChecked(entry.domain)"
+                    (change)="toggleDomainCheck(entry.domain)"
+                  />
+                  <span class="domain-check-name">{{ entry.domain }}</span>
+                  <span class="domain-check-total">{{ entry.total }}</span>
+                </label>
+              </li>
+            }
+          </ul>
+          <div class="domain-check-actions">
+            <button
+              type="button"
+              class="action-btn"
+              (click)="downloadCheckedDomains()"
+              [disabled]="checkedDomains().size === 0"
+            >
+              <span class="action-label">Download checked domains</span>
+              <span class="action-sub">{{ checkedDomainsHelper() }}</span>
+            </button>
+          </div>
         </div>
       }
     </section>
@@ -248,6 +281,42 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
         font-size: var(--font-size-sm);
         color: var(--text-muted);
       }
+      .domain-check-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: var(--space-xs);
+      }
+      .domain-check-label {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        padding: var(--space-sm) var(--space-md);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--bg-border);
+        background: var(--bg-elevated);
+        cursor: pointer;
+        transition: border-color var(--transition-fast);
+      }
+      .domain-check-label:hover {
+        border-color: var(--color-purple);
+      }
+      .domain-check-name {
+        flex: 1;
+        font-size: var(--font-size-sm);
+        font-weight: 500;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .domain-check-total {
+        font-size: var(--font-size-sm);
+        color: var(--text-muted);
+        font-weight: 600;
+      }
+      .domain-check-actions {
+        margin-top: var(--space-xs);
+      }
     `,
   ],
 })
@@ -263,6 +332,47 @@ export class ExportComponent {
   readonly breakdown = this.questionsService.domainBreakdown;
 
   readonly selectedBreakdown = computed(() => this.breakdown());
+
+  /** All domains from ALL questions in the active pack (not just selected). */
+  readonly allDomains = computed(() => {
+    const counts = new Map<string, number>();
+    for (const q of this.questionsService.questions()) {
+      counts.set(q.domain, (counts.get(q.domain) ?? 0) + 1);
+    }
+    return [...counts.entries()].map(([domain, total]) => ({ domain, total }));
+  });
+
+  readonly checkedDomains = signal<ReadonlySet<string>>(new Set());
+
+  isDomainChecked(domain: string): boolean {
+    return this.checkedDomains().has(domain);
+  }
+
+  toggleDomainCheck(domain: string): void {
+    const next = new Set(this.checkedDomains());
+    if (next.has(domain)) next.delete(domain);
+    else next.add(domain);
+    this.checkedDomains.set(next);
+  }
+
+  checkedDomainsHelper(): string {
+    const domains = this.checkedDomains();
+    if (domains.size === 0) return 'Check at least one domain';
+    const questions = this.questionsService.questions().filter((q) => domains.has(q.domain));
+    return `${questions.length} question${questions.length === 1 ? '' : 's'} across ${domains.size} domain${domains.size === 1 ? '' : 's'}`;
+  }
+
+  downloadCheckedDomains(): void {
+    const domains = this.checkedDomains();
+    if (domains.size === 0) return;
+    const questions = this.questionsService.questions().filter((q) => domains.has(q.domain));
+    if (questions.length === 0) return;
+    const pack = this.packs.activePack();
+    const content = this.exportService.buildMarkdownContent(questions, 1, 1, pack);
+    const suffix = domains.size === 1 ? slugify([...domains][0]) : `${domains.size}-domains`;
+    const filename = this.exportService.buildFilename(pack.name, suffix, pack.version);
+    this.exportService.downloadFile(content, filename);
+  }
 
   readonly helperLine = computed(() => {
     const total = this.selectedCount();
