@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import JSZip from 'jszip';
 import { Pack, PackDomain } from '../models/pack.model';
 import { Question } from '../models/question.model';
 import { buildBatches, slugify, todayIsoDate } from '../utils/file-splitter.util';
@@ -7,6 +8,20 @@ import { buildBatches, slugify, todayIsoDate } from '../utils/file-splitter.util
 export class ExportService {
   downloadFile(content: string, filename: string): void {
     const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    this.triggerDownload(blob, filename);
+  }
+
+  /** Bundle multiple markdown files into a ZIP and trigger download. */
+  async downloadZip(files: { content: string; filename: string }[], zipName: string): Promise<void> {
+    const zip = new JSZip();
+    for (const file of files) {
+      zip.file(file.filename, file.content);
+    }
+    const blob = await zip.generateAsync({ type: 'blob' });
+    this.triggerDownload(blob, zipName);
+  }
+
+  private triggerDownload(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;

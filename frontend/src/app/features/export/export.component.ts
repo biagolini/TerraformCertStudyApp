@@ -45,18 +45,27 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
 
       <div class="card">
         <h3>Batch settings</h3>
-        <label class="field">
-          <span class="label">Max questions per file</span>
+        <label class="split-toggle">
           <input
-            type="number"
-            min="1"
-            max="500"
-            [(ngModel)]="maxPerFile"
-            class="number-input"
-            aria-label="Max questions per file"
+            type="checkbox"
+            [(ngModel)]="splitEnabled"
           />
+          <span>Split into multiple files</span>
         </label>
-        <p class="helper">{{ helperLine() }}</p>
+        @if (splitEnabled) {
+          <label class="field">
+            <span class="label">Max questions per file</span>
+            <input
+              type="number"
+              min="1"
+              max="500"
+              [(ngModel)]="maxPerFile"
+              class="number-input"
+              aria-label="Max questions per file"
+            />
+          </label>
+          <p class="helper">{{ helperLine() }}</p>
+        }
       </div>
 
       <div class="card actions-card">
@@ -67,7 +76,7 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
           [disabled]="selectedCount() === 0"
         >
           <span class="action-label">Download selected</span>
-          <span class="action-sub">Respects max-per-file, balanced batches</span>
+          <span class="action-sub">{{ splitEnabled ? 'Split into balanced batches of ~' + maxPerFile : 'Single file with all selected questions' }}</span>
         </button>
 
         <button
@@ -77,7 +86,7 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
           [disabled]="totalCount() === 0"
         >
           <span class="action-label">Download all</span>
-          <span class="action-sub">Every reviewed question in a single file</span>
+          <span class="action-sub">{{ splitEnabled ? 'Split into balanced batches of ~' + maxPerFile : 'Every reviewed question in a single file' }}</span>
         </button>
       </div>
 
@@ -216,6 +225,19 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
         color: var(--text-primary);
         font-size: var(--font-size-base);
       }
+      .split-toggle {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        cursor: pointer;
+        font-size: var(--font-size-base);
+        color: var(--text-primary);
+      }
+      .split-toggle input {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+      }
       .helper {
         color: var(--text-muted);
         font-size: var(--font-size-sm);
@@ -325,6 +347,7 @@ export class ExportComponent {
   private readonly questionsService = inject(QuestionsService);
   private readonly packs = inject(PacksService);
 
+  protected splitEnabled = false;
   protected maxPerFile = 10;
 
   readonly selectedCount = this.questionsService.selectedCount;
@@ -367,11 +390,15 @@ export class ExportComponent {
     if (domains.size === 0) return;
     const questions = this.questionsService.questions().filter((q) => domains.has(q.domain));
     if (questions.length === 0) return;
-    const pack = this.packs.activePack();
-    const content = this.exportService.buildMarkdownContent(questions, 1, 1, pack);
-    const suffix = domains.size === 1 ? slugify([...domains][0]) : `${domains.size}-domains`;
-    const filename = this.exportService.buildFilename(pack.name, suffix, pack.version);
-    this.exportService.downloadFile(content, filename);
+    if (this.splitEnabled && this.maxPerFile > 0) {
+      this.emitBatches(questions, this.maxPerFile);
+    } else {
+      const pack = this.packs.activePack();
+      const content = this.exportService.buildMarkdownContent(questions, 1, 1, pack);
+      const suffix = domains.size === 1 ? slugify([...domains][0]) : `${domains.size}-domains`;
+      const filename = this.exportService.buildFilename(pack.name, suffix, pack.version);
+      this.exportService.downloadFile(content, filename);
+    }
   }
 
   readonly helperLine = computed(() => {
@@ -386,38 +413,65 @@ export class ExportComponent {
   downloadSelected(): void {
     const questions = this.questionsService.selectedQuestions();
     if (questions.length === 0) return;
-    this.emitBatches(questions, this.maxPerFile);
+    if (this.splitEnabled && this.maxPerFile > 0) {
+      this.emitBatches(questions, this.maxPerFile);
+    } else {
+      const pack = this.packs.activePack();
+      const content = this.exportService.buildMarkdownContent(questions, 1, 1, pack);
+      const filename = this.exportService.buildFilename(pack.name, 'selected', pack.version);
+      this.exportService.downloadFile(content, filename);
+    }
   }
 
   downloadAll(): void {
     const questions = this.questionsService.questions();
     if (questions.length === 0) return;
-    const pack = this.packs.activePack();
-    const content = this.exportService.buildMarkdownContent(questions, 1, 1, pack);
-    const filename = this.exportService.buildFilename(pack.name, 'all', pack.version);
-    this.exportService.downloadFile(content, filename);
+    if (this.splitEnabled && this.maxPerFile > 0) {
+      this.emitBatches(questions, this.maxPerFile);
+    } else {
+      const pack = this.packs.activePack();
+      const content = this.exportService.buildMarkdownContent(questions, 1, 1, pack);
+      const filename = this.exportService.buildFilename(pack.name, 'all', pack.version);
+      this.exportService.downloadFile(content, filename);
+    }
   }
 
   downloadDomain(domain: string): void {
     const questions = this.questionsService.selectedQuestions().filter((q) => q.domain === domain);
     if (questions.length === 0) return;
-    const pack = this.packs.activePack();
-    const content = this.exportService.buildMarkdownContent(questions, 1, 1, pack);
-    const packDomain = pack.domains.find((d) => d.name === domain) ?? { name: domain, description: '' };
-    const filename = this.exportService.buildDomainFilename(packDomain, pack.version);
-    this.exportService.downloadFile(content, filename);
+    if (this.splitEnabled && this.maxPerFile > 0) {
+      this.emitBatches(questions, this.maxPerFile);
+    } else {
+      const pack = this.packs.activePack();
+      const content = this.exportService.buildMarkdownContent(questions, 1, 1, pack);
+      const packDomain = pack.domains.find((d) => d.name === domain) ?? { name: domain, description: '' };
+      const filename = this.exportService.buildDomainFilename(packDomain, pack.version);
+      this.exportService.downloadFile(content, filename);
+    }
   }
 
   private emitBatches(questions: Question[], maxPerFile: number): void {
     const batches = this.exportService.buildBatches(questions, Math.max(1, maxPerFile));
     const pack = this.packs.activePack();
     const total = batches.length;
-    batches.forEach((batch, index) => {
+
+    if (total <= 1) {
+      // Single file — download directly, no ZIP needed.
+      const content = this.exportService.buildMarkdownContent(batches[0], 1, 1, pack);
+      const filename = this.exportService.buildFilename(pack.name, 'selected', pack.version);
+      this.exportService.downloadFile(content, filename);
+      return;
+    }
+
+    // Multiple files — bundle into a ZIP.
+    const files = batches.map((batch, index) => {
       const part = index + 1;
       const content = this.exportService.buildMarkdownContent(batch, part, total, pack);
-      const suffix = total > 1 ? `part-${part}-of-${total}` : 'selected';
+      const suffix = `part-${part}-of-${total}`;
       const filename = this.exportService.buildFilename(pack.name, suffix, pack.version);
-      this.exportService.downloadFile(content, filename);
+      return { content, filename };
     });
+    const zipName = this.exportService.buildFilename(pack.name, `${total}-parts`, pack.version).replace(/\.md$/, '.zip');
+    void this.exportService.downloadZip(files, zipName);
   }
 }
