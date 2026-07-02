@@ -33,8 +33,8 @@ function hash(value: string): number {
       .badge {
         display: inline-flex;
         align-items: center;
-        padding: 2px var(--space-sm);
-        border-radius: var(--radius-pill);
+        padding: 3px var(--space-md);
+        border-radius: var(--radius-lg);
         font-size: var(--font-size-xs);
         font-weight: 600;
         text-transform: uppercase;

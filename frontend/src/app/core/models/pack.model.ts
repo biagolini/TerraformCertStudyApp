@@ -13,6 +13,12 @@ export interface Pack {
   color: string;
   createdAt: number;
   updatedAt: number;
+  /** Markdown intro block inserted at the top of exported question review files. */
+  exportIntroQuestions?: string;
+  /** Markdown intro block inserted at the top of exported transcript summary files. */
+  exportIntroTranscripts?: string;
+  /** Markdown intro block inserted at the top of exported chat conversation files. */
+  exportIntroChat?: string;
 }
 
 export interface PackColorOption {

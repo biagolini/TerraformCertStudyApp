@@ -104,6 +104,7 @@ type Tab = 'create' | 'methods' | 'export';
                       [question]="activeQuestion()"
                       [showBackButton]="isMobile()"
                       (back)="onCloseViewer()"
+                      (newQuestion)="onNewQuestion()"
                       (deleted)="onQuestionDeleted($event)"
                     />
                   </section>
@@ -309,6 +310,13 @@ export class AppComponent {
   }
 
   setTab(tab: Tab): void {
+    if (tab === 'create' && this.isMobile()) {
+      // On mobile, tapping "Create" in the bottom bar returns to the input form
+      // for a new item, closing any open viewer. This avoids having to scroll up
+      // and use the back arrow to start a new question/transcript.
+      this.activeQuestionId.set(null);
+      this.activeScriptId.set(null);
+    }
     this.activeTab.set(tab);
   }
 
@@ -332,6 +340,15 @@ export class AppComponent {
 
   onCloseViewer(): void {
     this.activeQuestionId.set(null);
+  }
+
+  onNewQuestion(): void {
+    // Close the current viewer so the input form is shown (mobile) / focused
+    // (desktop), and scroll back to the top where the form lives.
+    this.activeQuestionId.set(null);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   }
 
   onQuestionDeleted(id: string): void {

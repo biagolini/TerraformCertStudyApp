@@ -192,6 +192,15 @@ import { MarkdownRendererComponent } from './markdown-renderer.component';
                 message="Refined output is still AI-generated. Re-read the changes carefully before saving them as truth."
               />
             </section>
+
+            <div class="new-question-row">
+              <button type="button" class="new-question-btn" (click)="newQuestion.emit()">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                  <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
+                </svg>
+                <span>New question</span>
+              </button>
+            </div>
           }
         </div>
       } @else {
@@ -391,6 +400,7 @@ import { MarkdownRendererComponent } from './markdown-renderer.component';
         display: flex;
         align-items: center;
         gap: var(--space-sm);
+        min-width: 0;
       }
       .model-label {
         font-size: var(--font-size-sm);
@@ -398,6 +408,8 @@ import { MarkdownRendererComponent } from './markdown-renderer.component';
       }
       .model-select {
         flex: 1;
+        min-width: 0;
+        max-width: 100%;
         min-height: 36px;
         padding: 0 var(--space-sm);
         border-radius: var(--radius-md);
@@ -504,6 +516,28 @@ import { MarkdownRendererComponent } from './markdown-renderer.component';
       .empty-body {
         font-size: var(--font-size-sm);
       }
+      .new-question-row {
+        display: flex;
+        justify-content: center;
+        padding: var(--space-md) 0 var(--space-lg);
+      }
+      .new-question-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-xs);
+        padding: var(--space-xs) var(--space-md);
+        background: none;
+        border: 1px solid var(--bg-border);
+        border-radius: var(--radius-pill);
+        color: var(--text-muted);
+        font-size: var(--font-size-sm);
+        cursor: pointer;
+        transition: border-color var(--transition-fast), color var(--transition-fast);
+      }
+      .new-question-btn:hover {
+        border-color: var(--color-purple);
+        color: var(--text-primary);
+      }
     `,
   ],
 })
@@ -522,6 +556,7 @@ export class ReviewViewerComponent {
   readonly current = computed(() => this.question());
   readonly back = output<void>();
   readonly deleted = output<string>();
+  readonly newQuestion = output<void>();
 
   protected readonly editing = signal(false);
   protected readonly refining = signal(false);

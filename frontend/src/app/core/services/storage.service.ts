@@ -259,6 +259,9 @@ export class StorageService {
           color: typeof p.color === 'string' && p.color ? p.color : DEFAULT_PACK_COLOR,
           createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
           updatedAt: typeof p.updatedAt === 'number' ? p.updatedAt : Date.now(),
+          exportIntroQuestions: typeof (p as any).exportIntroQuestions === 'string' ? (p as any).exportIntroQuestions : undefined,
+          exportIntroTranscripts: typeof (p as any).exportIntroTranscripts === 'string' ? (p as any).exportIntroTranscripts : undefined,
+          exportIntroChat: typeof (p as any).exportIntroChat === 'string' ? (p as any).exportIntroChat : undefined,
         }));
     } catch { return []; }
   }

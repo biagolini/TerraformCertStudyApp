@@ -345,6 +345,44 @@ import { QuestionsService } from '../../core/services/questions.service';
               </ul>
             }
           </div>
+
+          <div class="field">
+            <span class="field-label">Export intro blocks</span>
+            <span class="field-hint">Markdown inserted at the top of exported files. Provides context for NotebookLM or other readers.</span>
+          </div>
+
+          <label class="field">
+            <span class="field-label">Questions export intro</span>
+            <textarea
+              class="text-input textarea intro-textarea"
+              [(ngModel)]="exportIntroQuestionsDraft"
+              rows="6"
+              placeholder="## Sobre este documento&#10;&#10;Este documento contém questões de simulado..."
+              aria-label="Questions export intro"
+            ></textarea>
+          </label>
+
+          <label class="field">
+            <span class="field-label">Transcripts export intro</span>
+            <textarea
+              class="text-input textarea intro-textarea"
+              [(ngModel)]="exportIntroTranscriptsDraft"
+              rows="6"
+              placeholder="## Sobre este documento&#10;&#10;Este documento contém resumos técnicos..."
+              aria-label="Transcripts export intro"
+            ></textarea>
+          </label>
+
+          <label class="field">
+            <span class="field-label">Chat export intro</span>
+            <textarea
+              class="text-input textarea intro-textarea"
+              [(ngModel)]="exportIntroChatDraft"
+              rows="6"
+              placeholder="## Sobre este documento&#10;&#10;Este documento contém conversas de estudo..."
+              aria-label="Chat export intro"
+            ></textarea>
+          </label>
         </div>
 
         <footer class="card-footer">
@@ -467,6 +505,11 @@ import { QuestionsService } from '../../core/services/questions.service';
       .text-input:focus-visible {
         outline: none;
         border-color: var(--color-purple);
+      }
+      .intro-textarea {
+        min-height: 120px;
+        font-family: var(--font-mono);
+        font-size: var(--font-size-sm);
       }
       .color-grid {
         display: grid;
@@ -863,6 +906,9 @@ export class PackEditorComponent {
   protected nameDraft = '';
   protected descriptionDraft = '';
   protected versionDraft = '';
+  protected exportIntroQuestionsDraft = '';
+  protected exportIntroTranscriptsDraft = '';
+  protected exportIntroChatDraft = '';
   protected domainDraft = '';
   protected domainDescDraft = '';
   protected domainOrderDraft: number | null = null;
@@ -899,6 +945,9 @@ export class PackEditorComponent {
       this.nameDraft = p?.name ?? '';
       this.descriptionDraft = p?.description ?? '';
       this.versionDraft = p?.version ?? '';
+      this.exportIntroQuestionsDraft = p?.exportIntroQuestions ?? '';
+      this.exportIntroTranscriptsDraft = p?.exportIntroTranscripts ?? '';
+      this.exportIntroChatDraft = p?.exportIntroChat ?? '';
       this.colorDraft.set(p?.color ?? DEFAULT_PACK_COLOR);
       this.domainsDraft.set(p ? [...p.domains] : []);
       this.domainDraft = '';
@@ -981,6 +1030,9 @@ export class PackEditorComponent {
         color: string;
         description: string;
         domains: unknown[];
+        exportIntroQuestions: string;
+        exportIntroTranscripts: string;
+        exportIntroChat: string;
       }>;
       const applied: string[] = [];
 
@@ -1018,6 +1070,19 @@ export class PackEditorComponent {
           .slice(0, MAX_PACK_DOMAINS);
         this.domainsDraft.set(domains);
         applied.push(`${domains.length} domain${domains.length === 1 ? '' : 's'}`);
+      }
+
+      if (typeof parsed.exportIntroQuestions === 'string') {
+        this.exportIntroQuestionsDraft = parsed.exportIntroQuestions.trim();
+        applied.push('exportIntroQuestions');
+      }
+      if (typeof parsed.exportIntroTranscripts === 'string') {
+        this.exportIntroTranscriptsDraft = parsed.exportIntroTranscripts.trim();
+        applied.push('exportIntroTranscripts');
+      }
+      if (typeof parsed.exportIntroChat === 'string') {
+        this.exportIntroChatDraft = parsed.exportIntroChat.trim();
+        applied.push('exportIntroChat');
       }
 
       if (applied.length > 0) {
@@ -1125,6 +1190,9 @@ export class PackEditorComponent {
       version: this.versionDraft.trim(),
       domains: this.domainsDraft(),
       color: this.colorDraft(),
+      exportIntroQuestions: this.exportIntroQuestionsDraft.trim() || undefined,
+      exportIntroTranscripts: this.exportIntroTranscriptsDraft.trim() || undefined,
+      exportIntroChat: this.exportIntroChatDraft.trim() || undefined,
     };
     if (!draft.name) return;
     const existing = this.pack();

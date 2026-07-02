@@ -16,6 +16,9 @@ export interface PackDraft {
   version: string;
   domains: PackDomain[];
   color: string;
+  exportIntroQuestions?: string;
+  exportIntroTranscripts?: string;
+  exportIntroChat?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -74,6 +77,9 @@ export class PacksService {
       color: isAcceptablePackColor(draft.color) ? draft.color : DEFAULT_PACK_COLOR,
       createdAt: now,
       updatedAt: now,
+      exportIntroQuestions: draft.exportIntroQuestions?.trim() || undefined,
+      exportIntroTranscripts: draft.exportIntroTranscripts?.trim() || undefined,
+      exportIntroChat: draft.exportIntroChat?.trim() || undefined,
     };
     const next = [...this.state(), pack];
     this.persist(next);
@@ -91,6 +97,9 @@ export class PacksService {
             version: draft.version.trim(),
             domains: this.normalizeDomains(draft.domains),
             color: isAcceptablePackColor(draft.color) ? draft.color : p.color,
+            exportIntroQuestions: draft.exportIntroQuestions?.trim() || undefined,
+            exportIntroTranscripts: draft.exportIntroTranscripts?.trim() || undefined,
+            exportIntroChat: draft.exportIntroChat?.trim() || undefined,
             updatedAt: Date.now(),
           }
         : p,

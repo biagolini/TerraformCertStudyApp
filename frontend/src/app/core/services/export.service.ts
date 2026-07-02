@@ -31,8 +31,8 @@ export class ExportService {
     const partLine = totalParts > 1 ? ` — Part ${partNum} of ${totalParts}` : '';
     let md = `# ${title}${partLine}`;
 
-    if (pack.description) {
-      md += `\n\n${pack.description}`;
+    if (pack.exportIntroQuestions?.trim()) {
+      md += `\n\n${pack.exportIntroQuestions.trim()}`;
     }
 
     const domainMap = this.groupByDomain(batch);
