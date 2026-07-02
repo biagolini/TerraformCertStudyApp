@@ -990,18 +990,18 @@ export class PackEditorComponent {
   }
 
   readonly templates = [
-    { file: 'aws-clf-c02-pack.json', label: 'AWS Cloud Practitioner (CLF-C02)' },
+    { file: 'aws-ans-c01-pack.json', label: 'AWS Advanced Networking Specialty (ANS-C01)' },
     { file: 'aws-aif-c01-pack.json', label: 'AWS AI Practitioner (AIF-C01)' },
-    { file: 'aws-saa-c03-pack.json', label: 'AWS Solutions Architect Associate (SAA-C03)' },
-    { file: 'aws-dva-c02-pack.json', label: 'AWS Developer Associate (DVA-C02)' },
+    { file: 'aws-clf-c02-pack.json', label: 'AWS Cloud Practitioner (CLF-C02)' },
     { file: 'aws-soa-c03-pack.json', label: 'AWS CloudOps Engineer Associate (SOA-C03)' },
     { file: 'aws-dea-c01-pack.json', label: 'AWS Data Engineer Associate (DEA-C01)' },
-    { file: 'aws-mla-c01-pack.json', label: 'AWS ML Engineer Associate (MLA-C01)' },
-    { file: 'aws-sap-c02-pack.json', label: 'AWS Solutions Architect Professional (SAP-C02)' },
+    { file: 'aws-dva-c02-pack.json', label: 'AWS Developer Associate (DVA-C02)' },
     { file: 'aws-dop-c02-pack.json', label: 'AWS DevOps Engineer Professional (DOP-C02)' },
     { file: 'aws-aip-c01-pack.json', label: 'AWS GenAI Developer Professional (AIP-C01)' },
+    { file: 'aws-mla-c01-pack.json', label: 'AWS ML Engineer Associate (MLA-C01)' },
     { file: 'aws-scs-c03-pack.json', label: 'AWS Security Specialty (SCS-C03)' },
-    { file: 'aws-ans-c01-pack.json', label: 'AWS Advanced Networking Specialty (ANS-C01)' },
+    { file: 'aws-saa-c03-pack.json', label: 'AWS Solutions Architect Associate (SAA-C03)' },
+    { file: 'aws-sap-c02-pack.json', label: 'AWS Solutions Architect Professional (SAP-C02)' },
     { file: 'ccaf-pack.json', label: 'Claude Certified Architect Foundations (CCAF)' },
   ];
 
