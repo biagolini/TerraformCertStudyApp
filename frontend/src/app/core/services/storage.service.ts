@@ -172,6 +172,32 @@ export class StorageService {
     }
   }
 
+  /** Delete a single pack from DynamoDB. Returns true on success. */
+  async deletePack(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.apiUrl}/data/packs/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${this.token}` },
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Delete a single script from DynamoDB. Returns true on success. */
+  async deleteScript(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.apiUrl}/data/scripts/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${this.token}` },
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   /** Update a single question in DynamoDB. Returns true on success. */
   async updateQuestion(question: Question): Promise<boolean> {
     try {

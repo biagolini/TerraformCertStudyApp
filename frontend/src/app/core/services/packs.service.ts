@@ -108,6 +108,9 @@ export class PacksService {
   }
 
   remove(id: string): void {
+    // Delete from backend immediately
+    void this.storage.deletePack(id);
+
     const remaining = this.state().filter((p) => p.id !== id);
     if (remaining.length === 0) {
       const replacement = this.makeSeedPack();

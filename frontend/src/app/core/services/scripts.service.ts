@@ -43,6 +43,7 @@ export class ScriptsService {
   }
 
   remove(id: string): void {
+    void this.storage.deleteScript(id);
     this.persist(this.state().filter((s) => s.id !== id));
   }
 

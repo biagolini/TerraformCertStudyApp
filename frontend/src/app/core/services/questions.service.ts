@@ -115,6 +115,10 @@ export class QuestionsService {
   }
 
   removeByPackId(packId: string): void {
+    const toDelete = this.state().filter((q) => q.packId === packId);
+    for (const q of toDelete) {
+      void this.storage.deleteQuestion(q.id);
+    }
     const next = this.state().filter((q) => q.packId !== packId);
     this.persist(next);
     this.selectedIdsState.set(new Set());
