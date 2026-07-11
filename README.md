@@ -45,9 +45,10 @@ graph LR
 │   │   ├── core/services/    # bedrock.service, auth.service, etc.
 │   │   └── features/         # login, question-input, review-viewer, etc.
 │   └── public/examples/      # Pack JSONs served by the app
-├── docs/                     # Documentation + pack examples
-│   ├── README.md             # Architecture diagrams (Mermaid)
-│   └── examples/             # One JSON per certification
+├── docs/                     # Documentation
+│   ├── architecture.md       # System architecture + diagrams
+│   ├── backend.md            # Backend (Terraform, Lambdas, API, DynamoDB)
+│   └── frontend.md           # Frontend (Angular, services, prompts, export)
 └── README.md                 # This file
 ```
 
@@ -91,7 +92,7 @@ Models that support reasoning are marked with **(reasoning)** in the model selec
 
 ## Pack Examples
 
-Pre-built study packs for all current AWS certifications are in [`docs/examples/`](docs/examples/). Import them in the app via Pack Editor → Import file.
+Pre-built study packs for all current AWS certifications are in [`frontend/public/examples/`](frontend/public/examples/). Import them in the app via Pack Editor → Import file or Templates.
 
 ## Tech Stack
 
