@@ -401,14 +401,14 @@ export class ExportComponent {
     }
   }
 
-  readonly helperLine = computed(() => {
+  helperLine(): string {
     const total = this.selectedCount();
     const max = this.maxPerFile;
     if (total === 0 || max <= 0) return 'Select questions to enable export.';
     const files = Math.max(1, Math.ceil(total / max));
     const avg = Math.round(total / files);
     return `${total} questions → ${files} file${files === 1 ? '' : 's'} of ~${avg} each`;
-  });
+  }
 
   downloadSelected(): void {
     const questions = this.questionsService.selectedQuestions();
