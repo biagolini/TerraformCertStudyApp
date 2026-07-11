@@ -2,6 +2,10 @@
 # CloudFront — Distribution with OAC for S3 Frontend
 # ============================================================================
 
+data "aws_cloudfront_cache_policy" "caching_disabled" {
+  name = "Managed-CachingDisabled"
+}
+
 resource "aws_cloudfront_origin_access_control" "frontend" {
   name                              = "${var.project_prefix}-frontend-oac"
   origin_access_control_origin_type = "s3"
@@ -25,8 +29,8 @@ resource "aws_cloudfront_distribution" "frontend" {
     viewer_protocol_policy = "redirect-to-https"
     allowed_methods        = ["GET", "HEAD", "OPTIONS"]
     cached_methods         = ["GET", "HEAD"]
-    cache_policy_id        = "658327ea-f89d-4fab-a63d-7e88639e58f6" # CachingOptimized
-    compress               = true
+    cache_policy_id        = data.aws_cloudfront_cache_policy.caching_disabled.id
+    compress               = false
   }
 
   # SPA routing — serve index.html for 403/404
