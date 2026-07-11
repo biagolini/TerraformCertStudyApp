@@ -978,7 +978,7 @@ export class PackEditorComponent {
 
   async loadTemplate(file: string): Promise<void> {
     try {
-      const res = await fetch(`examples/${file}`);
+      const res = await fetch(`examples/${file}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to load');
       const raw = await res.text();
       this.applyJsonText(raw);
