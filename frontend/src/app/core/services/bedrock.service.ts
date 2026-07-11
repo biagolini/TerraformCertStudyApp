@@ -3,6 +3,7 @@ import { environment } from '../../../environments/environment';
 import { DEFAULT_MODEL } from '../models/settings.model';
 import { PackContext, buildSystemPrompt } from '../utils/review-prompt.util';
 import { buildTranscriptScriptPrompt } from '../utils/transcript-prompt.util';
+import { buildChatSystemPrompt, buildChatSummaryPrompt } from '../utils/chat-prompt.util';
 import { AuthService } from './auth.service';
 
 interface BedrockMessage {
@@ -82,6 +83,48 @@ ${currentReview}
 ${trimmedFeedback}
 
 Return the FULL refined review. Apply only the changes needed to address the feedback; preserve everything else.`;
+
+    yield* this.streamConverse(
+      system,
+      [{ role: 'user', content: [{ text: userMessage }] }],
+      model,
+      signal,
+    );
+  }
+
+  async *streamChat(
+    history: { role: 'user' | 'assistant'; content: string }[],
+    pack: PackContext,
+    model: string | undefined,
+    signal: AbortSignal,
+    outputLanguage?: string,
+  ): AsyncGenerator<string, void, void> {
+    if (history.length === 0) throw new Error('Conversation history cannot be empty.');
+    const system = buildChatSystemPrompt(pack, outputLanguage);
+    const messages: BedrockMessage[] = history.map((m) => ({
+      role: m.role,
+      content: [{ text: m.content }],
+    }));
+    yield* this.streamConverse(system, messages, model, signal);
+  }
+
+  async *streamChatSummary(
+    history: { role: 'user' | 'assistant'; content: string }[],
+    existingSummary: string,
+    pack: PackContext,
+    model: string | undefined,
+    signal: AbortSignal,
+    outputLanguage?: string,
+  ): AsyncGenerator<string, void, void> {
+    if (history.length === 0) throw new Error('No conversation to summarize.');
+    const system = buildChatSummaryPrompt(pack, outputLanguage);
+    const transcript = history
+      .map((m) => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.content}`)
+      .join('\n\n');
+    const previousSummaryBlock = existingSummary.trim()
+      ? `\n\n=== EXISTING SUMMARY (update this with new content from the conversation below) ===\n${existingSummary.trim()}`
+      : '';
+    const userMessage = `Below is the full tutoring conversation. Produce the summary following your system instructions.${previousSummaryBlock}\n\n=== CONVERSATION ===\n${transcript}`;
 
     yield* this.streamConverse(
       system,

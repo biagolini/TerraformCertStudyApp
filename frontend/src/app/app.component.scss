@@ -129,30 +129,6 @@
   grid-column: 1 / -1;
 }
 
-.chat-placeholder {
-  display: block;
-}
-
-.placeholder-card {
-  background: var(--bg-surface);
-  border-radius: var(--radius-lg);
-  padding: var(--space-xl);
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.placeholder-card h2 {
-  font-size: var(--font-size-xl);
-  color: var(--text-primary);
-}
-
-.placeholder-card p {
-  color: var(--text-muted);
-  font-size: var(--font-size-base);
-  line-height: 1.5;
-}
 
 .stack {
   display: flex;

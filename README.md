@@ -8,6 +8,7 @@ AI-powered study app for IT certification exams (AWS, Anthropic CCAF, and others
 
 - **Question Reviews** — paste a multiple-choice question, get a structured Markdown review (concepts, correct answer reasoning, incorrect alternatives analysis)
 - **Transcript Summaries** — paste lesson transcripts, get a layered technical summary
+- **Open Chat** — free-form tutor conversation focused on the active certification, with persisted sessions and regenerable NotebookLM-style summary
 - **Streaming** — responses arrive token-by-token via NDJSON
 - **Pack System** — organize study by certification exam (domains, colors, version tracking)
 - **Export** — download Markdown files grouped by domain

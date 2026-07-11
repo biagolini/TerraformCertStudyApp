@@ -26,8 +26,8 @@ export const STUDY_METHODS: StudyMethodEntry[] = [
     id: 'chat',
     name: 'Open chat',
     description:
-      'Free-form conversation with the model. Persist sessions, fork on edit, and generate a summary from the conversation at any point.',
-    status: 'preview',
+      'Free-form tutor conversation focused on your active certification. Persist multiple sessions and generate or update a NotebookLM-style summary at any point.',
+    status: 'ready',
   },
 ];
 

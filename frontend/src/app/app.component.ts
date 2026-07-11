@@ -3,9 +3,11 @@ import { StudyMethod } from './core/models/method.model';
 import { packDisplayLabel } from './core/models/pack.model';
 import { Question } from './core/models/question.model';
 import { Script } from './core/models/script.model';
+import { ChatSession } from './core/models/chat.model';
 import { PacksService } from './core/services/packs.service';
 import { QuestionsService } from './core/services/questions.service';
 import { ScriptsService } from './core/services/scripts.service';
+import { ChatService } from './core/services/chat.service';
 import { SettingsService } from './core/services/settings.service';
 import { AuthService } from './core/services/auth.service';
 import { ThemeService } from './core/services/theme.service';
@@ -19,6 +21,8 @@ import { SettingsComponent } from './features/settings/settings.component';
 import { ScriptListComponent } from './features/transcripts/script-list.component';
 import { ScriptViewerComponent } from './features/transcripts/script-viewer.component';
 import { TranscriptInputComponent } from './features/transcripts/transcript-input.component';
+import { ChatListComponent } from './features/chat/chat-list.component';
+import { ChatConversationComponent } from './features/chat/chat-conversation.component';
 import { ThemeToggleComponent } from './shared/components/theme-toggle.component';
 
 type Tab = 'create' | 'methods' | 'export';
@@ -39,6 +43,8 @@ type Tab = 'create' | 'methods' | 'export';
     TranscriptInputComponent,
     ScriptListComponent,
     ScriptViewerComponent,
+    ChatListComponent,
+    ChatConversationComponent,
   ],
   styleUrl: './app.component.scss',
   template: `
@@ -135,14 +141,21 @@ type Tab = 'create' | 'methods' | 'export';
                 }
               }
               @case ('chat') {
-                <section class="column column-left chat-placeholder">
-                  <div class="placeholder-card">
-                    <h2>Open chat — coming next</h2>
-                    <p>
-                      The Methods tab already lists this option. The full chat flow (persisted sessions, edit/fork, generate summary) will be wired in the next iteration.
-                    </p>
-                  </div>
-                </section>
+                @if (showLeftColumnC()) {
+                  <section class="column column-left">
+                    <app-chat-list [activeId]="activeChatId()" (opened)="onOpenChat($event)" />
+                  </section>
+                }
+                @if (showChatConversation()) {
+                  <section class="column column-right">
+                    <app-chat-conversation
+                      [session]="activeChat()"
+                      [showBackButton]="isMobile()"
+                      (back)="onCloseChat()"
+                      (deleted)="onChatDeleted($event)"
+                    />
+                  </section>
+                }
               }
             }
           }
@@ -203,6 +216,7 @@ export class AppComponent {
   private readonly packs = inject(PacksService);
   private readonly questionsService = inject(QuestionsService);
   private readonly scriptsService = inject(ScriptsService);
+  private readonly chatService = inject(ChatService);
   private readonly settings = inject(SettingsService);
   private readonly auth = inject(AuthService);
   protected readonly themeService = inject(ThemeService);
@@ -210,6 +224,7 @@ export class AppComponent {
   protected readonly activeTab = signal<Tab>('create');
   protected readonly activeQuestionId = signal<string | null>(null);
   protected readonly activeScriptId = signal<string | null>(null);
+  protected readonly activeChatId = signal<string | null>(null);
   protected readonly settingsOpen = signal(false);
   protected readonly packsOpen = signal(false);
   private readonly viewportWidth = signal<number>(
@@ -235,6 +250,12 @@ export class AppComponent {
     const id = this.activeScriptId();
     if (!id) return null;
     return this.scriptsService.scripts().find((s) => s.id === id) ?? null;
+  });
+
+  readonly activeChat = computed(() => {
+    const id = this.activeChatId();
+    if (!id) return null;
+    return this.chatService.sessions().find((s) => s.id === id) ?? null;
   });
 
   readonly showInputForm = computed(() => {
@@ -280,6 +301,18 @@ export class AppComponent {
     () => this.activeMethod() === 'transcript' && (this.showInputForm() || this.showScriptList()),
   );
 
+  readonly showLeftColumnC = computed(() => {
+    if (this.activeMethod() !== 'chat') return false;
+    if (this.isMobile()) return !this.activeChatId();
+    return true;
+  });
+
+  readonly showChatConversation = computed(() => {
+    if (this.activeMethod() !== 'chat') return false;
+    if (this.isMobile()) return !!this.activeChatId();
+    return true;
+  });
+
   constructor() {
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', () => this.viewportWidth.set(window.innerWidth));
@@ -304,6 +337,7 @@ export class AppComponent {
       if (lastMethod !== null && lastMethod !== m) {
         this.activeQuestionId.set(null);
         this.activeScriptId.set(null);
+        this.activeChatId.set(null);
       }
       lastMethod = m;
     });
@@ -316,6 +350,7 @@ export class AppComponent {
       // and use the back arrow to start a new question/transcript.
       this.activeQuestionId.set(null);
       this.activeScriptId.set(null);
+      this.activeChatId.set(null);
     }
     this.activeTab.set(tab);
   }
@@ -370,6 +405,18 @@ export class AppComponent {
 
   onScriptDeleted(id: string): void {
     if (this.activeScriptId() === id) this.activeScriptId.set(null);
+  }
+
+  onOpenChat(session: ChatSession): void {
+    this.activeChatId.set(session.id);
+  }
+
+  onCloseChat(): void {
+    this.activeChatId.set(null);
+  }
+
+  onChatDeleted(id: string): void {
+    if (this.activeChatId() === id) this.activeChatId.set(null);
   }
 }
 

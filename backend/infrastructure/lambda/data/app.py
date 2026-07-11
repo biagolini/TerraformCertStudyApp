@@ -71,7 +71,7 @@ def get_all():
     resp = table.query(KeyConditionExpression=Key("pk").eq(pk))
     items = resp.get("Items", [])
 
-    result = {"packs": [], "questions": [], "scripts": [], "settings": None}
+    result = {"packs": [], "questions": [], "scripts": [], "chats": [], "settings": None}
     for item in items:
         sk = item["sk"]
         data = json.loads(item["data"]) if isinstance(item.get("data"), str) else item.get("data", {})
@@ -83,6 +83,8 @@ def get_all():
             result["questions"].append(data)
         elif sk.startswith("SCRIPT#"):
             result["scripts"].append(data)
+        elif sk.startswith("CHAT#"):
+            result["chats"].append(data)
 
     return _json(result)
 
@@ -111,6 +113,10 @@ def put_all():
         for s in body.get("scripts", []):
             if s.get("id"):
                 batch.put_item(Item={"pk": pk, "sk": f"SCRIPT#{s['id']}", "data": json.dumps(s)})
+
+        for c in body.get("chats", []):
+            if c.get("id"):
+                batch.put_item(Item={"pk": pk, "sk": f"CHAT#{c['id']}", "data": json.dumps(c)})
 
     return _json({"ok": True})
 
@@ -158,6 +164,17 @@ def put_script(item_id):
     return _json({"ok": True})
 
 
+@app.route("/data/chats/<item_id>", methods=["PUT"])
+def put_chat(item_id):
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    data = request.get_json(force=True) or {}
+    data["id"] = item_id
+    table.put_item(Item={"pk": pk, "sk": f"CHAT#{item_id}", "data": json.dumps(data)})
+    return _json({"ok": True})
+
+
 @app.route("/data/packs/<item_id>", methods=["DELETE"])
 def delete_pack(item_id):
     pk = _user_pk()
@@ -182,6 +199,15 @@ def delete_script(item_id):
     if not pk:
         return _error("Unauthorized", 401)
     table.delete_item(Key={"pk": pk, "sk": f"SCRIPT#{item_id}"})
+    return _json({"ok": True})
+
+
+@app.route("/data/chats/<item_id>", methods=["DELETE"])
+def delete_chat(item_id):
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    table.delete_item(Key={"pk": pk, "sk": f"CHAT#{item_id}"})
     return _json({"ok": True})
 
 

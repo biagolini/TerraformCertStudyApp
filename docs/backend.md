@@ -73,6 +73,8 @@ backend/
 | DELETE | `/data/questions/{id}` | Delete a question |
 | PUT | `/data/scripts/{id}` | Upsert a script |
 | DELETE | `/data/scripts/{id}` | Delete a script |
+| PUT | `/data/chats/{id}` | Upsert a chat session |
+| DELETE | `/data/chats/{id}` | Delete a chat session |
 | GET | `/data/models` | List usable Bedrock models |
 
 **Model discovery (`GET /data/models`):**
@@ -92,6 +94,7 @@ Single-table design with `pk` (partition key) and `sk` (sort key):
 | `USER#{sub}` | `PACK#{id}` | Pack JSON |
 | `USER#{sub}` | `QUESTION#{id}` | Question JSON |
 | `USER#{sub}` | `SCRIPT#{id}` | Script JSON |
+| `USER#{sub}` | `CHAT#{id}` | Chat session JSON (messages + summary) |
 
 ## IAM Permissions
 

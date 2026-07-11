@@ -7,6 +7,7 @@ import {
   PackDomain,
 } from '../models/pack.model';
 import { Script } from '../models/script.model';
+import { ChatSession } from '../models/chat.model';
 import { AppSettings, DEFAULT_SETTINGS } from '../models/settings.model';
 import { isStudyMethod } from '../models/method.model';
 import { environment } from '../../../environments/environment';
@@ -36,6 +37,7 @@ interface ApiData {
   packs: Pack[];
   questions: Question[];
   scripts: Script[];
+  chats?: ChatSession[];
   settings: AppSettings | null;
 }
 
@@ -47,6 +49,7 @@ export class StorageService {
   private _packs = signal<Pack[]>([]);
   private _questions = signal<Question[]>([]);
   private _scripts = signal<Script[]>([]);
+  private _chats = signal<ChatSession[]>([]);
   private _settings = signal<AppSettings>({ ...DEFAULT_SETTINGS });
 
   private token: string | null = null;
@@ -60,13 +63,14 @@ export class StorageService {
     this.token = idToken;
 
     const remote = await this.fetchAll();
-    const hasRemoteData = remote.packs.length > 0 || remote.questions.length > 0 || remote.scripts.length > 0 || remote.settings !== null;
+    const hasRemoteData = remote.packs.length > 0 || remote.questions.length > 0 || remote.scripts.length > 0 || (remote.chats?.length ?? 0) > 0 || remote.settings !== null;
 
     if (hasRemoteData) {
       // Use DynamoDB as source of truth
       this._packs.set(remote.packs);
       this._questions.set(remote.questions);
       this._scripts.set(remote.scripts);
+      this._chats.set(remote.chats ?? []);
       this._settings.set(remote.settings ?? { ...DEFAULT_SETTINGS });
       // Clear localStorage since cloud is canonical
       this.clearLocalStorage();
@@ -84,12 +88,14 @@ export class StorageService {
         this._packs.set(localPacks);
         this._questions.set(localQuestions);
         this._scripts.set(localScripts);
+        this._chats.set([]);
         this._settings.set(localSettings);
 
         await this.pushAll({
           packs: localPacks,
           questions: localQuestions,
           scripts: localScripts,
+          chats: [],
           settings: localSettings,
         });
         this.clearLocalStorage();
@@ -98,6 +104,7 @@ export class StorageService {
         this._packs.set([]);
         this._questions.set([]);
         this._scripts.set([]);
+        this._chats.set([]);
         this._settings.set(localSettings);
       }
     }
@@ -143,6 +150,15 @@ export class StorageService {
 
   saveScripts(scripts: Script[]): void {
     this._scripts.set(scripts);
+    this.syncPutAll();
+  }
+
+  getChats(): ChatSession[] {
+    return this._chats();
+  }
+
+  saveChats(chats: ChatSession[]): void {
+    this._chats.set(chats);
     this.syncPutAll();
   }
 
@@ -198,6 +214,19 @@ export class StorageService {
     }
   }
 
+  /** Delete a single chat session from DynamoDB. Returns true on success. */
+  async deleteChat(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.apiUrl}/data/chats/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${this.token}` },
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   /** Update a single question in DynamoDB. Returns true on success. */
   async updateQuestion(question: Question): Promise<boolean> {
     try {
@@ -221,14 +250,14 @@ export class StorageService {
       const res = await fetch(`${this.apiUrl}/data`, {
         headers: { Authorization: `Bearer ${this.token}` },
       });
-      if (!res.ok) return { packs: [], questions: [], scripts: [], settings: null };
+      if (!res.ok) return { packs: [], questions: [], scripts: [], chats: [], settings: null };
       return await res.json() as ApiData;
     } catch {
-      return { packs: [], questions: [], scripts: [], settings: null };
+      return { packs: [], questions: [], scripts: [], chats: [], settings: null };
     }
   }
 
-  private async pushAll(data: { packs: Pack[]; questions: Question[]; scripts: Script[]; settings: AppSettings }): Promise<void> {
+  private async pushAll(data: { packs: Pack[]; questions: Question[]; scripts: Script[]; chats: ChatSession[]; settings: AppSettings }): Promise<void> {
     try {
       await fetch(`${this.apiUrl}/data`, {
         method: 'PUT',
@@ -250,6 +279,7 @@ export class StorageService {
         packs: this._packs(),
         questions: this._questions(),
         scripts: this._scripts(),
+        chats: this._chats(),
         settings: this._settings(),
       });
     }, 500);

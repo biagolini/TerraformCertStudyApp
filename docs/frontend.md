@@ -19,6 +19,7 @@ frontend/
 │   │   │   ├── question-list/   # List of reviewed questions
 │   │   │   ├── review-viewer/   # Markdown viewer + edit + refine with AI
 │   │   │   ├── transcripts/     # Transcript input + script viewer
+│   │   │   ├── chat/            # Open chat (tutor conversation + summary)
 │   │   │   ├── packs/           # Pack editor + drawer
 │   │   │   ├── export/          # Export to Markdown / ZIP
 │   │   │   ├── settings/        # User preferences
@@ -44,6 +45,7 @@ frontend/
 | `ModelsService` | Fetches available models from `GET /data/models` with static fallback |
 | `QuestionsService` | Local state for questions (CRUD, selection, domain breakdown) |
 | `PacksService` | Pack CRUD, active pack management |
+| `ChatService` | Chat session CRUD, message append/streaming, summary management |
 | `ExportService` | Build Markdown content, download files, ZIP for multi-file exports |
 
 ## Review Prompt Engineering

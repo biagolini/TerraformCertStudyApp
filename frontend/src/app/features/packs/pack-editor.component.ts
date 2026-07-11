@@ -12,6 +12,7 @@ import {
 } from '../../core/models/pack.model';
 import { PacksService } from '../../core/services/packs.service';
 import { QuestionsService } from '../../core/services/questions.service';
+import { ChatService } from '../../core/services/chat.service';
 
 @Component({
   selector: 'app-pack-editor',
@@ -894,6 +895,7 @@ import { QuestionsService } from '../../core/services/questions.service';
 export class PackEditorComponent {
   private readonly packs = inject(PacksService);
   private readonly questionsService = inject(QuestionsService);
+  private readonly chatService = inject(ChatService);
 
   readonly pack = input<Pack | null>(null);
   readonly cancelled = output<void>();
@@ -1218,6 +1220,7 @@ export class PackEditorComponent {
     const target = this.pack();
     if (!target) return;
     this.questionsService.removeByPackId(target.id);
+    this.chatService.removeByPackId(target.id);
     this.packs.remove(target.id);
     this.confirmingDelete.set(false);
     this.deleted.emit(target.id);
