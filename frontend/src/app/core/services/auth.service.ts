@@ -14,6 +14,8 @@ export class AuthService {
   isAuthenticated = signal(false);
   /** True once login + data load is complete */
   ready = signal(false);
+  /** True while attempting automatic token refresh */
+  reauthenticating = signal(false);
 
   private readonly storage = inject(StorageService);
   private readonly router = inject(Router);
@@ -69,6 +71,45 @@ export class AuthService {
     });
   }
 
+  /**
+   * Returns a valid id token, refreshing if necessary.
+   * Shows reauthenticating overlay while refreshing.
+   * If refresh fails, redirects to login.
+   */
+  async getValidToken(): Promise<string> {
+    if (!this.userPool) {
+      this.redirectToLogin();
+      throw new Error('Session expired. Redirecting to login...');
+    }
+
+    const user = this.userPool.getCurrentUser();
+    if (!user) {
+      this.redirectToLogin();
+      throw new Error('Session expired. Redirecting to login...');
+    }
+
+    return new Promise<string>((resolve, reject) => {
+      // getSession() automatically refreshes the id token using the refresh token
+      // if the current id token is expired but refresh token is still valid
+      this.reauthenticating.set(true);
+
+      user.getSession((err: any, session: CognitoUserSession | null) => {
+        this.reauthenticating.set(false);
+
+        if (err || !session || !session.isValid()) {
+          this.redirectToLogin();
+          reject(new Error('Session expired. Redirecting to login...'));
+          return;
+        }
+
+        const token = session.getIdToken().getJwtToken();
+        this.isAuthenticated.set(true);
+        this.storage.updateToken(token);
+        resolve(token);
+      });
+    });
+  }
+
   ensureTokenValid(): Promise<boolean> {
     return new Promise((resolve) => {
       if (!this.userPool) { resolve(false); return; }
@@ -106,6 +147,12 @@ export class AuthService {
       }
     });
     return token;
+  }
+
+  private redirectToLogin(): void {
+    this.isAuthenticated.set(false);
+    this.ready.set(false);
+    this.router.navigate(['/login']);
   }
 
   private async initStorage(session: CognitoUserSession): Promise<void> {

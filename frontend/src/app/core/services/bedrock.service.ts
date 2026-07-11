@@ -97,8 +97,7 @@ Return the FULL refined review. Apply only the changes needed to address the fee
     model: string | undefined,
     signal: AbortSignal,
   ): AsyncGenerator<string, void, void> {
-    const token = this.auth.getIdToken();
-    if (!token) throw new Error('Not authenticated. Please sign in again.');
+    const token = await this.auth.getValidToken();
 
     const response = await fetch(`${environment.apiUrl}/converse`, {
       method: 'POST',

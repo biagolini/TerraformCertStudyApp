@@ -346,9 +346,10 @@ export class AppComponent {
     // Close the current viewer so the input form is shown (mobile) / focused
     // (desktop), and scroll back to the top where the form lives.
     this.activeQuestionId.set(null);
-    if (typeof window !== 'undefined') {
+    // Wait for DOM re-render before scrolling (Angular conditionally hides/shows panels)
+    requestAnimationFrame(() => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    });
   }
 
   onQuestionDeleted(id: string): void {
