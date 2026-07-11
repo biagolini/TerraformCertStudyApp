@@ -1,6 +1,7 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { Question } from '../models/question.model';
 import { DEFAULT_DOMAIN } from '../models/settings.model';
+import { searchQuestions } from '../utils/search.util';
 import { PacksService } from './packs.service';
 import { StorageService } from './storage.service';
 
@@ -11,6 +12,8 @@ export class QuestionsService {
 
   private readonly state = signal<Question[]>([]);
   private readonly selectedIdsState = signal<ReadonlySet<string>>(new Set());
+  private readonly searchQueryState = signal('');
+  private readonly searchAllPacksState = signal(false);
 
   readonly allQuestions = computed(() =>
     [...this.state()].sort((a, b) => b.createdAt - a.createdAt),
@@ -38,6 +41,18 @@ export class QuestionsService {
     }
     return [...counts.entries()].map(([domain, total]) => ({ domain, total }));
   });
+
+  readonly searchQuery = this.searchQueryState.asReadonly();
+  readonly searchAllPacks = this.searchAllPacksState.asReadonly();
+
+  readonly searchResults = computed(() => {
+    const query = this.searchQueryState();
+    if (!query.trim()) return [];
+    const pool = this.searchAllPacksState() ? this.allQuestions() : this.questions();
+    return searchQuestions(pool, query);
+  });
+
+  readonly isSearching = computed(() => this.searchQueryState().trim().length > 0);
 
   constructor() {
     // Load from storage when ready
@@ -144,6 +159,14 @@ export class QuestionsService {
     const next = new Set(this.selectedIdsState());
     next.delete(id);
     this.selectedIdsState.set(next);
+  }
+
+  setSearchQuery(query: string): void {
+    this.searchQueryState.set(query);
+  }
+
+  setSearchAllPacks(all: boolean): void {
+    this.searchAllPacksState.set(all);
   }
 
   getById(id: string): Question | undefined {
