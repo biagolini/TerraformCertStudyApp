@@ -27,9 +27,25 @@ export interface ConfirmDeleteData {
     </mat-dialog-actions>
   `,
   styles: [`
+    :host {
+      display: block;
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      border-radius: var(--radius-lg);
+    }
+    h2[mat-dialog-title] { color: var(--text-primary); }
+    mat-dialog-content { color: var(--text-secondary); }
     .warn { color: var(--mat-sys-error, #d32f2f); font-size: 0.85em; margin-top: 4px; }
     mat-dialog-actions { padding: 8px 24px 16px; }
     mat-spinner { margin: 0 auto; }
+    button[mat-button] {
+      color: var(--text-secondary);
+      border: 1px solid var(--bg-border);
+    }
+    button[mat-flat-button] {
+      background: var(--mat-sys-error, #d32f2f);
+      color: #ffffff;
+    }
   `],
 })
 export class ConfirmDeleteDialogComponent {

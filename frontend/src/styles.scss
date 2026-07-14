@@ -1,2 +1,17 @@
 @use 'styles/variables';
 @use 'styles/reset';
+
+// Override Angular Material Dialog container to use app theme colors
+.mat-mdc-dialog-container .mdc-dialog__surface {
+  background: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  border-radius: var(--radius-lg) !important;
+}
+
+.mat-mdc-dialog-title {
+  color: var(--text-primary) !important;
+}
+
+.mat-mdc-dialog-content {
+  color: var(--text-primary) !important;
+}
