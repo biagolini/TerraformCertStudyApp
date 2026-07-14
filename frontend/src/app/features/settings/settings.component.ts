@@ -74,6 +74,24 @@ import { SettingsService } from '../../core/services/settings.service';
           </select>
         </section>
 
+        <section class="block">
+          <header class="section-header">
+            <h3>Default review mode</h3>
+            <p class="helper">
+              Choose whether the New Question screen starts in "Generate with AI" mode or "Add ready-made review" mode. You can switch modes at any time on the screen itself.
+            </p>
+          </header>
+          <select
+            class="text-input"
+            [ngModel]="defaultReviewMode()"
+            (ngModelChange)="onDefaultReviewModeChange($event)"
+            aria-label="Default review mode"
+          >
+            <option value="generate">Generate with AI</option>
+            <option value="manual">Add ready-made review</option>
+          </select>
+        </section>
+
         <section class="block danger">
           <header class="section-header">
             <h3>Danger Zone</h3>
@@ -269,6 +287,7 @@ export class SettingsComponent {
   readonly availableModels = this.modelsService.models;
   readonly defaultModel = this.settings.defaultModel;
   readonly outputLanguage = this.settings.outputLanguage;
+  readonly defaultReviewMode = this.settings.defaultReviewMode;
 
   onClearRequested(): void {
     this.confirmingClear.set(true);
@@ -289,6 +308,12 @@ export class SettingsComponent {
 
   onOutputLanguageChange(value: string): void {
     this.settings.setOutputLanguage(value);
+  }
+
+  onDefaultReviewModeChange(value: string): void {
+    if (value === 'generate' || value === 'manual') {
+      this.settings.setDefaultReviewMode(value);
+    }
   }
 
   availableHas(id: string): boolean {

@@ -8,7 +8,7 @@ import {
 } from '../models/pack.model';
 import { Script } from '../models/script.model';
 import { ChatSession } from '../models/chat.model';
-import { AppSettings, DEFAULT_SETTINGS } from '../models/settings.model';
+import { AppSettings, DEFAULT_SETTINGS, isReviewMode } from '../models/settings.model';
 import { isStudyMethod } from '../models/method.model';
 import { environment } from '../../../environments/environment';
 
@@ -71,7 +71,7 @@ export class StorageService {
       this._questions.set(remote.questions);
       this._scripts.set(remote.scripts);
       this._chats.set(remote.chats ?? []);
-      this._settings.set(remote.settings ?? { ...DEFAULT_SETTINGS });
+      this._settings.set(remote.settings ? { ...DEFAULT_SETTINGS, ...remote.settings } : { ...DEFAULT_SETTINGS });
       // Clear localStorage since cloud is canonical
       this.clearLocalStorage();
     } else {
@@ -365,6 +365,10 @@ export class StorageService {
             ? parsed.activeMethod
             : DEFAULT_SETTINGS.activeMethod,
         outputLanguage: typeof parsed.outputLanguage === 'string' ? parsed.outputLanguage : DEFAULT_SETTINGS.outputLanguage,
+        defaultReviewMode:
+          typeof parsed.defaultReviewMode === 'string' && isReviewMode(parsed.defaultReviewMode)
+            ? parsed.defaultReviewMode
+            : DEFAULT_SETTINGS.defaultReviewMode,
       };
     } catch { return { ...DEFAULT_SETTINGS }; }
   }

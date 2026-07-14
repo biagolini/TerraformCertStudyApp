@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { environment } from '../../../environments/environment';
-import { DEFAULT_MODEL } from '../models/settings.model';
+import { DEFAULT_MODEL, outputLanguageLabel } from '../models/settings.model';
 import { PackContext, buildSystemPrompt } from '../utils/review-prompt.util';
 import { buildTranscriptScriptPrompt } from '../utils/transcript-prompt.util';
 import { buildChatSystemPrompt, buildChatSummaryPrompt } from '../utils/chat-prompt.util';
@@ -134,6 +134,31 @@ Return the FULL refined review. Apply only the changes needed to address the fee
     );
   }
 
+  async generateTitle(
+    sourceText: string,
+    model: string | undefined,
+    signal: AbortSignal,
+    outputLanguage?: string,
+  ): Promise<string> {
+    const clean = sourceText.trim();
+    if (!clean) throw new Error('No content to generate a title from.');
+    const system = buildTitlePrompt(outputLanguage);
+    let accumulated = '';
+    for await (const chunk of this.streamConverse(
+      system,
+      [{ role: 'user', content: [{ text: clean.slice(0, 6000) }] }],
+      model,
+      signal,
+    )) {
+      accumulated += chunk;
+    }
+    return accumulated
+      .trim()
+      .replace(/^["'`*_\s]+|["'`*_\s]+$/g, '')
+      .slice(0, 80)
+      .trim();
+  }
+
   private async *streamConverse(
     system: string,
     messages: BedrockMessage[],
@@ -214,6 +239,20 @@ Return the FULL refined review. Apply only the changes needed to address the fee
     }
     return `Request failed with status ${response.status}.`;
   }
+}
+
+function buildTitlePrompt(outputLanguage?: string): string {
+  const lang = outputLanguage
+    ? `Write the title in ${outputLanguageLabel(outputLanguage)}.`
+    : 'Write the title in the same language as the content.';
+  return `You generate a concise title for an exam question study note. Read the content the user provides and output ONLY a short, descriptive title of 4 to 8 words capturing the main topic or scenario. ${lang}
+
+STRICT OUTPUT RULES:
+- Output only the title text, nothing else.
+- No quotes, no markdown, no bullet points.
+- No prefixes such as "Title:", "Question:", or "Scenario:".
+- No trailing punctuation.
+- No explanation or commentary.`;
 }
 
 /**

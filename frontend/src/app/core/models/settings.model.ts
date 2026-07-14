@@ -2,12 +2,15 @@ export type ThemeMode = 'light' | 'dark';
 
 import { StudyMethod } from './method.model';
 
+export type ReviewMode = 'generate' | 'manual';
+
 export interface AppSettings {
   theme: ThemeMode;
   defaultModel: string;
   activePackId: string;
   activeMethod: StudyMethod;
   outputLanguage: string;
+  defaultReviewMode: ReviewMode;
 }
 
 export const DEFAULT_MODEL = 'amazon.nova-lite-v1:0';
@@ -18,7 +21,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   activePackId: '',
   activeMethod: 'question',
   outputLanguage: '',
+  defaultReviewMode: 'generate',
 };
+
+export function isReviewMode(value: string): value is ReviewMode {
+  return value === 'generate' || value === 'manual';
+}
 
 export interface OutputLanguageOption {
   code: string;

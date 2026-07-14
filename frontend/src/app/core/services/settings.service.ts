@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { StudyMethod } from '../models/method.model';
-import { AppSettings, DEFAULT_SETTINGS, ThemeMode } from '../models/settings.model';
+import { AppSettings, DEFAULT_SETTINGS, ReviewMode, ThemeMode } from '../models/settings.model';
 import { StorageService } from './storage.service';
 
 @Injectable({ providedIn: 'root' })
@@ -15,6 +15,7 @@ export class SettingsService {
   readonly activePackId = computed(() => this.state().activePackId);
   readonly activeMethod = computed(() => this.state().activeMethod);
   readonly outputLanguage = computed(() => this.state().outputLanguage);
+  readonly defaultReviewMode = computed(() => this.state().defaultReviewMode);
 
   constructor() {
     effect(() => {
@@ -45,6 +46,11 @@ export class SettingsService {
   setOutputLanguage(value: string): void {
     if (value === this.state().outputLanguage) return;
     this.update((s) => ({ ...s, outputLanguage: value }));
+  }
+
+  setDefaultReviewMode(value: ReviewMode): void {
+    if (value === this.state().defaultReviewMode) return;
+    this.update((s) => ({ ...s, defaultReviewMode: value }));
   }
 
   private update(updater: (current: AppSettings) => AppSettings): void {
