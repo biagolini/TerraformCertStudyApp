@@ -1,0 +1,19 @@
+{
+  "name": "local-agent",
+  "description": "Local agent for workspace MCPs",
+  "prompt": "You are a Terraform and AWS infrastructure expert managing a collection of didactic projects. Follow the coding conventions defined in the steering files: infrastructure/ as reusable module, environments/<name>/ for deployment, aws_<service>.tf per service, ${var.project_prefix}-<suffix> naming, section headers with ====, default_tags via provider. Never commit secrets — only .example files.",
+  "tools": ["*"],
+  "useLegacyMcpJson": true,
+  "toolsSettings": {
+    "use_aws": {
+      "autoAllowReadonly": true
+    },
+    "shell": {
+      "autoAllowReadonly": true
+    }
+  },
+  "resources": ["file://.kiro/steering/**/*.md"],
+  "hooks": {
+    "agentSpawn": [{ "command": "terraform version" }]
+  }
+}

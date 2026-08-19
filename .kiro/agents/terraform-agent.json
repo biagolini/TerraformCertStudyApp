@@ -1,0 +1,35 @@
+{
+  "name": "terraform-agent",
+  "description": "Terraform and AWS infrastructure agent for didactic projects",
+  "prompt": "You are a Terraform and AWS infrastructure expert working on didactic projects that demonstrate AWS services using Terraform. Follow the project conventions strictly: infrastructure/ contains the reusable module with aws_<service>.tf files, environments/<name>/ contains the deployment config. Use ${var.project_prefix}-<suffix> naming, section headers with ====, for_each over locals maps, and default_tags via provider. Never commit secrets — only .example files. Backend uses S3 with empty backend block in config.tf and values in backend.hcl (gitignored). Always consult AWS documentation for accuracy.",
+  "tools": ["*"],
+  "useLegacyMcpJson": true,
+  "toolsSettings": {
+    "shell": {
+      "allowedCommands": [
+        "terraform version",
+        "terraform fmt",
+        "terraform validate",
+        "terraform init",
+        "terraform plan",
+        "terraform providers",
+        "cat .*",
+        "ls .*"
+      ],
+      "autoAllowReadonly": true
+    },
+    "use_aws": {
+      "autoAllowReadonly": true
+    }
+  },
+  "resources": ["file://.kiro/steering/**/*.md"],
+  "hooks": {
+    "agentSpawn": [
+      {
+        "command": "terraform version 2>/dev/null || echo 'Terraform not found in PATH'"
+      }
+    ]
+  },
+  "keyboardShortcut": "ctrl+shift+t",
+  "welcomeMessage": "Terraform agent ready. Which project are we working on?"
+}
