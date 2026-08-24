@@ -12,6 +12,7 @@ import {
   parseTitleFromResponse,
   stripInferredMetadata,
 } from '../../core/utils/domain-inference.util';
+import { parseReadyMadePaste } from '../../core/utils/ready-made-parse.util';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
 
 @Component({
@@ -134,7 +135,15 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
         </label>
 
         <label class="textarea-wrap">
-          <span class="field-label">Ready-made review (Markdown)</span>
+          <div class="field-label-row">
+            <span class="field-label">Ready-made review (Markdown)</span>
+            <button
+              type="button"
+              class="btn-ghost-sm"
+              (click)="onAutofillFromPaste()"
+              [disabled]="savingManual() || !manualReview.trim()"
+            >Auto-fill title &amp; domain</button>
+          </div>
           <textarea
             [(ngModel)]="manualReview"
             [disabled]="savingManual()"
@@ -365,6 +374,13 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
         font-size: var(--font-size-sm);
         color: var(--text-muted);
       }
+      .field-label-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-sm);
+        margin-bottom: var(--space-xs);
+      }
       .title-row {
         display: flex;
         gap: var(--space-sm);
@@ -461,6 +477,22 @@ export class QuestionInputComponent {
 
   onSelectDomain(value: string): void {
     this.domainOverride.set(value);
+  }
+
+  onAutofillFromPaste(): void {
+    const source = this.manualReview;
+    if (!source.trim()) return;
+
+    const { title, domain, remainder } = parseReadyMadePaste(source, this.domainOptions());
+    if (!title && !domain) {
+      this.error.set("Couldn't detect a title or domain in the pasted text.");
+      return;
+    }
+
+    if (title) this.manualTitle = title;
+    if (domain) this.domainOverride.set(domain);
+    this.manualReview = remainder;
+    this.error.set(null);
   }
 
   async onGenerateTitle(): Promise<void> {
