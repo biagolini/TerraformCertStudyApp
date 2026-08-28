@@ -64,6 +64,23 @@ export class StorageService {
   private apiUrl = environment.apiUrl;
   private visibilityListenerAttached = false;
 
+  /** Supplied by AuthService — returns a fresh, auto-refreshed id token (or redirects to login and throws). */
+  private tokenProvider: (() => Promise<string>) | null = null;
+
+  setTokenProvider(provider: () => Promise<string>): void {
+    this.tokenProvider = provider;
+  }
+
+  /** Resolves a valid token for an authenticated request, refreshing it first if a provider is registered. */
+  private async getAuthToken(): Promise<string> {
+    if (this.tokenProvider) {
+      this.token = await this.tokenProvider();
+      return this.token;
+    }
+    if (!this.token) throw new Error('Not authenticated.');
+    return this.token;
+  }
+
   /**
    * Called by AuthService after successful login.
    * Loads remote data, migrates localStorage if needed.
@@ -234,7 +251,7 @@ export class StorageService {
   saveSettings(settings: AppSettings): void {
     console.debug('[StorageService] saveSettings:', settings);
     this._settings.set(settings);
-    this.fire(`${this.apiUrl}/data/settings`, 'PUT', settings);
+    void this.fire(`${this.apiUrl}/data/settings`, 'PUT', settings);
   }
 
   // ==========================================================================
@@ -244,9 +261,10 @@ export class StorageService {
   /** Delete a single question from DynamoDB. Returns true on success. */
   async deleteQuestion(id: string): Promise<boolean> {
     try {
+      const token = await this.getAuthToken();
       const res = await fetch(`${this.apiUrl}/data/questions/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${this.token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       return res.ok;
     } catch {
@@ -257,9 +275,10 @@ export class StorageService {
   /** Delete a single pack from DynamoDB. Returns true on success. */
   async deletePack(id: string): Promise<boolean> {
     try {
+      const token = await this.getAuthToken();
       const res = await fetch(`${this.apiUrl}/data/packs/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${this.token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       return res.ok;
     } catch {
@@ -270,9 +289,10 @@ export class StorageService {
   /** Delete a single script from DynamoDB. Returns true on success. */
   async deleteScript(id: string): Promise<boolean> {
     try {
+      const token = await this.getAuthToken();
       const res = await fetch(`${this.apiUrl}/data/scripts/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${this.token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       return res.ok;
     } catch {
@@ -283,9 +303,10 @@ export class StorageService {
   /** Delete a single chat session from DynamoDB. Returns true on success. */
   async deleteChat(id: string): Promise<boolean> {
     try {
+      const token = await this.getAuthToken();
       const res = await fetch(`${this.apiUrl}/data/chats/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${this.token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       return res.ok;
     } catch {
@@ -296,9 +317,10 @@ export class StorageService {
   /** Update a single question in DynamoDB. Returns true on success. */
   async updateQuestion(question: Question): Promise<boolean> {
     try {
+      const token = await this.getAuthToken();
       const res = await fetch(`${this.apiUrl}/data/questions/${question.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(question),
       });
       return res.ok;
@@ -313,8 +335,9 @@ export class StorageService {
 
   private async fetchAll(): Promise<ApiData> {
     try {
+      const token = await this.getAuthToken();
       const res = await fetch(`${this.apiUrl}/data`, {
-        headers: { Authorization: `Bearer ${this.token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
         throw new Error(`Failed to load data from the server (HTTP ${res.status}).`);
@@ -328,9 +351,10 @@ export class StorageService {
 
   private async pushAll(data: { packs: Pack[]; questions: Question[]; scripts: Script[]; chats: ChatSession[]; settings: AppSettings }): Promise<void> {
     try {
+      const token = await this.getAuthToken();
       const res = await fetch(`${this.apiUrl}/data`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(data),
       });
       if (!res.ok) {
@@ -364,23 +388,23 @@ export class StorageService {
   }
 
   /** Fire-and-forget HTTP request */
-  private fire(url: string, method: string, body?: unknown): void {
-    fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}` },
-      body: body ? JSON.stringify(body) : undefined,
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error(`Failed to save data to the server (HTTP ${res.status}).`);
-        this.syncStatus.set('idle');
-        this.lastError.set(null);
-        this.lastSyncedAt.set(Date.now());
-      })
-      .catch((err) => {
-        this.syncStatus.set('error');
-        this.lastError.set(err instanceof Error ? err.message : 'Failed to save data to the server.');
-        console.error('[StorageService] fire failed — changes are only saved locally:', err);
+  private async fire(url: string, method: string, body?: unknown): Promise<void> {
+    try {
+      const token = await this.getAuthToken();
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: body ? JSON.stringify(body) : undefined,
       });
+      if (!res.ok) throw new Error(`Failed to save data to the server (HTTP ${res.status}).`);
+      this.syncStatus.set('idle');
+      this.lastError.set(null);
+      this.lastSyncedAt.set(Date.now());
+    } catch (err) {
+      this.syncStatus.set('error');
+      this.lastError.set(err instanceof Error ? err.message : 'Failed to save data to the server.');
+      console.error('[StorageService] fire failed — changes are only saved locally:', err);
+    }
   }
 
   // ==========================================================================

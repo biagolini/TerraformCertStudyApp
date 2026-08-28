@@ -22,6 +22,11 @@ export class AuthService {
   private userPool: CognitoUserPool | null = null;
 
   constructor() {
+    // Lets StorageService fetch a fresh, auto-refreshed token before every
+    // authenticated request instead of relying on a cached one that goes
+    // stale once the id token expires (background sync, visibility refresh, etc).
+    this.storage.setTokenProvider(() => this.getValidToken());
+
     if (environment.cognito.userPoolId && environment.cognito.clientId) {
       this.userPool = new CognitoUserPool({
         UserPoolId: environment.cognito.userPoolId,
