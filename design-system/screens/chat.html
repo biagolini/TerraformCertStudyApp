@@ -1,0 +1,200 @@
+<!-- @dsCard group="Screens" -->
+<!doctype html>
+<html class="theme-light">
+<head>
+  <meta charset="utf-8">
+  <title>Chat</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    /* Lifted verbatim (values + markup) from chat-list.component.ts and chat-conversation.component.ts */
+
+    /* chat-list.component.ts */
+    .list-card { display: flex; flex-direction: column; gap: var(--space-md); padding: var(--space-lg); background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); width: 360px; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); }
+    .title-row { display: flex; align-items: center; gap: var(--space-sm); }
+    .title-row h2 { font-size: var(--font-size-xl); margin: 0; }
+    .count { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; padding: 0 var(--space-sm); height: 22px; border-radius: var(--radius-pill); background: var(--bg-elevated); color: var(--text-secondary); font-size: var(--font-size-sm); font-weight: 600; }
+    .link { color: var(--color-blue); background: none; border: none; padding: 0; min-height: auto; font-weight: 500; font-size: var(--font-size-sm); font-family: var(--font-family); cursor: pointer; }
+    .link:hover { text-decoration: underline; }
+    .link.danger { color: var(--color-red); }
+    .new-btn { display: flex; align-items: center; justify-content: center; gap: var(--space-xs); padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); border: 1px dashed var(--bg-border); background: var(--bg-elevated); color: var(--text-primary); font-weight: 500; font-family: var(--font-family); min-height: var(--touch-min); width: 100%; cursor: pointer; transition: border-color var(--transition-fast), background var(--transition-fast); }
+    .new-btn:hover { border-color: var(--color-purple); background: var(--bg-subtle); }
+    .empty { padding: var(--space-xl); text-align: center; color: var(--text-muted); background: var(--bg-elevated); border-radius: var(--radius-md); border: 1px dashed var(--bg-border); }
+    .empty-title { font-size: var(--font-size-base); color: var(--text-secondary); margin: 0 0 var(--space-xs); }
+    .empty-body { font-size: var(--font-size-sm); margin: 0; }
+    .card-grid { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-sm); }
+    .chat-card { display: flex; align-items: stretch; gap: var(--space-xs); background: var(--bg-surface); border-radius: var(--radius-md); border: 1px solid var(--bg-border); transition: border-color var(--transition-fast), background var(--transition-fast); }
+    .chat-card:hover, .chat-card.active { border-color: var(--color-purple); background: var(--bg-elevated); }
+    .chat-card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; text-align: left; padding: var(--space-sm) var(--space-md); background: none; border: none; cursor: pointer; font-family: var(--font-family); }
+    .chat-card-header { display: flex; align-items: center; gap: var(--space-sm); min-width: 0; }
+    .chat-title { font-size: var(--font-size-base); font-weight: 600; color: var(--text-primary); word-break: break-word; }
+    .chat-card .badge { flex-shrink: 0; display: inline-flex; align-items: center; padding: 2px var(--space-sm); border-radius: var(--radius-pill); background: var(--color-green); color: #ffffff; font-size: var(--font-size-xs); font-weight: 600; }
+    .chat-preview { font-size: var(--font-size-sm); color: var(--text-muted); margin: 0; }
+    .chat-meta { font-size: var(--font-size-xs); color: var(--text-faint); }
+    .chat-delete { display: flex; align-items: center; justify-content: center; width: var(--touch-min); color: var(--text-muted); flex-shrink: 0; background: none; border: none; cursor: pointer; }
+    .chat-delete:hover { color: var(--color-red); }
+
+    /* chat-conversation.component.ts */
+    .viewer { display: flex; flex-direction: column; background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden; width: 480px; }
+    .viewer-header { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--bg-border); background: var(--bg-surface); }
+    .back-btn { display: inline-flex; align-items: center; gap: var(--space-xs); min-height: var(--touch-min); padding: 0 var(--space-sm); border-radius: var(--radius-md); color: var(--text-secondary); font-size: var(--font-size-sm); background: none; border: none; cursor: pointer; }
+    .back-btn:hover { background: var(--bg-subtle); color: var(--text-primary); }
+    .title-btn { flex: 1; min-width: 0; text-align: left; background: none; border: none; padding: 0; cursor: pointer; }
+    .title { font-size: var(--font-size-lg); color: var(--text-primary); line-height: 1.3; overflow-wrap: anywhere; margin: 0; }
+    .header-actions { display: inline-flex; align-items: center; gap: var(--space-xs); }
+    .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: var(--touch-min); height: var(--touch-min); border-radius: var(--radius-md); color: var(--text-muted); background: none; border: none; cursor: pointer; }
+    .icon-btn:hover:not(:disabled) { background: var(--bg-subtle); color: var(--text-primary); }
+    .delete-btn:hover:not(:disabled) { color: var(--color-red); }
+    .viewer-body { padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md); }
+    .messages { display: flex; flex-direction: column; gap: var(--space-sm); }
+    .bubble { max-width: 85%; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); line-height: 1.5; }
+    .bubble-user { align-self: flex-end; background: var(--color-purple); color: #ffffff; }
+    .bubble-user p { margin: 0; white-space: pre-wrap; word-break: break-word; }
+    .bubble-assistant { align-self: flex-start; background: var(--bg-elevated); color: var(--text-primary); }
+    .disclaimer { display: flex; gap: 4px; font-size: 10px; color: var(--text-faint); line-height: 1.5; }
+    .disclaimer svg { flex-shrink: 0; margin-top: 2px; opacity: 0.8; }
+    .composer { display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-md); border-radius: var(--radius-md); background: var(--bg-elevated); border: 1px solid var(--bg-border); }
+    .composer-textarea { width: 100%; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary); font-family: var(--font-family); font-size: var(--font-size-base); line-height: 1.5; resize: vertical; box-sizing: border-box; }
+    .composer-textarea:focus-visible { outline: none; border-color: var(--color-purple); }
+    .composer-row { display: flex; align-items: center; gap: var(--space-sm); }
+    .model-row { flex: 1; display: flex; align-items: center; gap: var(--space-sm); min-width: 0; }
+    .model-label { font-size: var(--font-size-sm); color: var(--text-muted); flex-shrink: 0; }
+    .model-select { flex: 1; min-width: 0; min-height: 36px; padding: 0 var(--space-sm); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary); font-size: var(--font-size-sm); }
+    .summary-panel { display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-md); border-radius: var(--radius-md); background: var(--bg-elevated); border: 1px solid var(--bg-border); }
+    .summary-header h3 { font-size: var(--font-size-base); color: var(--text-primary); margin: 0 0 var(--space-xs); }
+    .summary-header-row { display: flex; align-items: center; gap: var(--space-sm); }
+    .summary-hint { color: var(--text-muted); font-size: var(--font-size-sm); margin: 0; }
+    .summary-meta { color: var(--text-faint); font-size: var(--font-size-xs); }
+    .summary-actions { display: flex; justify-content: flex-end; gap: var(--space-sm); }
+    .btn { min-height: var(--touch-min); padding: 0 var(--space-md); border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-base); display: inline-flex; align-items: center; gap: var(--space-sm); font-family: var(--font-family); border: none; cursor: pointer; }
+    .btn-primary { background: var(--color-purple); color: #ffffff; }
+    .btn-primary:hover:not(:disabled) { background: var(--color-blue); }
+    .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--bg-border); }
+    .btn-ghost:hover:not(:disabled) { background: var(--bg-subtle); }
+    .btn-stop { background: var(--color-red); color: #ffffff; }
+    .stop-icon { width: 12px; height: 12px; background: #ffffff; border-radius: 2px; }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div class="ds-toolbar"><button class="ds-theme-toggle" onclick="document.documentElement.classList.toggle('theme-dark'); document.documentElement.classList.toggle('theme-light');">Toggle theme</button></div>
+  <div class="ds-page">
+
+    <section class="ds-section">
+      <h2>Chat list</h2>
+      <p class="ds-hint">chat-list.component.ts — "New conversation" is a dashed drop-zone-style button; each card shows a "Summary ready" badge once a NotebookLM summary has been generated.</p>
+      <div class="ds-row">
+        <div class="list-card">
+          <header class="card-header">
+            <div class="title-row"><h2>Open chat</h2><span class="count">3</span></div>
+            <button type="button" class="link danger">Delete all</button>
+          </header>
+          <button type="button" class="new-btn">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>
+            <span>New conversation</span>
+          </button>
+          <ul class="card-grid">
+            <li>
+              <div class="chat-card active">
+                <button type="button" class="chat-card-main">
+                  <div class="chat-card-header"><span class="chat-title">IAM roles vs. resource policies</span><span class="badge">Summary ready</span></div>
+                  <p class="chat-preview">A resource policy is attached directly to the resource itself, while a role is assumed by a principal...</p>
+                  <span class="chat-meta">8 messages</span>
+                </button>
+                <button type="button" class="chat-delete" aria-label="Delete conversation"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button>
+              </div>
+            </li>
+            <li>
+              <div class="chat-card">
+                <button type="button" class="chat-card-main">
+                  <div class="chat-card-header"><span class="chat-title">VPC endpoint types, quick recap</span></div>
+                  <p class="chat-preview">Sure — Gateway endpoints only support S3 and DynamoDB, while Interface endpoints...</p>
+                  <span class="chat-meta">4 messages</span>
+                </button>
+                <button type="button" class="chat-delete" aria-label="Delete conversation"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="list-card">
+          <header class="card-header"><div class="title-row"><h2>Open chat</h2><span class="count">0</span></div></header>
+          <button type="button" class="new-btn">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>
+            <span>New conversation</span>
+          </button>
+          <div class="empty">
+            <p class="empty-title">No conversations yet.</p>
+            <p class="empty-body">Start a new conversation to chat freely about this certification's topics.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Conversation — messages + composer</h2>
+      <p class="ds-hint">chat-conversation.component.ts — user bubbles are solid purple, right-aligned; assistant bubbles render Markdown on a muted <code>bg-elevated</code> panel, left-aligned. The AI disclaimer sits between the thread and the composer.</p>
+      <div class="viewer">
+        <header class="viewer-header">
+          <button type="button" class="back-btn" aria-label="Back to conversation list">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M15 6l-6 6 6 6"/></svg>
+            <span>Back</span>
+          </button>
+          <button type="button" class="title-btn" aria-label="Edit conversation title"><h2 class="title">IAM roles vs. resource policies</h2></button>
+          <div class="header-actions">
+            <button type="button" class="icon-btn delete-btn" aria-label="Delete this conversation"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button>
+          </div>
+        </header>
+        <div class="viewer-body">
+          <div class="messages">
+            <div class="bubble bubble-user"><p>What's the actual difference between an IAM role and a resource-based policy?</p></div>
+            <div class="bubble bubble-assistant">A **resource-based policy** is attached directly to the resource (e.g. an S3 bucket policy) and says who can access that resource. A **role** is an identity a principal assumes to get temporary credentials — used when the *caller*, not the resource, needs the permissions attached.</div>
+          </div>
+          <p class="disclaimer">
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>
+            <span>Responses are AI-generated and may contain errors. Verify important facts before relying on them.</span>
+          </p>
+          <div class="composer">
+            <textarea class="composer-textarea" rows="3" placeholder="Ask a question or continue the conversation..."></textarea>
+            <div class="composer-row">
+              <label class="model-row"><span class="model-label">Model</span>
+                <select class="model-select"><option>Amazon Nova Lite — Balanced</option></select>
+              </label>
+              <button type="button" class="btn btn-primary">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Conversation — NotebookLM summary panel</h2>
+      <p class="ds-hint">Same viewer, scrolled to the summary panel at the bottom — generates a structured technical summary of the whole thread, meant to be downloaded and fed into NotebookLM as a podcast source.</p>
+      <div class="viewer" style="width: 420px;">
+        <div class="viewer-body">
+          <section class="summary-panel">
+            <header class="summary-header">
+              <div class="summary-header-row">
+                <h3>NotebookLM summary</h3>
+                <button type="button" class="icon-btn" aria-label="Edit summary"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4l10-10-4-4L4 16v4zM14 6l4 4"/></svg></button>
+              </div>
+              <p class="summary-hint">Generate a structured technical summary of this conversation, ready to feed into NotebookLM as a podcast source.</p>
+            </header>
+            <div>IAM roles grant temporary credentials to a principal; resource-based policies attach permissions directly to the resource. Use roles for cross-account/service access, resource policies for fine-grained per-resource sharing (e.g. an S3 bucket shared with another account).</div>
+            <p class="summary-meta">Last updated: Aug 28, 2026, 10:14 AM</p>
+            <p class="disclaimer">
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>
+              <span>This summary is AI-generated from the conversation above. Review it before sharing or narrating it.</span>
+            </p>
+            <div class="summary-actions">
+              <button type="button" class="btn btn-primary">Update summary</button>
+              <button type="button" class="btn btn-ghost">Download</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>

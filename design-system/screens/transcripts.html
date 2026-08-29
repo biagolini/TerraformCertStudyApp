@@ -1,0 +1,187 @@
+<!-- @dsCard group="Screens" -->
+<!doctype html>
+<html class="theme-light">
+<head>
+  <meta charset="utf-8">
+  <title>Transcripts</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    /* Lifted verbatim from transcript-input.component.ts, script-list.component.ts, script-viewer.component.ts */
+
+    /* transcript-input.component.ts */
+    .input-card { display: flex; flex-direction: column; gap: var(--space-md); padding: var(--space-lg); background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); width: 640px; }
+    .input-card .card-header h2 { font-size: var(--font-size-xl); margin-bottom: var(--space-xs); }
+    .input-card .subtitle { color: var(--text-muted); font-size: var(--font-size-sm); line-height: 1.5; }
+    .transcripts { display: flex; flex-direction: column; gap: var(--space-md); }
+    .transcript-block { display: flex; flex-direction: column; gap: var(--space-xs); }
+    .transcript-head { display: flex; align-items: center; justify-content: space-between; }
+    .transcript-label { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-secondary); }
+    .remove-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--radius-md); color: var(--text-muted); background: transparent; border: none; cursor: pointer; }
+    .remove-btn:hover { background: var(--bg-subtle); color: var(--color-red); }
+    .textarea { width: 100%; min-height: 140px; padding: var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary); font-family: var(--font-family); font-size: var(--font-size-base); line-height: 1.55; resize: vertical; }
+    .textarea:focus-visible { outline: none; border-color: var(--color-purple); }
+    .add-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-xs); min-height: var(--touch-min); border-radius: var(--radius-md); border: 1px dashed var(--bg-border); color: var(--text-secondary); background: transparent; cursor: pointer; }
+    .add-btn:hover { border-color: var(--color-purple); color: var(--color-purple); background: var(--bg-subtle); }
+    .options-row { display: flex; flex-direction: column; gap: var(--space-sm); }
+    .model-row { display: flex; align-items: center; gap: var(--space-sm); }
+    .model-label { font-size: var(--font-size-sm); color: var(--text-muted); }
+    .model-select { flex: 1; min-height: 36px; padding: 0 var(--space-sm); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary); font-size: var(--font-size-sm); }
+    .model-select:focus-visible { outline: none; border-color: var(--color-purple); }
+    .generate-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm); width: 100%; min-height: 48px; padding: 0 var(--space-lg); border-radius: var(--radius-md); border: none; background: linear-gradient(135deg, var(--color-purple), var(--color-blue)); color: #ffffff; font-weight: 600; font-size: var(--font-size-lg); cursor: pointer; }
+    .generate-btn:hover { filter: brightness(1.08); }
+    .disclaimer { display: flex; align-items: flex-start; gap: var(--space-xs); font-size: var(--font-size-xs); color: var(--text-faint); line-height: 1.5; }
+    .disclaimer svg { flex-shrink: 0; margin-top: 2px; opacity: 0.8; }
+
+    /* script-list.component.ts */
+    .list-card { display: flex; flex-direction: column; gap: var(--space-md); padding: var(--space-lg); background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); width: 360px; }
+    .list-card .title-row { display: flex; align-items: center; gap: var(--space-sm); }
+    .list-card .title-row h2 { font-size: var(--font-size-xl); }
+    .count { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; padding: 0 var(--space-sm); height: 22px; border-radius: var(--radius-pill); background: var(--bg-elevated); color: var(--text-secondary); font-size: var(--font-size-sm); font-weight: 600; }
+    .list { display: flex; flex-direction: column; gap: var(--space-xs); list-style: none; margin: 0; padding: 0; }
+    .row { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: var(--space-sm) var(--space-md); background: var(--bg-surface); border-radius: var(--radius-md); border: 1px solid transparent; width: 100%; min-height: var(--touch-min); cursor: pointer; }
+    .row:hover { background: var(--bg-elevated); }
+    .row.active { border-color: var(--color-purple); background: var(--bg-elevated); }
+    .row .title { font-size: var(--font-size-base); font-weight: 500; color: var(--text-primary); word-break: break-word; }
+    .row .meta { font-size: var(--font-size-xs); color: var(--text-muted); }
+
+    /* script-viewer.component.ts */
+    .viewer { display: flex; flex-direction: column; background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden; width: 640px; }
+    .viewer-header { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--bg-border); }
+    .back-btn { display: inline-flex; align-items: center; gap: var(--space-xs); min-height: var(--touch-min); padding: 0 var(--space-sm); border-radius: var(--radius-md); color: var(--text-secondary); font-size: var(--font-size-sm); background: transparent; border: none; cursor: pointer; }
+    .back-btn:hover { background: var(--bg-subtle); color: var(--text-primary); }
+    .viewer-header .title { flex: 1; min-width: 0; font-size: var(--font-size-lg); color: var(--text-primary); line-height: 1.3; overflow-wrap: anywhere; margin: 0; }
+    .header-actions { display: inline-flex; align-items: center; gap: var(--space-xs); }
+    .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: var(--touch-min); height: var(--touch-min); border-radius: var(--radius-md); color: var(--text-muted); background: transparent; border: none; cursor: pointer; }
+    .icon-btn:hover { background: var(--bg-subtle); color: var(--text-primary); }
+    .delete-btn:hover { color: var(--color-red); }
+    .viewer-body { padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md); }
+    /* markdown-renderer.component.ts (shared with the review viewer) — script-viewer.component.ts renders
+       <app-markdown-renderer [source]="s.content" />, not a bespoke .md-body block */
+    .markdown { display: flex; flex-direction: column; gap: var(--space-md); color: var(--text-primary); font-size: var(--font-size-base); line-height: 1.6; }
+    .md-h2 { font-size: var(--font-size-xl); color: var(--text-primary); margin-top: var(--space-sm); }
+    .md-p { margin: 0; }
+    .markdown strong { color: var(--text-primary); font-weight: 700; }
+    .sources { margin-top: var(--space-md); border-top: 1px solid var(--bg-border); padding-top: var(--space-md); }
+    .sources > summary { cursor: pointer; font-size: var(--font-size-sm); color: var(--text-muted); font-weight: 600; }
+    .sources-list { padding-left: var(--space-md); margin-top: var(--space-sm); list-style: none; }
+    .sources-list li { margin-bottom: var(--space-xs); }
+    .sources-list summary { cursor: pointer; font-size: var(--font-size-sm); color: var(--text-secondary); }
+    .source-text { margin-top: var(--space-xs); padding: var(--space-sm); background: var(--bg-elevated); border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: var(--font-size-xs); white-space: pre-wrap; word-break: break-word; color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+  <div class="ds-toolbar"><button class="ds-theme-toggle" onclick="document.documentElement.classList.toggle('theme-dark'); document.documentElement.classList.toggle('theme-light');">Toggle theme</button></div>
+  <div class="ds-page">
+
+    <section class="ds-section">
+      <h2>New transcript script</h2>
+      <p class="ds-hint">transcript-input.component.ts — paste one or more lesson transcripts; the AI produces a single layered technical summary covering all of them.</p>
+      <div class="input-card">
+        <header class="card-header">
+          <h2>New transcript script</h2>
+          <p class="subtitle">Paste one or more lesson transcripts. The AI produces a single layered technical summary covering all of them, from foundational to advanced.</p>
+        </header>
+
+        <div class="transcripts">
+          <div class="transcript-block">
+            <div class="transcript-head">
+              <label class="transcript-label">Aula 1</label>
+            </div>
+            <textarea class="textarea" rows="6" placeholder="Paste the transcript of this lesson...">Today we're covering VPC fundamentals: subnets, route tables, and how traffic flows between public and private subnets via a NAT gateway...</textarea>
+          </div>
+          <div class="transcript-block">
+            <div class="transcript-head">
+              <label class="transcript-label">Aula 2</label>
+              <button type="button" class="remove-btn" aria-label="Remove transcript 2">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M5 5l14 14M19 5L5 19"/></svg>
+              </button>
+            </div>
+            <textarea class="textarea" rows="6" placeholder="Paste the transcript of this lesson...">Now let's connect two VPCs with a Transit Gateway instead of full-mesh peering...</textarea>
+          </div>
+        </div>
+
+        <button type="button" class="add-btn">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
+          <span>Add another transcript</span>
+        </button>
+
+        <div class="options-row">
+          <label class="model-row">
+            <span class="model-label">Model</span>
+            <select class="model-select"><option>Amazon Nova Lite — Balanced</option></select>
+          </label>
+        </div>
+
+        <button type="button" class="generate-btn">Generate technical summary</button>
+
+        <p class="disclaimer">
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>
+          <span>Generated summaries are produced by AI from the transcripts you provide and can contain mistakes. Review the content before treating it as authoritative.</span>
+        </p>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Saved scripts</h2>
+      <p class="ds-hint">script-list.component.ts — one row per saved script; active row gets a purple border, same treatment as the question list row.</p>
+      <div class="list-card">
+        <header class="card-header">
+          <div class="title-row">
+            <h2>Saved scripts</h2>
+            <span class="count">3</span>
+          </div>
+        </header>
+        <ul class="list">
+          <li><button type="button" class="row active"><span class="title">VPC Networking — Layered Summary</span><span class="meta">2 sources</span></button></li>
+          <li><button type="button" class="row"><span class="title">IAM Roles &amp; Policies — Layered Summary</span><span class="meta">1 source</span></button></li>
+          <li><button type="button" class="row"><span class="title">S3 Storage Classes — Layered Summary</span><span class="meta">3 sources</span></button></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Script viewer</h2>
+      <p class="ds-hint">script-viewer.component.ts — same header/edit/delete pattern as the question review viewer, reusing <code>markdown-renderer.component.ts</code> and <code>ai-disclaimer.component.ts</code>. Source transcripts collapse into a nested <code>&lt;details&gt;</code> accordion at the bottom.</p>
+      <div class="viewer">
+        <header class="viewer-header">
+          <button type="button" class="back-btn" aria-label="Back to script list">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M15 6l-6 6 6 6"/></svg>
+            <span>Back</span>
+          </button>
+          <h2 class="title">VPC Networking — Layered Summary</h2>
+          <div class="header-actions">
+            <button type="button" class="icon-btn" aria-label="Edit script manually">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4l10-10-4-4L4 16v4zM14 6l4 4"/></svg>
+            </button>
+            <button type="button" class="icon-btn delete-btn" aria-label="Delete this script">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>
+            </button>
+          </div>
+        </header>
+        <div class="viewer-body">
+          <p class="disclaimer">
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>
+            <span>This summary was assembled by AI from the transcripts you supplied. Re-read it against the original sources before publishing.</span>
+          </p>
+          <div class="markdown">
+            <h2 class="md-h2">Foundations</h2>
+            <p class="md-p">A <strong>VPC</strong> is an isolated network within AWS. Subnets divide it by Availability Zone; a subnet is "public" only if its route table sends 0.0.0.0/0 to an Internet Gateway.</p>
+            <h2 class="md-h2">Intermediate</h2>
+            <p class="md-p">Private subnets reach the internet outbound-only through a <strong>NAT Gateway</strong> placed in a public subnet. Security groups are stateful and evaluated at the ENI level; NACLs are stateless and evaluated at the subnet boundary.</p>
+            <h2 class="md-h2">Advanced</h2>
+            <p class="md-p">For many VPCs, prefer a <strong>Transit Gateway</strong> hub over full-mesh VPC peering — peering doesn't support transitive routing, so it becomes unmanageable past a handful of VPCs.</p>
+          </div>
+          <details class="sources">
+            <summary>Source transcripts (2)</summary>
+            <ol class="sources-list">
+              <li><details><summary>Aula 1 (812 chars)</summary><pre class="source-text">Today we're covering VPC fundamentals: subnets, route tables, and how traffic flows between public and private subnets via a NAT gateway...</pre></details></li>
+              <li><details><summary>Aula 2 (498 chars)</summary><pre class="source-text">Now let's connect two VPCs with a Transit Gateway instead of full-mesh peering...</pre></details></li>
+            </ol>
+          </details>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>
