@@ -56,6 +56,7 @@ resource "aws_lambda_function" "data" {
       AWS_LWA_INVOKE_MODE     = "buffered"
       PORT                    = "8000"
       TABLE_NAME              = aws_dynamodb_table.data.name
+      QUESTIONS_TABLE_NAME    = aws_dynamodb_table.questions.name
     }
   }
 
@@ -97,7 +98,10 @@ resource "aws_iam_role_policy" "lambda_data_dynamodb" {
         "dynamodb:DeleteItem",
         "dynamodb:BatchWriteItem",
       ]
-      Resource = aws_dynamodb_table.data.arn
+      Resource = [
+        aws_dynamodb_table.data.arn,
+        aws_dynamodb_table.questions.arn,
+      ]
     }]
   })
 }

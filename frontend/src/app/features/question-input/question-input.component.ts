@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { BedrockService } from '../../core/services/bedrock.service';
 import { ModelsService } from '../../core/services/models.service';
 import { PacksService } from '../../core/services/packs.service';
+import { QuestionEnrichmentService } from '../../core/services/question-enrichment.service';
 import { QuestionsService } from '../../core/services/questions.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { DEFAULT_DOMAIN, ReviewMode, outputLanguageLabel } from '../../core/models/settings.model';
@@ -12,6 +13,7 @@ import {
   parseTitleFromResponse,
   stripInferredMetadata,
 } from '../../core/utils/domain-inference.util';
+import { parseQuestionReview } from '../../core/utils/question-parse.util';
 import { parseReadyMadePaste } from '../../core/utils/ready-made-parse.util';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
 
@@ -55,12 +57,20 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
           <span class="visually-hidden">Question text</span>
           <textarea
             [(ngModel)]="draft"
-            [disabled]="streaming()"
+            [disabled]="streaming() || finalizing()"
             rows="8"
             placeholder="Paste the full question and all alternatives here, exactly as copied from the practice exam..."
             class="textarea"
           ></textarea>
         </label>
+        @if (streaming() || finalizing()) {
+          <div class="live-preview" aria-live="polite">
+            <p class="live-preview-label">
+              @if (finalizing()) { Structuring the review into alternatives… } @else { Generating… }
+            </p>
+            <pre class="live-preview-body">{{ streamingPreview() }}</pre>
+          </div>
+        }
       }
 
       <div class="options-row">
@@ -70,7 +80,7 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
             class="model-select"
             [ngModel]="selectedModel()"
             (ngModelChange)="onSelectModel($event)"
-            [disabled]="streaming() || savingManual() || generatingTitle()"
+            [disabled]="streaming() || finalizing() || savingManual() || generatingTitle()"
             aria-label="Model for this generation"
           >
             @for (model of availableModels(); track model.id) {
@@ -91,9 +101,9 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
             type="button"
             class="generate-btn"
             (click)="onGenerate()"
-            [disabled]="!canGenerate()"
+            [disabled]="!canGenerate() || finalizing()"
           >
-            <span>Generate Review</span>
+            <span>{{ finalizing() ? 'Processing…' : 'Generate Review' }}</span>
           </button>
         }
       } @else {
@@ -285,6 +295,30 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
         opacity: 0.6;
         cursor: not-allowed;
       }
+      .live-preview {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xs);
+        padding: var(--space-md);
+        border-radius: var(--radius-md);
+        background: var(--bg-elevated);
+        border: 1px solid var(--bg-border);
+      }
+      .live-preview-label {
+        font-size: var(--font-size-sm);
+        color: var(--text-muted);
+        margin: 0;
+      }
+      .live-preview-body {
+        max-height: 220px;
+        overflow-y: auto;
+        margin: 0;
+        white-space: pre-wrap;
+        font-family: var(--font-family);
+        font-size: var(--font-size-sm);
+        line-height: 1.55;
+        color: var(--text-secondary);
+      }
       .generate-btn {
         display: inline-flex;
         align-items: center;
@@ -432,10 +466,13 @@ export class QuestionInputComponent {
   private readonly questionsService = inject(QuestionsService);
   private readonly modelsService = inject(ModelsService);
   private readonly packs = inject(PacksService);
+  private readonly enrichment = inject(QuestionEnrichmentService);
 
   protected readonly outputLanguage = this.settings.outputLanguage;
   protected readonly outputLanguageName = computed(() => outputLanguageLabel(this.outputLanguage()));
   protected readonly streaming = signal(false);
+  protected readonly finalizing = signal(false);
+  protected readonly streamingPreview = signal('');
   protected readonly error = signal<string | null>(null);
   protected readonly modelOverride = signal<string | null>(null);
   protected draft = '';
@@ -519,6 +556,31 @@ export class QuestionInputComponent {
     }
   }
 
+  /** Parses raw review Markdown into a saveable Question, enriching it with related services. */
+  private async buildQuestion(
+    review: string,
+    title: string,
+    domain: string,
+    packId: string,
+  ): Promise<Question | null> {
+    const parsed = parseQuestionReview(review);
+    if (!parsed) return null;
+
+    const relatedServices = await this.enrichment.extractRelatedServices(parsed.stem, parsed.alternatives);
+    const now = Date.now();
+    return {
+      id: crypto.randomUUID(),
+      packId,
+      title,
+      domain,
+      stem: parsed.stem,
+      alternatives: parsed.alternatives,
+      metadata: { topics: parsed.topics, relatedServices },
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
   async onSaveManual(): Promise<void> {
     const review = this.manualReview.trim();
     if (!review) {
@@ -547,14 +609,14 @@ export class QuestionInputComponent {
         }
       }
 
-      const question: Question = {
-        id: crypto.randomUUID(),
-        packId: activePack.id,
-        title: title || fallbackTitle,
-        domain: this.selectedDomain(),
-        review,
-        createdAt: Date.now(),
-      };
+      const question = await this.buildQuestion(review, title || fallbackTitle, this.selectedDomain(), activePack.id);
+      if (!question) {
+        this.error.set(
+          "Couldn't parse this into structured question data — check it follows the Question / Alternatives / Correct answer / Incorrect answers template.",
+        );
+        return;
+      }
+
       this.questionsService.add(question);
       this.generated.emit(question);
       this.settings.setDefaultReviewMode('manual');
@@ -584,9 +646,9 @@ export class QuestionInputComponent {
     const controller = new AbortController();
     this.streamController = controller;
     this.streaming.set(true);
+    this.streamingPreview.set('');
     this.error.set(null);
 
-    let question: Question | null = null;
     let accumulated = '';
     try {
       for await (const chunk of this.bedrock.streamReview(
@@ -597,46 +659,37 @@ export class QuestionInputComponent {
         this.settings.outputLanguage(),
       )) {
         accumulated += chunk;
-        if (!question) {
-          question = {
-            id: crypto.randomUUID(),
-            packId: activePack.id,
-            title: fallbackTitle,
-            domain: domains[0] ?? 'General',
-            review: chunk,
-            createdAt: Date.now(),
-          };
-          this.questionsService.add(question);
-          this.draft = '';
-          this.generated.emit(question);
-          this.settings.setDefaultReviewMode('generate');
-        } else {
-          this.questionsService.appendToReview(question.id, chunk);
-        }
+        this.streamingPreview.set(accumulated);
       }
 
-      if (question) {
-        const domain = parseDomainFromResponse(accumulated, domains);
-        const title = parseTitleFromResponse(accumulated, fallbackTitle);
-        const review = stripInferredMetadata(accumulated);
-        this.questionsService.updatePartial(question.id, { title, domain, review });
+      this.streaming.set(false);
+      this.finalizing.set(true);
+
+      const domain = parseDomainFromResponse(accumulated, domains);
+      const title = parseTitleFromResponse(accumulated, fallbackTitle);
+      const review = stripInferredMetadata(accumulated);
+      const question = await this.buildQuestion(review, title, domain, activePack.id);
+      if (!question) {
+        this.error.set(
+          "Couldn't parse the generated review into structured question data. Try again, or try a different model.",
+        );
+        return;
       }
+
+      this.questionsService.add(question);
+      this.draft = '';
+      this.generated.emit(question);
+      this.settings.setDefaultReviewMode('generate');
       this.modelOverride.set(null);
     } catch (err) {
       const aborted = (err as Error)?.name === 'AbortError' || controller.signal.aborted;
-      if (question) {
-        const domain = parseDomainFromResponse(accumulated, domains);
-        const title = parseTitleFromResponse(accumulated, fallbackTitle);
-        const review = stripInferredMetadata(accumulated);
-        this.questionsService.updatePartial(question.id, { title, domain, review });
-        if (!aborted) {
-          this.error.set(err instanceof Error ? err.message : 'Failed to generate review.');
-        }
-      } else if (!aborted) {
+      if (!aborted) {
         this.error.set(err instanceof Error ? err.message : 'Failed to generate review.');
       }
     } finally {
       this.streaming.set(false);
+      this.finalizing.set(false);
+      this.streamingPreview.set('');
       this.streamController = null;
     }
   }

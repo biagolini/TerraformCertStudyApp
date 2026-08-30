@@ -12,7 +12,7 @@ backend/
 │   ├── aws_lambda_data.tf       # Data Lambda (CRUD + model discovery)
 │   ├── aws_iam.tf               # IAM roles and policies
 │   ├── aws_cognito.tf           # User Pool + client
-│   ├── aws_dynamodb.tf          # Single-table for user data
+│   ├── aws_dynamodb.tf          # Two tables: general/config + questions
 │   ├── aws_s3.tf                # Frontend bucket
 │   ├── aws_cloudfront.tf        # Distribution + OAC
 │   ├── aws_route53.tf           # DNS alias
@@ -86,15 +86,11 @@ backend/
 
 ## DynamoDB Schema
 
-Single-table design with `pk` (partition key) and `sk` (sort key):
-
-| pk | sk | Content |
-|----|----|---------|
-| `USER#{sub}` | `SETTINGS` | App settings JSON |
-| `USER#{sub}` | `PACK#{id}` | Pack JSON |
-| `USER#{sub}` | `QUESTION#{id}` | Question JSON |
-| `USER#{sub}` | `SCRIPT#{id}` | Script JSON |
-| `USER#{sub}` | `CHAT#{id}` | Chat session JSON (messages + summary) |
+Two single-table-design tables, both partitioned per user (`pk =
+USER#{sub}`): a general/config table (settings, packs, scripts, chats) and
+a dedicated questions table. See
+[DynamoDB schema](./dynamodb-schema.md) for the full `pk`/`sk` layout, the
+structured `Question` v2 item shape, and why questions get their own table.
 
 ## IAM Permissions
 
@@ -106,5 +102,6 @@ Single-table design with `pk` (partition key) and `sk` (sort key):
 
 ## Related docs
 
+- [DynamoDB schema](./dynamodb-schema.md)
 - [Architecture overview](./architecture.md)
 - [Frontend documentation](./frontend.md)

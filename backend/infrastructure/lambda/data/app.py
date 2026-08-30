@@ -10,8 +10,10 @@ from boto3.dynamodb.conditions import Key
 from flask import Flask, Response, request
 
 TABLE_NAME = os.environ.get("TABLE_NAME", "cert-stud-data")
+QUESTIONS_TABLE_NAME = os.environ.get("QUESTIONS_TABLE_NAME", "cert-stud-questions")
 dynamodb = boto3.resource("dynamodb")
-table = dynamodb.Table(TABLE_NAME)
+table = dynamodb.Table(TABLE_NAME)  # settings, packs, scripts, chats
+questions_table = dynamodb.Table(QUESTIONS_TABLE_NAME)
 
 # Bedrock control-plane client (model discovery — NOT the runtime client).
 bedrock_ctl = boto3.client("bedrock", region_name=os.environ.get("AWS_REGION", "us-east-1"))
@@ -79,12 +81,15 @@ def get_all():
             result["settings"] = data
         elif sk.startswith("PACK#"):
             result["packs"].append(data)
-        elif sk.startswith("QUESTION#"):
-            result["questions"].append(data)
         elif sk.startswith("SCRIPT#"):
             result["scripts"].append(data)
         elif sk.startswith("CHAT#"):
             result["chats"].append(data)
+
+    q_resp = questions_table.query(KeyConditionExpression=Key("pk").eq(pk))
+    for item in q_resp.get("Items", []):
+        data = json.loads(item["data"]) if isinstance(item.get("data"), str) else item.get("data", {})
+        result["questions"].append(data)
 
     return _json(result)
 
@@ -106,10 +111,6 @@ def put_all():
             if pack.get("id"):
                 batch.put_item(Item={"pk": pk, "sk": f"PACK#{pack['id']}", "data": json.dumps(pack)})
 
-        for q in body.get("questions", []):
-            if q.get("id"):
-                batch.put_item(Item={"pk": pk, "sk": f"QUESTION#{q['id']}", "data": json.dumps(q)})
-
         for s in body.get("scripts", []):
             if s.get("id"):
                 batch.put_item(Item={"pk": pk, "sk": f"SCRIPT#{s['id']}", "data": json.dumps(s)})
@@ -117,6 +118,11 @@ def put_all():
         for c in body.get("chats", []):
             if c.get("id"):
                 batch.put_item(Item={"pk": pk, "sk": f"CHAT#{c['id']}", "data": json.dumps(c)})
+
+    with questions_table.batch_writer() as q_batch:
+        for q in body.get("questions", []):
+            if q.get("id"):
+                q_batch.put_item(Item={"pk": pk, "sk": f"QUESTION#{q['id']}", "data": json.dumps(q)})
 
     return _json({"ok": True})
 
@@ -149,7 +155,7 @@ def put_question(item_id):
         return _error("Unauthorized", 401)
     data = request.get_json(force=True) or {}
     data["id"] = item_id
-    table.put_item(Item={"pk": pk, "sk": f"QUESTION#{item_id}", "data": json.dumps(data)})
+    questions_table.put_item(Item={"pk": pk, "sk": f"QUESTION#{item_id}", "data": json.dumps(data)})
     return _json({"ok": True})
 
 
@@ -189,7 +195,7 @@ def delete_question(item_id):
     pk = _user_pk()
     if not pk:
         return _error("Unauthorized", 401)
-    table.delete_item(Key={"pk": pk, "sk": f"QUESTION#{item_id}"})
+    questions_table.delete_item(Key={"pk": pk, "sk": f"QUESTION#{item_id}"})
     return _json({"ok": True})
 
 

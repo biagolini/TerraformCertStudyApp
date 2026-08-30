@@ -107,5 +107,7 @@ Pre-configured study packs for certification exams are in [`frontend/public/exam
 
 ## Related docs
 
+- [Question ingestion pipeline](./question-ingestion.md) — how a pasted or generated review becomes a structured `Question`
+- [DynamoDB schema](./dynamodb-schema.md)
 - [Architecture overview](./architecture.md)
 - [Backend documentation](./backend.md)

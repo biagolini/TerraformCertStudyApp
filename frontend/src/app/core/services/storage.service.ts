@@ -482,6 +482,10 @@ export class StorageService {
           typeof parsed.defaultReviewMode === 'string' && isReviewMode(parsed.defaultReviewMode)
             ? parsed.defaultReviewMode
             : DEFAULT_SETTINGS.defaultReviewMode,
+        showCorrectInReview:
+          typeof parsed.showCorrectInReview === 'boolean'
+            ? parsed.showCorrectInReview
+            : DEFAULT_SETTINGS.showCorrectInReview,
       };
     } catch { return { ...DEFAULT_SETTINGS }; }
   }

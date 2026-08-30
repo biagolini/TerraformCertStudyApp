@@ -142,7 +142,7 @@
   right: 0;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   background: var(--bg-surface);
   border-top: 1px solid var(--bg-border);
   padding-bottom: env(safe-area-inset-bottom);
@@ -244,7 +244,7 @@
 
   .tabbar {
     position: static;
-    grid-template-columns: repeat(3, max-content);
+    grid-template-columns: repeat(4, max-content);
     justify-content: center;
     border-top: 1px solid var(--bg-border);
     background: var(--bg-base);

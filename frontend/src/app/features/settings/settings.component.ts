@@ -114,6 +114,28 @@ import { StorageService } from '../../core/services/storage.service';
           </select>
         </section>
 
+        <section class="block">
+          <header class="section-header">
+            <h3>Question review</h3>
+            <p class="helper">
+              Highlight the correct alternative in green when reviewing a question. Turn this off to
+              review without seeing the answer marked.
+            </p>
+          </header>
+          <label class="switch-row">
+            <button
+              type="button"
+              class="switch"
+              [class.on]="showCorrectInReview()"
+              (click)="onToggleShowCorrectInReview()"
+              role="switch"
+              [attr.aria-checked]="showCorrectInReview()"
+              aria-label="Highlight correct alternative in review"
+            ><span class="thumb"></span></button>
+            <span>Highlight correct alternative</span>
+          </label>
+        </section>
+
         <section class="block danger">
           <header class="section-header">
             <h3>Danger Zone</h3>
@@ -265,6 +287,40 @@ import { StorageService } from '../../core/services/storage.service';
         border-top: 1px solid var(--bg-border);
         padding-top: var(--space-lg);
       }
+      .switch-row {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        font-size: var(--font-size-sm);
+        color: var(--text-secondary);
+      }
+      .switch {
+        width: 38px;
+        height: 22px;
+        border-radius: 999px;
+        background: var(--bg-border);
+        position: relative;
+        border: none;
+        cursor: pointer;
+        flex-shrink: 0;
+        padding: 0;
+      }
+      .switch.on {
+        background: var(--color-purple);
+      }
+      .switch .thumb {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #fff;
+        transition: left var(--transition-fast);
+      }
+      .switch.on .thumb {
+        left: 18px;
+      }
       .confirm-overlay {
         position: absolute;
         inset: 0;
@@ -316,6 +372,7 @@ export class SettingsComponent {
   readonly defaultModel = this.settings.defaultModel;
   readonly outputLanguage = this.settings.outputLanguage;
   readonly defaultReviewMode = this.settings.defaultReviewMode;
+  readonly showCorrectInReview = this.settings.showCorrectInReview;
 
   readonly syncStatus = this.storage.syncStatus;
   readonly syncError = this.storage.lastError;
@@ -355,6 +412,10 @@ export class SettingsComponent {
     if (value === 'generate' || value === 'manual') {
       this.settings.setDefaultReviewMode(value);
     }
+  }
+
+  onToggleShowCorrectInReview(): void {
+    this.settings.setShowCorrectInReview(!this.showCorrectInReview());
   }
 
   availableHas(id: string): boolean {

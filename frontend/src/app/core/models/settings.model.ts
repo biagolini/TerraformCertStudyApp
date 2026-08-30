@@ -11,6 +11,7 @@ export interface AppSettings {
   activeMethod: StudyMethod;
   outputLanguage: string;
   defaultReviewMode: ReviewMode;
+  showCorrectInReview: boolean;
 }
 
 export const DEFAULT_MODEL = 'amazon.nova-lite-v1:0';
@@ -22,6 +23,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   activeMethod: 'question',
   outputLanguage: '',
   defaultReviewMode: 'generate',
+  showCorrectInReview: true,
 };
 
 export function isReviewMode(value: string): value is ReviewMode {

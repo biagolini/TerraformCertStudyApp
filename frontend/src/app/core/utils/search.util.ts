@@ -24,7 +24,8 @@ export interface SearchResult {
  * - Score 2: all terms present (any order)
  * - Score 1: at least one term present
  *
- * Searches across: title + domain + review (concatenated, normalized).
+ * Searches across: title + domain + stem + alternatives' text/comments + metadata
+ * (concatenated, normalized).
  */
 export function searchQuestions(questions: Question[], query: string): SearchResult[] {
   const normalizedQuery = normalizeText(query.trim());
@@ -36,8 +37,10 @@ export function searchQuestions(questions: Question[], query: string): SearchRes
   const results: SearchResult[] = [];
 
   for (const question of questions) {
+    const alternativesText = question.alternatives.map((a) => `${a.text} ${a.comment}`).join(' ');
+    const metadataText = [...question.metadata.topics, ...question.metadata.relatedServices].join(' ');
     const haystack = normalizeText(
-      `${question.title} ${question.domain} ${question.review}`,
+      `${question.title} ${question.domain} ${question.stem} ${alternativesText} ${metadataText}`,
     );
 
     const score = computeScore(haystack, normalizedQuery, terms);

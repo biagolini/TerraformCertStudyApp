@@ -23,10 +23,11 @@ import { ScriptViewerComponent } from './features/transcripts/script-viewer.comp
 import { TranscriptInputComponent } from './features/transcripts/transcript-input.component';
 import { ChatListComponent } from './features/chat/chat-list.component';
 import { ChatConversationComponent } from './features/chat/chat-conversation.component';
+import { QuizComponent } from './features/quiz/quiz.component';
 import { ThemeToggleComponent } from './shared/components/theme-toggle.component';
 import { SyncStatusComponent } from './shared/components/sync-status.component';
 
-type Tab = 'create' | 'methods' | 'export';
+type Tab = 'create' | 'methods' | 'quiz' | 'export';
 
 @Component({
   selector: 'app-main',
@@ -46,6 +47,7 @@ type Tab = 'create' | 'methods' | 'export';
     ScriptViewerComponent,
     ChatListComponent,
     ChatConversationComponent,
+    QuizComponent,
     SyncStatusComponent,
   ],
   styleUrl: './app.component.scss',
@@ -167,6 +169,11 @@ type Tab = 'create' | 'methods' | 'export';
               <app-methods-tab (chosen)="onMethodChosen($event)" />
             </section>
           }
+          @case ('quiz') {
+            <section class="column column-full">
+              <app-quiz />
+            </section>
+          }
           @case ('export') {
             <section class="column column-export">
               <app-export />
@@ -187,6 +194,12 @@ type Tab = 'create' | 'methods' | 'export';
             <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 6h6v6H4zM14 6h6v6h-6zM4 16h6v4H4zM14 16h6v4h-6z"/>
           </svg>
           <span>Methods</span>
+        </button>
+        <button type="button" class="tab" [class.active]="activeTab() === 'quiz'" (click)="setTab('quiz')">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9 11l2.5 2.5L16 8M5 4h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/>
+          </svg>
+          <span>Quiz</span>
         </button>
         <button type="button" class="tab" [class.active]="activeTab() === 'export'" (click)="setTab('export')">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">

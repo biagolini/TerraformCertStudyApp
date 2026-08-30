@@ -120,5 +120,7 @@ Setting `frontend_deploy_enabled = true` automatically: generates `environment.t
 
 ## Related docs
 
+- [Question ingestion pipeline](./question-ingestion.md)
+- [DynamoDB schema](./dynamodb-schema.md)
 - [Backend documentation](./backend.md)
 - [Frontend documentation](./frontend.md)

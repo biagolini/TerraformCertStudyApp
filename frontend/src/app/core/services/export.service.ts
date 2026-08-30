@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import { Pack, PackDomain } from '../models/pack.model';
 import { Question } from '../models/question.model';
 import { buildBatches, slugify, todayIsoDate } from '../utils/file-splitter.util';
+import { renderQuestionMarkdown } from '../utils/question-markdown.util';
 
 @Injectable({ providedIn: 'root' })
 export class ExportService {
@@ -61,7 +62,7 @@ export class ExportService {
         md += `\n\n${packDomain.description}`;
       }
       questions.forEach((q, i) => {
-        md += `\n\n---\n\n### Question ${i + 1}\n\n${q.review.trim()}`;
+        md += `\n\n---\n\n### Question ${i + 1}: ${q.title}\n\n${renderQuestionMarkdown(q)}`;
       });
     }
 

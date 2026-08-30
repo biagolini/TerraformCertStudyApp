@@ -16,6 +16,7 @@ export class SettingsService {
   readonly activeMethod = computed(() => this.state().activeMethod);
   readonly outputLanguage = computed(() => this.state().outputLanguage);
   readonly defaultReviewMode = computed(() => this.state().defaultReviewMode);
+  readonly showCorrectInReview = computed(() => this.state().showCorrectInReview);
 
   constructor() {
     effect(() => {
@@ -54,6 +55,11 @@ export class SettingsService {
   setDefaultReviewMode(value: ReviewMode): void {
     if (value === this.state().defaultReviewMode) return;
     this.update((s) => ({ ...s, defaultReviewMode: value }));
+  }
+
+  setShowCorrectInReview(value: boolean): void {
+    if (value === this.state().showCorrectInReview) return;
+    this.update((s) => ({ ...s, showCorrectInReview: value }));
   }
 
   private update(updater: (current: AppSettings) => AppSettings): void {

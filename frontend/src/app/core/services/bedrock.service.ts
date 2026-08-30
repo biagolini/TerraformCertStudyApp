@@ -4,6 +4,8 @@ import { DEFAULT_MODEL, outputLanguageLabel } from '../models/settings.model';
 import { PackContext, buildSystemPrompt } from '../utils/review-prompt.util';
 import { buildTranscriptScriptPrompt } from '../utils/transcript-prompt.util';
 import { buildChatSystemPrompt, buildChatSummaryPrompt } from '../utils/chat-prompt.util';
+import { buildRelatedServicesPrompt, buildRelatedServicesUserMessage } from '../utils/enrichment-prompt.util';
+import { ParsedAlternative } from '../utils/question-parse.util';
 import { AuthService } from './auth.service';
 
 interface BedrockMessage {
@@ -157,6 +159,32 @@ Return the FULL refined review. Apply only the changes needed to address the fee
       .replace(/^["'`*_\s]+|["'`*_\s]+$/g, '')
       .slice(0, 80)
       .trim();
+  }
+
+  /** One-shot, non-streaming extraction of the vendor services/products a question references. */
+  async extractRelatedServices(
+    stem: string,
+    alternatives: ParsedAlternative[],
+    model: string | undefined,
+    signal: AbortSignal,
+  ): Promise<string[]> {
+    const system = buildRelatedServicesPrompt();
+    const userMessage = buildRelatedServicesUserMessage(stem, alternatives);
+    let accumulated = '';
+    for await (const chunk of this.streamConverse(
+      system,
+      [{ role: 'user', content: [{ text: userMessage }] }],
+      model,
+      signal,
+    )) {
+      accumulated += chunk;
+    }
+    try {
+      const parsed = JSON.parse(accumulated.trim());
+      return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+    } catch {
+      return [];
+    }
   }
 
   private async *streamConverse(
