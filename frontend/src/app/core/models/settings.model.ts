@@ -12,6 +12,8 @@ export interface AppSettings {
   outputLanguage: string;
   defaultReviewMode: ReviewMode;
   showCorrectInReview: boolean;
+  defaultTrackTime: boolean;
+  defaultUseAccommodation: boolean;
 }
 
 export const DEFAULT_MODEL = 'amazon.nova-lite-v1:0';
@@ -24,6 +26,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   outputLanguage: '',
   defaultReviewMode: 'generate',
   showCorrectInReview: true,
+  defaultTrackTime: false,
+  defaultUseAccommodation: false,
 };
 
 export function isReviewMode(value: string): value is ReviewMode {

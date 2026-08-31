@@ -348,6 +348,42 @@ import { ChatService } from '../../core/services/chat.service';
           </div>
 
           <div class="field">
+            <span class="field-label">Scoring</span>
+            <span class="field-hint">Whether this exam gives partial credit on multi-select questions (some but not all correct alternatives picked). Most certs are all-or-nothing — only turn this on if you know this exam scores partially.</span>
+            <label class="switch-row">
+              <button
+                type="button"
+                class="switch"
+                [class.on]="allowPartialCreditDraft()"
+                (click)="allowPartialCreditDraft.set(!allowPartialCreditDraft())"
+                role="switch"
+                [attr.aria-checked]="allowPartialCreditDraft()"
+                aria-label="Allow partial credit for multi-select questions"
+              ><span class="thumb"></span></button>
+              <span>Allow partial credit for multi-select questions</span>
+            </label>
+          </div>
+
+          <div class="field">
+            <span class="field-label">Timing (optional)</span>
+            <span class="field-hint">Fill these in to enable the practice quiz clock for this exam — leave blank to leave the quiz untimed. Use the official exam's numbers (e.g. AWS SAA-C03: 65 questions, 130 minutes, +30 min accommodation).</span>
+            <div class="timing-row">
+              <label class="timing-field">
+                <span class="timing-label">Exam questions</span>
+                <input class="text-input" type="number" min="1" step="1" [(ngModel)]="examTotalQuestionsDraft" placeholder="e.g. 65" aria-label="Official exam question count" />
+              </label>
+              <label class="timing-field">
+                <span class="timing-label">Duration (min)</span>
+                <input class="text-input" type="number" min="1" step="1" [(ngModel)]="examDurationMinutesDraft" placeholder="e.g. 130" aria-label="Official exam duration in minutes" />
+              </label>
+              <label class="timing-field">
+                <span class="timing-label">Accommodation (min)</span>
+                <input class="text-input" type="number" min="0" step="1" [(ngModel)]="accommodationMinutesDraft" placeholder="e.g. 30" aria-label="Accommodation extra time in minutes" />
+              </label>
+            </div>
+          </div>
+
+          <div class="field">
             <span class="field-label">Export intro blocks</span>
             <span class="field-hint">Markdown inserted at the top of exported files. Provides context for NotebookLM or other readers.</span>
           </div>
@@ -492,6 +528,56 @@ import { ChatService } from '../../core/services/chat.service';
       .field-hint {
         font-size: var(--font-size-sm);
         color: var(--text-muted);
+      }
+      .timing-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-md);
+      }
+      .timing-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        flex: 1;
+        min-width: 120px;
+      }
+      .timing-label {
+        font-size: var(--font-size-xs);
+        color: var(--text-muted);
+      }
+      .switch-row {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        font-size: var(--font-size-sm);
+        color: var(--text-secondary);
+      }
+      .switch {
+        width: 38px;
+        height: 22px;
+        border-radius: 999px;
+        background: var(--bg-border);
+        position: relative;
+        border: none;
+        cursor: pointer;
+        flex-shrink: 0;
+        padding: 0;
+      }
+      .switch.on {
+        background: var(--color-purple);
+      }
+      .switch .thumb {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #fff;
+        transition: left var(--transition-fast);
+      }
+      .switch.on .thumb {
+        left: 18px;
       }
       .text-input {
         height: var(--touch-min);
@@ -911,6 +997,10 @@ export class PackEditorComponent {
   protected exportIntroQuestionsDraft = '';
   protected exportIntroTranscriptsDraft = '';
   protected exportIntroChatDraft = '';
+  protected readonly allowPartialCreditDraft = signal(false);
+  protected examTotalQuestionsDraft: number | null = null;
+  protected examDurationMinutesDraft: number | null = null;
+  protected accommodationMinutesDraft: number | null = null;
   protected domainDraft = '';
   protected domainDescDraft = '';
   protected domainOrderDraft: number | null = null;
@@ -950,6 +1040,10 @@ export class PackEditorComponent {
       this.exportIntroQuestionsDraft = p?.exportIntroQuestions ?? '';
       this.exportIntroTranscriptsDraft = p?.exportIntroTranscripts ?? '';
       this.exportIntroChatDraft = p?.exportIntroChat ?? '';
+      this.allowPartialCreditDraft.set(p?.allowPartialCredit ?? false);
+      this.examTotalQuestionsDraft = p?.examTotalQuestions ?? null;
+      this.examDurationMinutesDraft = p?.examDurationMinutes ?? null;
+      this.accommodationMinutesDraft = p?.accommodationMinutes ?? null;
       this.colorDraft.set(p?.color ?? DEFAULT_PACK_COLOR);
       this.domainsDraft.set(p ? [...p.domains] : []);
       this.domainDraft = '';
@@ -1195,6 +1289,10 @@ export class PackEditorComponent {
       exportIntroQuestions: this.exportIntroQuestionsDraft.trim() || undefined,
       exportIntroTranscripts: this.exportIntroTranscriptsDraft.trim() || undefined,
       exportIntroChat: this.exportIntroChatDraft.trim() || undefined,
+      allowPartialCredit: this.allowPartialCreditDraft(),
+      examTotalQuestions: this.examTotalQuestionsDraft ?? undefined,
+      examDurationMinutes: this.examDurationMinutesDraft ?? undefined,
+      accommodationMinutes: this.accommodationMinutesDraft ?? undefined,
     };
     if (!draft.name) return;
     const existing = this.pack();

@@ -11,9 +11,11 @@ from flask import Flask, Response, request
 
 TABLE_NAME = os.environ.get("TABLE_NAME", "cert-stud-data")
 QUESTIONS_TABLE_NAME = os.environ.get("QUESTIONS_TABLE_NAME", "cert-stud-questions")
+QUIZ_ATTEMPTS_TABLE_NAME = os.environ.get("QUIZ_ATTEMPTS_TABLE_NAME", "cert-stud-quiz-attempts")
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(TABLE_NAME)  # settings, packs, scripts, chats
 questions_table = dynamodb.Table(QUESTIONS_TABLE_NAME)
+quiz_attempts_table = dynamodb.Table(QUIZ_ATTEMPTS_TABLE_NAME)
 
 # Bedrock control-plane client (model discovery — NOT the runtime client).
 bedrock_ctl = boto3.client("bedrock", region_name=os.environ.get("AWS_REGION", "us-east-1"))
@@ -215,6 +217,47 @@ def delete_chat(item_id):
         return _error("Unauthorized", 401)
     table.delete_item(Key={"pk": pk, "sk": f"CHAT#{item_id}"})
     return _json({"ok": True})
+
+
+# ==========================================================================
+# Quiz attempts — own table, sk embeds the exam slug for a fast prefix Query
+# ==========================================================================
+
+
+@app.route("/data/attempts/<item_id>", methods=["PUT"])
+def put_attempt(item_id):
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    data = request.get_json(force=True) or {}
+    data["id"] = item_id
+    exam_slug = data.get("examSlug") or "unknown"
+    started_at = int(data.get("startedAt") or time.time() * 1000)
+    sk = f"ATTEMPT#{exam_slug}#{started_at:013d}#{item_id}"
+    quiz_attempts_table.put_item(Item={"pk": pk, "sk": sk, "data": json.dumps(data)})
+    return _json({"ok": True})
+
+
+@app.route("/data/attempts", methods=["GET"])
+def get_attempts():
+    """List the user's quiz attempts, most-recent first. Not part of GET /data —
+    history can grow unbounded, unlike packs/scripts/settings, so it's only
+    fetched when the History view actually opens."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    exam_slug = request.args.get("examSlug")
+    prefix = f"ATTEMPT#{exam_slug}#" if exam_slug else "ATTEMPT#"
+    resp = quiz_attempts_table.query(
+        KeyConditionExpression=Key("pk").eq(pk) & Key("sk").begins_with(prefix),
+        ScanIndexForward=False,
+    )
+    items = resp.get("Items", [])
+    attempts = [
+        json.loads(item["data"]) if isinstance(item.get("data"), str) else item.get("data", {})
+        for item in items
+    ]
+    return _json({"attempts": attempts})
 
 
 # ==========================================================================

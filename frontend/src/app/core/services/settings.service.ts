@@ -17,6 +17,8 @@ export class SettingsService {
   readonly outputLanguage = computed(() => this.state().outputLanguage);
   readonly defaultReviewMode = computed(() => this.state().defaultReviewMode);
   readonly showCorrectInReview = computed(() => this.state().showCorrectInReview);
+  readonly defaultTrackTime = computed(() => this.state().defaultTrackTime);
+  readonly defaultUseAccommodation = computed(() => this.state().defaultUseAccommodation);
 
   constructor() {
     effect(() => {
@@ -60,6 +62,16 @@ export class SettingsService {
   setShowCorrectInReview(value: boolean): void {
     if (value === this.state().showCorrectInReview) return;
     this.update((s) => ({ ...s, showCorrectInReview: value }));
+  }
+
+  setDefaultTrackTime(value: boolean): void {
+    if (value === this.state().defaultTrackTime) return;
+    this.update((s) => ({ ...s, defaultTrackTime: value }));
+  }
+
+  setDefaultUseAccommodation(value: boolean): void {
+    if (value === this.state().defaultUseAccommodation) return;
+    this.update((s) => ({ ...s, defaultUseAccommodation: value }));
   }
 
   private update(updater: (current: AppSettings) => AppSettings): void {

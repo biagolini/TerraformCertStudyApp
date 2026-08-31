@@ -42,3 +42,26 @@ resource "aws_dynamodb_table" "questions" {
     type = "S"
   }
 }
+
+# ============================================================================
+# DynamoDB — Quiz attempts table
+# ============================================================================
+# sk embeds the exam slug (sk = ATTEMPT#{examSlug}#{startedAt}#{id}) so listing
+# a given exam's attempts is a begins_with prefix Query, not a scan or GSI.
+
+resource "aws_dynamodb_table" "quiz_attempts" {
+  name         = "${var.project_prefix}-quiz-attempts"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "pk"
+  range_key    = "sk"
+
+  attribute {
+    name = "pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+}

@@ -157,15 +157,35 @@ function toCommaList(value: string): string[] {
 
             <div class="stem"><app-markdown-renderer [source]="question.stem" /></div>
 
+            @if (!showCorrectInReview()) {
+              <button type="button" class="reveal-btn" (click)="onToggleReveal()">
+                @if (revealed()) {
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.9 5.1A10.9 10.9 0 0112 5c7 0 11 7 11 7a13.2 13.2 0 01-3.1 3.6M6.2 6.2A13.3 13.3 0 001 12s4 7 11 7a10.6 10.6 0 004.7-1.1"/></svg>
+                  <span>Hide correct answer &amp; comments</span>
+                } @else {
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+                  <span>Reveal correct answer &amp; comments</span>
+                }
+              </button>
+            }
+
             <div class="alternatives">
               @for (opt of question.alternatives; track opt.letter) {
-                <div class="option-card" [class.correct]="showCorrectInReview() && opt.isCorrect">
+                <div class="option-card" [class.correct]="revealAnswers() && opt.isCorrect">
                   <span class="option-letter">{{ opt.letter }}</span>
                   <div class="option-body">
                     <div class="option-text"><app-markdown-renderer [source]="opt.text" /></div>
-                    @if (opt.comment) { <div class="option-comment"><app-markdown-renderer [source]="opt.comment" /></div> }
+                    @if (opt.comment && revealAnswers()) {
+                      <div class="option-comment">
+                        <div class="option-comment-label">
+                          <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+                          <span>Comment</span>
+                        </div>
+                        <app-markdown-renderer [source]="opt.comment" />
+                      </div>
+                    }
                   </div>
-                  @if (showCorrectInReview() && opt.isCorrect) {
+                  @if (revealAnswers() && opt.isCorrect) {
                     <span class="option-status">
                       <svg viewBox="0 0 24 24" width="18" height="18"><path fill="none" stroke="var(--color-green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7"/></svg>
                     </span>
@@ -285,7 +305,8 @@ function toCommaList(value: string): string[] {
       .option-card.correct .option-letter { background: var(--color-green); color: #fff; }
       .option-body { flex: 1; min-width: 0; }
       .option-text { display: block; font-size: var(--font-size-base); color: var(--text-primary); line-height: 1.5; }
-      .option-comment { margin: var(--space-xs) 0 0; font-size: var(--font-size-sm); color: var(--text-muted); line-height: 1.5; white-space: pre-line; }
+      .option-comment { margin: var(--space-sm) 0 0; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); background: var(--bg-elevated); border-left: 2px solid var(--bg-border); font-size: var(--font-size-sm); color: var(--text-muted); line-height: 1.5; }
+      .option-comment-label { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; color: var(--text-faint); font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
       .option-status { flex-shrink: 0; margin-top: 3px; }
 
       .metadata-block { display: flex; flex-direction: column; gap: var(--space-sm); }
@@ -344,6 +365,9 @@ function toCommaList(value: string): string[] {
       .new-question-row { display: flex; justify-content: center; padding: var(--space-md) 0 var(--space-lg); }
       .new-question-btn { display: inline-flex; align-items: center; gap: var(--space-xs); padding: var(--space-xs) var(--space-md); background: none; border: 1px solid var(--bg-border); border-radius: var(--radius-pill); color: var(--text-muted); font-size: var(--font-size-sm); }
       .new-question-btn:hover { border-color: var(--color-purple); color: var(--text-primary); }
+
+      .reveal-btn { display: inline-flex; align-items: center; gap: var(--space-xs); align-self: flex-start; padding: var(--space-xs) var(--space-md); background: var(--bg-elevated); border: 1px solid var(--bg-border); border-radius: var(--radius-pill); color: var(--text-secondary); font-size: var(--font-size-sm); font-weight: 600; }
+      .reveal-btn:hover { border-color: var(--color-purple); color: var(--color-purple); }
     `,
   ],
 })
@@ -382,6 +406,8 @@ export class ReviewViewerComponent {
   private refineController: AbortController | null = null;
 
   readonly showCorrectInReview = this.settings.showCorrectInReview;
+  protected readonly revealed = signal(false);
+  readonly revealAnswers = computed(() => this.showCorrectInReview() || this.revealed());
 
   readonly domainOptions = computed(() => {
     const defined = this.packs.activeDomains().map((d) => d.name);
@@ -401,7 +427,12 @@ export class ReviewViewerComponent {
       this.refineDraft = '';
       this.refineError.set(null);
       this.editError.set(null);
+      this.revealed.set(false);
     });
+  }
+
+  onToggleReveal(): void {
+    this.revealed.set(!this.revealed());
   }
 
   onDelete(question: Question): void {

@@ -19,6 +19,14 @@ export interface Pack {
   exportIntroTranscripts?: string;
   /** Markdown intro block inserted at the top of exported chat conversation files. */
   exportIntroChat?: string;
+  /** Whether this exam gives partial credit on multi-select questions (some but not all correct). Defaults to false — most certs are all-or-nothing. */
+  allowPartialCredit?: boolean;
+  /** Official exam's question count — paces the per-question clock in instant-feedback mode. Unset = timer feature unavailable for this pack. */
+  examTotalQuestions?: number;
+  /** Official exam duration in minutes. Unset = timer feature unavailable for this pack. */
+  examDurationMinutes?: number;
+  /** Extra time some candidates are entitled to (e.g. AWS's +30 min for non-native English speakers), in minutes. */
+  accommodationMinutes?: number;
 }
 
 export interface PackColorOption {

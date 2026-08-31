@@ -19,6 +19,10 @@ export interface PackDraft {
   exportIntroQuestions?: string;
   exportIntroTranscripts?: string;
   exportIntroChat?: string;
+  allowPartialCredit?: boolean;
+  examTotalQuestions?: number;
+  examDurationMinutes?: number;
+  accommodationMinutes?: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -100,6 +104,10 @@ export class PacksService {
       exportIntroQuestions: draft.exportIntroQuestions?.trim() || undefined,
       exportIntroTranscripts: draft.exportIntroTranscripts?.trim() || undefined,
       exportIntroChat: draft.exportIntroChat?.trim() || undefined,
+      allowPartialCredit: draft.allowPartialCredit ?? false,
+      examTotalQuestions: draft.examTotalQuestions,
+      examDurationMinutes: draft.examDurationMinutes,
+      accommodationMinutes: draft.accommodationMinutes,
     };
     const next = [...this.state(), pack];
     this.persist(next);
@@ -120,6 +128,10 @@ export class PacksService {
             exportIntroQuestions: draft.exportIntroQuestions?.trim() || undefined,
             exportIntroTranscripts: draft.exportIntroTranscripts?.trim() || undefined,
             exportIntroChat: draft.exportIntroChat?.trim() || undefined,
+            allowPartialCredit: draft.allowPartialCredit ?? false,
+            examTotalQuestions: draft.examTotalQuestions,
+            examDurationMinutes: draft.examDurationMinutes,
+            accommodationMinutes: draft.accommodationMinutes,
             updatedAt: Date.now(),
           }
         : p,

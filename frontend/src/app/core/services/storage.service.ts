@@ -8,6 +8,7 @@ import {
 } from '../models/pack.model';
 import { Script } from '../models/script.model';
 import { ChatSession } from '../models/chat.model';
+import { QuizAttempt } from '../models/quiz-attempt.model';
 import { AppSettings, DEFAULT_SETTINGS, isReviewMode } from '../models/settings.model';
 import { isStudyMethod } from '../models/method.model';
 import { environment } from '../../../environments/environment';
@@ -329,6 +330,37 @@ export class StorageService {
     }
   }
 
+  /** Persists a finished quiz attempt. Returns true on success. */
+  async saveAttempt(attempt: QuizAttempt): Promise<boolean> {
+    try {
+      const token = await this.getAuthToken();
+      const res = await fetch(`${this.apiUrl}/data/attempts/${attempt.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(attempt),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Lists the user's quiz attempts (most recent first), optionally scoped to one exam. */
+  async listAttempts(examSlug?: string): Promise<QuizAttempt[]> {
+    try {
+      const token = await this.getAuthToken();
+      const query = examSlug ? `?examSlug=${encodeURIComponent(examSlug)}` : '';
+      const res = await fetch(`${this.apiUrl}/data/attempts${query}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return [];
+      const body = (await res.json()) as { attempts: QuizAttempt[] };
+      return body.attempts ?? [];
+    } catch {
+      return [];
+    }
+  }
+
   // ==========================================================================
   // Remote API calls
   // ==========================================================================
@@ -486,6 +518,12 @@ export class StorageService {
           typeof parsed.showCorrectInReview === 'boolean'
             ? parsed.showCorrectInReview
             : DEFAULT_SETTINGS.showCorrectInReview,
+        defaultTrackTime:
+          typeof parsed.defaultTrackTime === 'boolean' ? parsed.defaultTrackTime : DEFAULT_SETTINGS.defaultTrackTime,
+        defaultUseAccommodation:
+          typeof parsed.defaultUseAccommodation === 'boolean'
+            ? parsed.defaultUseAccommodation
+            : DEFAULT_SETTINGS.defaultUseAccommodation,
       };
     } catch { return { ...DEFAULT_SETTINGS }; }
   }

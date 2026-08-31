@@ -52,11 +52,12 @@ resource "aws_lambda_function" "data" {
 
   environment {
     variables = {
-      AWS_LAMBDA_EXEC_WRAPPER = "/opt/bootstrap"
-      AWS_LWA_INVOKE_MODE     = "buffered"
-      PORT                    = "8000"
-      TABLE_NAME              = aws_dynamodb_table.data.name
-      QUESTIONS_TABLE_NAME    = aws_dynamodb_table.questions.name
+      AWS_LAMBDA_EXEC_WRAPPER  = "/opt/bootstrap"
+      AWS_LWA_INVOKE_MODE      = "buffered"
+      PORT                     = "8000"
+      TABLE_NAME               = aws_dynamodb_table.data.name
+      QUESTIONS_TABLE_NAME     = aws_dynamodb_table.questions.name
+      QUIZ_ATTEMPTS_TABLE_NAME = aws_dynamodb_table.quiz_attempts.name
     }
   }
 
@@ -101,6 +102,7 @@ resource "aws_iam_role_policy" "lambda_data_dynamodb" {
       Resource = [
         aws_dynamodb_table.data.arn,
         aws_dynamodb_table.questions.arn,
+        aws_dynamodb_table.quiz_attempts.arn,
       ]
     }]
   })

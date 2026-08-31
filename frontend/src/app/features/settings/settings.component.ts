@@ -136,6 +136,40 @@ import { StorageService } from '../../core/services/storage.service';
           </label>
         </section>
 
+        <section class="block">
+          <header class="section-header">
+            <h3>Quiz timer</h3>
+            <p class="helper">
+              Default state of the timer toggles on the quiz setup screen (only shown for exams with
+              timing configured in the pack editor). You can still change these per quiz.
+            </p>
+          </header>
+          <label class="switch-row">
+            <button
+              type="button"
+              class="switch"
+              [class.on]="defaultTrackTime()"
+              (click)="onToggleDefaultTrackTime()"
+              role="switch"
+              [attr.aria-checked]="defaultTrackTime()"
+              aria-label="Track time by default"
+            ><span class="thumb"></span></button>
+            <span>Track time by default</span>
+          </label>
+          <label class="switch-row">
+            <button
+              type="button"
+              class="switch"
+              [class.on]="defaultUseAccommodation()"
+              (click)="onToggleDefaultUseAccommodation()"
+              role="switch"
+              [attr.aria-checked]="defaultUseAccommodation()"
+              aria-label="Use accommodation by default"
+            ><span class="thumb"></span></button>
+            <span>Use accommodation by default</span>
+          </label>
+        </section>
+
         <section class="block danger">
           <header class="section-header">
             <h3>Danger Zone</h3>
@@ -373,6 +407,8 @@ export class SettingsComponent {
   readonly outputLanguage = this.settings.outputLanguage;
   readonly defaultReviewMode = this.settings.defaultReviewMode;
   readonly showCorrectInReview = this.settings.showCorrectInReview;
+  readonly defaultTrackTime = this.settings.defaultTrackTime;
+  readonly defaultUseAccommodation = this.settings.defaultUseAccommodation;
 
   readonly syncStatus = this.storage.syncStatus;
   readonly syncError = this.storage.lastError;
@@ -416,6 +452,14 @@ export class SettingsComponent {
 
   onToggleShowCorrectInReview(): void {
     this.settings.setShowCorrectInReview(!this.showCorrectInReview());
+  }
+
+  onToggleDefaultTrackTime(): void {
+    this.settings.setDefaultTrackTime(!this.defaultTrackTime());
+  }
+
+  onToggleDefaultUseAccommodation(): void {
+    this.settings.setDefaultUseAccommodation(!this.defaultUseAccommodation());
   }
 
   availableHas(id: string): boolean {

@@ -3,6 +3,7 @@ import { packDisplayLabel } from '../../core/models/pack.model';
 import { QuizMode, QuizScope } from '../../core/models/quiz.model';
 import { PacksService } from '../../core/services/packs.service';
 import { QuizService } from '../../core/services/quiz.service';
+import { SettingsService } from '../../core/services/settings.service';
 
 @Component({
   selector: 'app-quiz-setup',
@@ -11,8 +12,11 @@ import { QuizService } from '../../core/services/quiz.service';
   template: `
     <section class="setup-card">
       <header class="card-header">
-        <h2>Start a practice quiz</h2>
-        <p class="subtitle">Answer your own reviewed questions as a quiz.</p>
+        <div>
+          <h2>Start a practice quiz</h2>
+          <p class="subtitle">Answer your own reviewed questions as a quiz.</p>
+        </div>
+        <button type="button" class="history-link" (click)="quiz.viewHistory()">History</button>
       </header>
 
       <span class="field-label">Scope</span>
@@ -103,6 +107,36 @@ import { QuizService } from '../../core/services/quiz.service';
         <span class="switch-label">Shuffle order</span>
       </div>
 
+      @if (quiz.timerAvailable()) {
+        <div class="filters-row">
+          <button
+            type="button"
+            class="switch"
+            [class.on]="trackTime()"
+            (click)="trackTime.set(!trackTime())"
+            role="switch"
+            [attr.aria-checked]="trackTime()"
+            aria-label="Track time"
+          ><span class="thumb"></span></button>
+          <span class="switch-label">Track time ({{ examDurationLabel() }})</span>
+        </div>
+        @if (accommodationMinutes() > 0) {
+          <div class="filters-row">
+            <button
+              type="button"
+              class="switch"
+              [class.on]="useAccommodation()"
+              [disabled]="!trackTime()"
+              (click)="useAccommodation.set(!useAccommodation())"
+              role="switch"
+              [attr.aria-checked]="useAccommodation()"
+              aria-label="Use accommodation"
+            ><span class="thumb"></span></button>
+            <span class="switch-label">Use accommodation (+{{ accommodationMinutes() }} min)</span>
+          </div>
+        }
+      }
+
       @if (filteredCount() === 0) {
         <p class="empty-hint">No questions in this scope yet — add some from the Create tab first.</p>
       }
@@ -126,8 +160,11 @@ import { QuizService } from '../../core/services/quiz.service';
         max-width: 640px;
         margin: 0 auto;
       }
+      .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-md); }
       .card-header h2 { font-size: var(--font-size-xl); margin-bottom: var(--space-xs); }
       .subtitle { color: var(--text-muted); font-size: var(--font-size-sm); }
+      .history-link { flex-shrink: 0; padding: var(--space-xs) var(--space-md); border-radius: var(--radius-pill); border: 1px solid var(--bg-border); background: transparent; color: var(--text-secondary); font-size: var(--font-size-sm); font-weight: 600; }
+      .history-link:hover { border-color: var(--color-purple); color: var(--color-purple); }
       .field-label { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-secondary); }
 
       .scope-group { display: flex; flex-direction: column; gap: var(--space-sm); }
@@ -169,6 +206,7 @@ import { QuizService } from '../../core/services/quiz.service';
 
       .switch { width: 38px; height: 22px; border-radius: 999px; background: var(--bg-border); position: relative; border: none; cursor: pointer; flex-shrink: 0; padding: 0; }
       .switch.on { background: var(--color-purple); }
+      .switch:disabled { opacity: 0.5; cursor: not-allowed; }
       .switch .thumb { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left var(--transition-fast); }
       .switch.on .thumb { left: 18px; }
 
@@ -186,14 +224,23 @@ import { QuizService } from '../../core/services/quiz.service';
   ],
 })
 export class QuizSetupComponent {
-  private readonly quiz = inject(QuizService);
+  protected readonly quiz = inject(QuizService);
   private readonly packs = inject(PacksService);
+  private readonly settings = inject(SettingsService);
 
   protected readonly scope = signal<QuizScope>('pack');
   protected readonly mode = signal<QuizMode>('instant');
   protected readonly selectedDomains = signal<ReadonlySet<string>>(new Set());
   protected readonly countOverride = signal<number | null>(null);
   protected readonly shuffle = signal(true);
+  protected readonly trackTime = signal(this.settings.defaultTrackTime());
+  protected readonly useAccommodation = signal(this.settings.defaultUseAccommodation());
+
+  protected readonly accommodationMinutes = computed(() => this.packs.activePack().accommodationMinutes ?? 0);
+  protected readonly examDurationLabel = computed(() => {
+    const pack = this.packs.activePack();
+    return `${pack.examDurationMinutes} min, ${pack.examTotalQuestions} questions`;
+  });
 
   protected readonly activePackLabel = computed(() => packDisplayLabel(this.packs.activePack()));
   protected readonly examLabel = computed(() => {
@@ -249,6 +296,8 @@ export class QuizSetupComponent {
       domains: [...this.selectedDomains()],
       count: this.effectiveCount(),
       shuffle: this.shuffle(),
+      trackTime: this.quiz.timerAvailable() && this.trackTime(),
+      useAccommodation: this.quiz.timerAvailable() && this.trackTime() && this.useAccommodation(),
     });
   }
 }

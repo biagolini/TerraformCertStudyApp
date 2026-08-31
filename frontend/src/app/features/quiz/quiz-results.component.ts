@@ -3,7 +3,7 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
 import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.component';
 import { Question } from '../../core/models/question.model';
 import { QuizAnswer } from '../../core/models/quiz.model';
-import { QuizService } from '../../core/services/quiz.service';
+import { attemptScoreAtTimeLimit, formatClock, QuizService } from '../../core/services/quiz.service';
 
 interface ReviewItem {
   question: Question;
@@ -23,16 +23,31 @@ interface ReviewItem {
       </header>
 
       <div class="score-hero">
-        <div class="score-ring" [style.--pct]="scorePct()">
-          <div class="score-ring-inner"><strong>{{ scorePct() }}%</strong><span>score</span></div>
+        <div class="score-ring" [style.--pct]="scorePercent()">
+          <div class="score-ring-inner"><strong>{{ scorePercent().toFixed(2) }}%</strong><span>score</span></div>
         </div>
         <div class="score-meta">
-          <p><strong>{{ score().correct }}</strong> correct out of <strong>{{ score().total }}</strong></p>
+          <p><strong>{{ formatScore(score().correct) }}</strong> correct out of <strong>{{ score().total }}</strong></p>
+          @if (partialCredit()) { <p>This exam allows partial credit on multi-select questions.</p> }
           @if (weakestDomain(); as w) {
-            <p>Weakest domain: <strong>{{ w.domain }}</strong> ({{ w.correct }}/{{ w.total }})</p>
+            <p>Weakest domain: <strong>{{ w.domain }}</strong> ({{ formatScore(w.correct) }}/{{ w.total }})</p>
           }
         </div>
       </div>
+
+      @if (timeLimitScore(); as t) {
+        <div class="time-limit-block">
+          <button type="button" class="btn-ghost-sm" (click)="showTimeLimitScore.set(!showTimeLimitScore())">
+            {{ showTimeLimitScore() ? 'Hide' : 'See' }} score if I'd stopped at the time limit
+          </button>
+          @if (showTimeLimitScore()) {
+            <p class="time-limit-value">
+              You would have scored <strong>{{ t.scorePercent.toFixed(2) }}%</strong> if you had stopped
+              answering the moment time ran out (answers changed after that don't count).
+            </p>
+          }
+        </div>
+      }
 
       @if (domainBreakdown().length > 1) {
         <span class="field-label">By domain</span>
@@ -42,7 +57,10 @@ interface ReviewItem {
             <div class="domain-track">
               <div class="domain-fill" [class.warn]="d.total > 0 && d.correct / d.total < 0.7" [style.width.%]="d.total > 0 ? (d.correct / d.total) * 100 : 0"></div>
             </div>
-            <span class="domain-fraction">{{ d.correct }}/{{ d.total }}</span>
+            <span class="domain-fraction">{{ formatScore(d.correct) }}/{{ d.total }}</span>
+            @if (d.timeSeconds > 0) {
+              <span class="domain-time">avg {{ formatClockValue(d.timeSeconds / d.total) }}</span>
+            }
           </div>
         }
       }
@@ -70,7 +88,15 @@ interface ReviewItem {
                     <span class="alt-letter">{{ opt.letter }}</span>
                     <div>
                       <div class="alt-text"><app-markdown-renderer [source]="opt.text" /></div>
-                      @if (opt.comment) { <div class="alt-comment"><app-markdown-renderer [source]="opt.comment" /></div> }
+                      @if (opt.comment) {
+                        <div class="alt-comment">
+                          <div class="alt-comment-label">
+                            <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+                            <span>Comment</span>
+                          </div>
+                          <app-markdown-renderer [source]="opt.comment" />
+                        </div>
+                      }
                     </div>
                   </div>
                 }
@@ -107,6 +133,7 @@ interface ReviewItem {
       .domain-fill { height: 100%; border-radius: 999px; background: var(--color-green); }
       .domain-fill.warn { background: var(--color-amber); }
       .domain-fraction { font-size: var(--font-size-xs); color: var(--text-muted); width: 36px; text-align: right; flex-shrink: 0; }
+      .domain-time { font-size: var(--font-size-xs); color: var(--text-faint); width: 56px; text-align: right; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 
       .result-list { display: flex; flex-direction: column; gap: var(--space-sm); }
       .result-row { border-radius: var(--radius-md); border: 1px solid var(--bg-border); overflow: hidden; }
@@ -126,7 +153,13 @@ interface ReviewItem {
       .alt-row.correct .alt-letter { background: var(--color-green); color: #fff; }
       .alt-row.chosen:not(.correct) .alt-letter { background: var(--color-red); color: #fff; }
       .alt-text { font-size: var(--font-size-sm); font-weight: 500; color: var(--text-primary); }
-      .alt-comment { margin: 4px 0 0; font-size: var(--font-size-sm); color: var(--text-muted); line-height: 1.5; white-space: pre-line; }
+      .alt-comment { margin: var(--space-sm) 0 0; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); background: var(--bg-elevated); border-left: 2px solid var(--bg-border); font-size: var(--font-size-sm); color: var(--text-muted); line-height: 1.5; }
+      .alt-comment-label { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; color: var(--text-faint); font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+
+      .time-limit-block { padding: var(--space-md); border-radius: var(--radius-md); background: var(--bg-elevated); border: 1px solid var(--bg-border); }
+      .btn-ghost-sm { padding: 0 var(--space-md); min-height: 36px; border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: transparent; color: var(--text-secondary); font-size: var(--font-size-sm); font-weight: 600; font-family: var(--font-family); cursor: pointer; }
+      .btn-ghost-sm:hover { border-color: var(--color-purple); color: var(--color-purple); }
+      .time-limit-value { margin: var(--space-sm) 0 0; font-size: var(--font-size-sm); color: var(--text-secondary); line-height: 1.5; }
 
       .results-actions { display: flex; justify-content: flex-end; margin-top: var(--space-sm); }
       .btn { min-height: var(--touch-min); padding: 0 var(--space-lg); border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-base); border: none; font-family: var(--font-family); cursor: pointer; }
@@ -142,10 +175,21 @@ export class QuizResultsComponent {
   protected readonly domainBreakdown = this.quiz.domainBreakdown;
   protected readonly expandedId = signal<string | null>(null);
 
-  protected readonly scorePct = computed(() => {
-    const { correct, total } = this.score();
-    return total === 0 ? 0 : Math.round((correct / total) * 100);
+  protected readonly scorePercent = computed(() => this.quiz.lastAttempt()?.scorePercent ?? 0);
+  protected readonly partialCredit = computed(() => this.quiz.lastAttempt()?.partialCredit ?? false);
+  protected readonly showTimeLimitScore = signal(false);
+  protected readonly timeLimitScore = computed(() => {
+    const attempt = this.quiz.lastAttempt();
+    return attempt ? attemptScoreAtTimeLimit(attempt) : null;
   });
+
+  formatScore(n: number): string {
+    return Number.isInteger(n) ? String(n) : n.toFixed(2);
+  }
+
+  formatClockValue(seconds: number): string {
+    return formatClock(seconds);
+  }
 
   protected readonly weakestDomain = computed(() => {
     const breakdown = this.domainBreakdown().filter((d) => d.total > 0);
@@ -157,7 +201,7 @@ export class QuizResultsComponent {
     const answers = this.quiz.answerByQuestionId();
     return this.quiz.questions().map((question) => ({
       question,
-      answer: answers[question.id] ?? { selected: [], checked: true, correct: false },
+      answer: answers[question.id] ?? { selected: [], checked: true, correct: false, score: 0 },
     }));
   });
 
