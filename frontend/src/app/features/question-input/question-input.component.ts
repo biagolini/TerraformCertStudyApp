@@ -16,18 +16,25 @@ import {
 import { parseQuestionReview } from '../../core/utils/question-parse.util';
 import { parseReadyMadePaste } from '../../core/utils/ready-made-parse.util';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
+import { ImportExamComponent } from '../import-exam/import-exam.component';
 
 @Component({
   selector: 'app-question-input',
   standalone: true,
-  imports: [FormsModule, AiDisclaimerComponent],
+  imports: [FormsModule, AiDisclaimerComponent, ImportExamComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="input-card">
       <header class="card-header">
         <h2>New Question</h2>
         <p class="subtitle">
-          {{ mode() === 'generate' ? 'Paste the full exam question with all alternatives.' : 'Paste a ready-made review (e.g. from Claude App) and save it.' }}
+          @if (activeView() === 'generate') {
+            Paste the full exam question with all alternatives.
+          } @else if (activeView() === 'manual') {
+            Paste a ready-made review (e.g. from Claude App) and save it.
+          } @else {
+            Upload a whole exam file and let AI extract every question in it.
+          }
         </p>
       </header>
 
@@ -35,24 +42,33 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
         <button
           type="button"
           class="mode-btn"
-          [class.active]="mode() === 'generate'"
+          [class.active]="activeView() === 'generate'"
           (click)="onSetMode('generate')"
           [disabled]="streaming() || savingManual()"
           role="tab"
-          [attr.aria-selected]="mode() === 'generate'"
+          [attr.aria-selected]="activeView() === 'generate'"
         >Generate with AI</button>
         <button
           type="button"
           class="mode-btn"
-          [class.active]="mode() === 'manual'"
+          [class.active]="activeView() === 'manual'"
           (click)="onSetMode('manual')"
           [disabled]="streaming() || savingManual()"
           role="tab"
-          [attr.aria-selected]="mode() === 'manual'"
+          [attr.aria-selected]="activeView() === 'manual'"
         >Add ready-made</button>
+        <button
+          type="button"
+          class="mode-btn"
+          [class.active]="activeView() === 'import'"
+          (click)="onShowImport()"
+          [disabled]="streaming() || savingManual()"
+          role="tab"
+          [attr.aria-selected]="activeView() === 'import'"
+        >Import exam file</button>
       </div>
 
-      @if (mode() === 'generate') {
+      @if (activeView() === 'generate') {
         <label class="textarea-wrap">
           <span class="visually-hidden">Question text</span>
           <textarea
@@ -73,24 +89,26 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
         }
       }
 
-      <div class="options-row">
-        <label class="model-row">
-          <span class="model-label">Model</span>
-          <select
-            class="model-select"
-            [ngModel]="selectedModel()"
-            (ngModelChange)="onSelectModel($event)"
-            [disabled]="streaming() || finalizing() || savingManual() || generatingTitle()"
-            aria-label="Model for this generation"
-          >
-            @for (model of availableModels(); track model.id) {
-              <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (reasoning)' : '' }} — {{ model.tier }}</option>
-            }
-          </select>
-        </label>
-      </div>
+      @if (activeView() !== 'import') {
+        <div class="options-row">
+          <label class="model-row">
+            <span class="model-label">Model</span>
+            <select
+              class="model-select"
+              [ngModel]="selectedModel()"
+              (ngModelChange)="onSelectModel($event)"
+              [disabled]="streaming() || finalizing() || savingManual() || generatingTitle()"
+              aria-label="Model for this generation"
+            >
+              @for (model of availableModels(); track model.id) {
+                <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (reasoning)' : '' }} — {{ model.tier }}</option>
+              }
+            </select>
+          </label>
+        </div>
+      }
 
-      @if (mode() === 'generate') {
+      @if (activeView() === 'generate') {
         @if (streaming()) {
           <button type="button" class="stop-btn" (click)="onStop()">
             <span class="stop-icon" aria-hidden="true"></span>
@@ -106,7 +124,7 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
             <span>{{ finalizing() ? 'Processing…' : 'Generate Review' }}</span>
           </button>
         }
-      } @else {
+      } @else if (activeView() === 'manual') {
         <label class="field">
           <span class="field-label">Domain</span>
           <select
@@ -171,9 +189,11 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
         >
           <span>{{ savingManual() ? 'Saving…' : 'Save review' }}</span>
         </button>
+      } @else {
+        <app-import-exam />
       }
 
-      @if (mode() === 'generate' && outputLanguage()) {
+      @if (activeView() === 'generate' && outputLanguage()) {
         <p class="lang-hint">Output language: {{ outputLanguageName() }}</p>
       }
 
@@ -181,9 +201,11 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
         <p class="error" role="alert">{{ error() }}</p>
       }
 
-      <app-ai-disclaimer
-        message="Generated reviews are produced by AI and can contain mistakes or hallucinations. Always verify against the official certification material."
-      />
+      @if (activeView() !== 'import') {
+        <app-ai-disclaimer
+          message="Generated reviews are produced by AI and can contain mistakes or hallucinations. Always verify against the official certification material."
+        />
+      }
     </section>
   `,
   styles: [
@@ -481,6 +503,14 @@ export class QuestionInputComponent {
   private readonly modeOverride = signal<ReviewMode | null>(null);
   readonly mode = computed(() => this.modeOverride() ?? this.settings.defaultReviewMode());
 
+  /** "Import exam file" is an occasional bulk action, not a sticky
+   * preference like generate/manual — it's local UI state, never persisted
+   * via settings.defaultReviewMode(). */
+  private readonly importViewActive = signal(false);
+  readonly activeView = computed<ReviewMode | 'import'>(() =>
+    this.importViewActive() ? 'import' : this.mode(),
+  );
+
   protected readonly generatingTitle = signal(false);
   protected readonly savingManual = signal(false);
   protected manualReview = '';
@@ -509,6 +539,12 @@ export class QuestionInputComponent {
 
   onSetMode(mode: ReviewMode): void {
     this.modeOverride.set(mode);
+    this.importViewActive.set(false);
+    this.error.set(null);
+  }
+
+  onShowImport(): void {
+    this.importViewActive.set(true);
     this.error.set(null);
   }
 
@@ -612,7 +648,7 @@ export class QuestionInputComponent {
       const question = await this.buildQuestion(review, title || fallbackTitle, this.selectedDomain(), activePack.id);
       if (!question) {
         this.error.set(
-          "Couldn't parse this into structured question data — check it follows the Question / Alternatives / Correct answer / Incorrect answers template.",
+          "Couldn't parse this into structured question data — check it follows the Question / Alternatives / Correct answer / Incorrect answers template. See the browser console for exactly which part failed.",
         );
         return;
       }
@@ -671,7 +707,7 @@ export class QuestionInputComponent {
       const question = await this.buildQuestion(review, title, domain, activePack.id);
       if (!question) {
         this.error.set(
-          "Couldn't parse the generated review into structured question data. Try again, or try a different model.",
+          "Couldn't parse the generated review into structured question data. Try again, try a different model, or see the browser console for exactly which part failed.",
         );
         return;
       }

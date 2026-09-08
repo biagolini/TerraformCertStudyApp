@@ -504,6 +504,10 @@ export class StorageService {
       return {
         theme: parsed.theme === 'dark' ? 'dark' : 'light',
         defaultModel: typeof parsed.defaultModel === 'string' && parsed.defaultModel ? parsed.defaultModel : DEFAULT_SETTINGS.defaultModel,
+        importExtractionModel:
+          typeof parsed.importExtractionModel === 'string' && parsed.importExtractionModel
+            ? parsed.importExtractionModel
+            : DEFAULT_SETTINGS.importExtractionModel,
         activePackId: typeof parsed.activePackId === 'string' ? parsed.activePackId : DEFAULT_SETTINGS.activePackId,
         activeMethod:
           typeof parsed.activeMethod === 'string' && isStudyMethod(parsed.activeMethod)

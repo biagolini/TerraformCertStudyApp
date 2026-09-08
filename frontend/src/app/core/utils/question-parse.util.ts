@@ -81,10 +81,19 @@ function extractLetterComments(lines: string[]): Map<string, string> {
  * Returns null when the review doesn't have this shape at all — callers must not
  * save a question that fails to parse.
  */
+function parseFailure(reason: string): null {
+  console.warn(`[parseQuestionReview] ${reason}`);
+  return null;
+}
+
 export function parseQuestionReview(review: string): ParsedQuestionDraft | null {
   const lines = review.replace(/\r\n/g, '\n').split('\n');
   const headings = headingIndices(lines);
-  if (headings.length < 4) return null;
+  if (headings.length < 4) {
+    return parseFailure(
+      `Found only ${headings.length} heading(s) — need at least 4 (Question / Alternatives / Correct answer / Incorrect answers).`,
+    );
+  }
 
   const [questionH, alternativesH, correctH, incorrectH] = headings.slice(-4);
   const questionLines = sectionAfter(lines, questionH, headings);
@@ -96,21 +105,36 @@ export function parseQuestionReview(review: string): ParsedQuestionDraft | null 
     .filter((line) => !ANNOTATION_LINE.test(line.trim()))
     .join('\n')
     .trim();
-  if (!stem) return null;
+  if (!stem) {
+    return parseFailure(`The "${lines[questionH].trim()}" section is empty.`);
+  }
 
   const options: { letter: string; text: string }[] = [];
   for (const raw of alternativesLines) {
     const match = OPTION_LINE.exec(raw.trim());
     if (match) options.push({ letter: match[1].toUpperCase(), text: match[2].trim() });
   }
-  if (options.length < 2) return null;
+  if (options.length < 2) {
+    return parseFailure(
+      `Found only ${options.length} alternative(s) matching "*Letter. text*" under "${lines[alternativesH].trim()}" — need at least 2.`,
+    );
+  }
 
   const correctComments = extractLetterComments(correctLines);
   const incorrectComments = extractLetterComments(incorrectLines);
-  if (correctComments.size === 0) return null;
+  if (correctComments.size === 0) {
+    return parseFailure(
+      `No line matching "*Letter. text*" found under "${lines[correctH].trim()}". For multi-select ("Select TWO/THREE") questions, list each correct letter on its own "*Letter. text*" line with its own explanation — a combined line like "*B e D. ...*" is not supported.`,
+    );
+  }
 
   const optionLetters = new Set(options.map((o) => o.letter));
-  if (![...correctComments.keys()].every((letter) => optionLetters.has(letter))) return null;
+  const unmatchedCorrect = [...correctComments.keys()].filter((letter) => !optionLetters.has(letter));
+  if (unmatchedCorrect.length > 0) {
+    return parseFailure(
+      `Correct-answer letter(s) ${unmatchedCorrect.join(', ')} don't match any alternative letter parsed from "${lines[alternativesH].trim()}" (found: ${[...optionLetters].join(', ')}).`,
+    );
+  }
 
   const alternatives: ParsedAlternative[] = options.map((option) => {
     const isCorrect = correctComments.has(option.letter);

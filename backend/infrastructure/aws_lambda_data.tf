@@ -58,6 +58,8 @@ resource "aws_lambda_function" "data" {
       TABLE_NAME               = aws_dynamodb_table.data.name
       QUESTIONS_TABLE_NAME     = aws_dynamodb_table.questions.name
       QUIZ_ATTEMPTS_TABLE_NAME = aws_dynamodb_table.quiz_attempts.name
+      ASSETS_BUCKET_NAME       = aws_s3_bucket.assets.id
+      IMPORT_STATE_MACHINE_ARN = aws_sfn_state_machine.import_exam.arn
     }
   }
 
@@ -94,6 +96,7 @@ resource "aws_iam_role_policy" "lambda_data_dynamodb" {
     Statement = [{
       Effect = "Allow"
       Action = [
+        "dynamodb:GetItem",
         "dynamodb:Query",
         "dynamodb:PutItem",
         "dynamodb:DeleteItem",
@@ -104,6 +107,50 @@ resource "aws_iam_role_policy" "lambda_data_dynamodb" {
         aws_dynamodb_table.questions.arn,
         aws_dynamodb_table.quiz_attempts.arn,
       ]
+    }]
+  })
+}
+
+# --- S3 asset bucket access (presigned PUT for uploads, presigned GET for images) ---
+
+resource "aws_iam_role_policy" "lambda_data_s3_assets" {
+  name = "${var.project_prefix}-lambda-data-s3-assets"
+  role = aws_iam_role.lambda_data.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.assets.arn}/uploads/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = "s3:GetObject"
+        Resource = "${aws_s3_bucket.assets.arn}/images/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = "s3:DeleteObject"
+        Resource = "${aws_s3_bucket.assets.arn}/images/*"
+      },
+    ]
+  })
+}
+
+# --- Start the import Step Functions execution (explicit "Process" action) ---
+
+resource "aws_iam_role_policy" "lambda_data_sfn_start" {
+  name = "${var.project_prefix}-lambda-data-sfn-start"
+  role = aws_iam_role.lambda_data.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "states:StartExecution"
+      Resource = aws_sfn_state_machine.import_exam.arn
     }]
   })
 }

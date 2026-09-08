@@ -71,6 +71,10 @@ output "s3_frontend_bucket" {
   value = module.main.s3_frontend_bucket
 }
 
+output "s3_assets_bucket" {
+  value = module.main.s3_assets_bucket
+}
+
 output "api_gateway_invoke_url" {
   value = module.main.api_gateway_invoke_url
 }

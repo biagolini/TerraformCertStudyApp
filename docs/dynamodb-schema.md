@@ -24,8 +24,37 @@ anything else.
 | `USER#{sub}` | `PACK#{id}` | `Pack` (name, description, version, domains, color, export intros) — see `frontend/src/app/core/models/pack.model.ts` |
 | `USER#{sub}` | `SCRIPT#{id}` | `Script` (transcript-summary session) — see `frontend/src/app/core/models/script.model.ts` |
 | `USER#{sub}` | `CHAT#{id}` | `ChatSession` (messages + summary) — see `frontend/src/app/core/models/chat.model.ts` |
+| `USER#{sub}` | `IMPORTJOB#{id}` | Bulk exam-import job status (below) |
 
 Billing: `PAY_PER_REQUEST`. Keys: `pk` (S, hash), `sk` (S, range).
+
+### `IMPORTJOB#{id}` shape
+
+Tracks a [bulk exam import](./question-import-pipeline.md) from upload
+through Step Functions completion. Unlike every other item in this table,
+**`processedCount`/`failedCount` are native top-level DynamoDB attributes,
+not fields inside the `data` JSON blob** — the extraction Lambda's
+concurrent Map iterations increment them with a genuinely atomic
+`UpdateItem ADD`, which isn't possible on a value trapped inside an opaque
+JSON string. `GET /data/imports*` merges them back into a flat object
+before returning it to the frontend.
+
+```ts
+// `data` blob:
+{
+  id: string;
+  packId: string;
+  filename: string;
+  status: 'AWAITING_UPLOAD' | 'PROCESSING' | 'SUCCEEDED' | 'PARTIAL' | 'FAILED';
+  totalQuestions: number | null;   // null until import-preprocess finishes chunking
+  createdAt: number;
+  completedAt: number | null;
+  error: string | null;
+}
+// native top-level attributes (sibling to pk/sk/data):
+processedCount: number; // atomic ADD from import-extract
+failedCount: number;    // atomic ADD from import-extract
+```
 
 ## Table: `${project_prefix}-questions`
 
@@ -66,6 +95,8 @@ export interface Question {
   metadata: QuestionMetadata;
   createdAt: number;
   updatedAt: number;
+  starred?: boolean;   // persistent "revisit this later" flag — independent of
+                        // any per-attempt quiz state; optional/absent = false
 }
 ```
 
@@ -111,6 +142,7 @@ Example item (`data` attribute, pretty-printed):
 
 ## Related docs
 
-- [Question ingestion pipeline](./question-ingestion.md) — how `stem`/`alternatives`/`metadata` get produced
+- [Question ingestion pipeline](./question-ingestion.md) — how `stem`/`alternatives`/`metadata` get produced for a single pasted question
+- [Bulk exam import pipeline](./question-import-pipeline.md) — how the same `Question` shape gets produced in bulk from an uploaded exam file, and the `IMPORTJOB#` lifecycle
 - [Backend documentation](./backend.md)
 - [Architecture overview](./architecture.md)

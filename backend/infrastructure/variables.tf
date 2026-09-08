@@ -54,3 +54,9 @@ variable "bedrock_model_id" {
   type        = string
   default     = "amazon.nova-lite-v1:0"
 }
+
+variable "bedrock_extraction_model_id" {
+  description = "Fallback Bedrock model ID for the bulk exam import pipeline (vision + forced tool-use), used only when a job has no per-request model override — see the \"Exam import model\" setting"
+  type        = string
+  default     = "us.amazon.nova-pro-v1:0"
+}

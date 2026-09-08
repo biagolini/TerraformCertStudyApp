@@ -53,6 +53,18 @@ function toCommaList(value: string): string[] {
           <div class="header-actions">
             <button
               type="button"
+              class="icon-btn star-btn"
+              (click)="onToggleStar(question)"
+              [class.active]="question.starred"
+              [attr.aria-label]="question.starred ? 'Unstar this question' : 'Star this question for later review'"
+              [attr.aria-pressed]="!!question.starred"
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                <path [attr.fill]="question.starred ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M12 3.5l2.6 5.6 6 .7-4.4 4.2 1.1 6-5.3-3-5.3 3 1.1-6-4.4-4.2 6-.7z"/>
+              </svg>
+            </button>
+            <button
+              type="button"
               class="icon-btn"
               (click)="onToggleEdit(question)"
               [class.active]="editing()"
@@ -294,6 +306,8 @@ function toCommaList(value: string): string[] {
       .icon-btn.active { background: var(--bg-elevated); color: var(--color-purple); }
       .icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
       .delete-btn:hover:not(:disabled) { color: var(--color-red); }
+      .star-btn.active { color: var(--color-amber); }
+      .star-btn:hover:not(:disabled) { color: var(--color-amber); }
       .viewer-body { flex: 1; overflow-y: auto; padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-xl); }
 
       .stem { font-size: var(--font-size-base); line-height: 1.6; color: var(--text-primary); margin: 0; white-space: pre-line; }
@@ -433,6 +447,10 @@ export class ReviewViewerComponent {
 
   onToggleReveal(): void {
     this.revealed.set(!this.revealed());
+  }
+
+  onToggleStar(question: Question): void {
+    this.questionsService.toggleStarred(question.id);
   }
 
   onDelete(question: Question): void {

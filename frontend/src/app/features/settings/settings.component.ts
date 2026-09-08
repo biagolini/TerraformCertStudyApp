@@ -79,6 +79,29 @@ import { StorageService } from '../../core/services/storage.service';
 
         <section class="block">
           <header class="section-header">
+            <h3>Exam import model</h3>
+            <p class="helper">
+              Foundation model used to extract questions from uploaded exam files (PDF/MD/ZIP). A stronger model
+              reduces extraction failures on messy source files, at higher cost and latency per question.
+            </p>
+          </header>
+          <select
+            class="text-input"
+            [ngModel]="importExtractionModel()"
+            (ngModelChange)="onImportExtractionModelChange($event)"
+            aria-label="Exam import model"
+          >
+            @for (model of availableModels(); track model.id) {
+              <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (reasoning)' : '' }} — {{ model.tier }}</option>
+            }
+            @if (!availableHas(importExtractionModel())) {
+              <option [value]="importExtractionModel()">{{ importExtractionModel() }} (not in current list)</option>
+            }
+          </select>
+        </section>
+
+        <section class="block">
+          <header class="section-header">
             <h3>Output language</h3>
             <p class="helper">
               Language used in explanations and translations. Default keeps the same language as the input question or transcript.
@@ -186,6 +209,15 @@ import { StorageService } from '../../core/services/storage.service';
             Clear questions in this pack
           </button>
           <p class="helper">{{ questionCount() }} question{{ questionCount() === 1 ? '' : 's' }} in this pack.</p>
+          @if (clearResult(); as result) {
+            <p class="helper" [class.clear-success]="result.failed === 0" [class.clear-warn]="result.failed > 0">
+              @if (result.failed === 0) {
+                All {{ result.deleted }} question{{ result.deleted === 1 ? '' : 's' }} deleted successfully.
+              } @else {
+                Deleted {{ result.deleted }}, but {{ result.failed }} failed — still present, please try again.
+              }
+            </p>
+          }
         </section>
       </div>
 
@@ -197,8 +229,10 @@ import { StorageService } from '../../core/services/storage.service';
               This will permanently delete the {{ questionCount() }} question{{ questionCount() === 1 ? '' : 's' }} in the active pack. Your settings and other packs will not be affected.
             </p>
             <div class="confirm-actions">
-              <button type="button" class="btn btn-ghost" (click)="onCancelClear()">Cancel</button>
-              <button type="button" class="btn btn-danger" (click)="onConfirmClear()">Delete</button>
+              <button type="button" class="btn btn-ghost" (click)="onCancelClear()" [disabled]="clearing()">Cancel</button>
+              <button type="button" class="btn btn-danger" (click)="onConfirmClear()" [disabled]="clearing()">
+                {{ clearing() ? 'Deleting…' : 'Delete' }}
+              </button>
             </div>
           </div>
         </div>
@@ -267,6 +301,12 @@ import { StorageService } from '../../core/services/storage.service';
         font-size: var(--font-size-sm);
         color: var(--text-muted);
         line-height: 1.45;
+      }
+      .helper.clear-success {
+        color: var(--color-green);
+      }
+      .helper.clear-warn {
+        color: var(--color-amber);
       }
       .sync-error {
         font-size: var(--font-size-sm);
@@ -397,6 +437,8 @@ export class SettingsComponent {
   private readonly storage = inject(StorageService);
 
   protected readonly confirmingClear = signal(false);
+  protected readonly clearing = signal(false);
+  protected readonly clearResult = signal<{ deleted: number; failed: number } | null>(null);
   protected readonly outputLanguages = OUTPUT_LANGUAGES;
 
   readonly closed = output<void>();
@@ -404,6 +446,7 @@ export class SettingsComponent {
   readonly questionCount = this.questionsService.count;
   readonly availableModels = this.modelsService.models;
   readonly defaultModel = this.settings.defaultModel;
+  readonly importExtractionModel = this.settings.importExtractionModel;
   readonly outputLanguage = this.settings.outputLanguage;
   readonly defaultReviewMode = this.settings.defaultReviewMode;
   readonly showCorrectInReview = this.settings.showCorrectInReview;
@@ -424,6 +467,7 @@ export class SettingsComponent {
   }
 
   onClearRequested(): void {
+    this.clearResult.set(null);
     this.confirmingClear.set(true);
   }
 
@@ -431,13 +475,23 @@ export class SettingsComponent {
     this.confirmingClear.set(false);
   }
 
-  onConfirmClear(): void {
-    this.questionsService.clearActivePack();
-    this.confirmingClear.set(false);
+  async onConfirmClear(): Promise<void> {
+    this.clearing.set(true);
+    try {
+      const result = await this.questionsService.clearActivePack();
+      this.clearResult.set(result);
+    } finally {
+      this.clearing.set(false);
+      this.confirmingClear.set(false);
+    }
   }
 
   onDefaultModelChange(value: string): void {
     this.settings.setDefaultModel(value);
+  }
+
+  onImportExtractionModelChange(value: string): void {
+    this.settings.setImportExtractionModel(value);
   }
 
   onOutputLanguageChange(value: string): void {

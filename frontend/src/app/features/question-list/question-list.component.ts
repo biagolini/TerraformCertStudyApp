@@ -74,6 +74,7 @@ import { QuestionItemComponent } from './question-item.component';
                 (opened)="opened.emit(question)"
                 (selectionToggled)="onToggle(question.id)"
                 (domainChanged)="onDomainChanged(question.id, $event)"
+                (starToggled)="onStarToggled(question.id)"
               />
             </li>
           }
@@ -261,6 +262,10 @@ export class QuestionListComponent {
 
   onDomainChanged(id: string, domain: string): void {
     this.questionsService.updateDomain(id, domain);
+  }
+
+  onStarToggled(id: string): void {
+    this.questionsService.toggleStarred(id);
   }
 
   onSearchChange(value: string): void {

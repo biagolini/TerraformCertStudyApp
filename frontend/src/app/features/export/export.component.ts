@@ -88,6 +88,19 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
           <span class="action-label">Download all</span>
           <span class="action-sub">{{ splitEnabled ? 'Split into balanced batches of ~' + maxPerFile : 'Every reviewed question in a single file' }}</span>
         </button>
+
+        <button
+          type="button"
+          class="action-btn"
+          (click)="downloadStarred()"
+          [disabled]="starredCount() === 0"
+        >
+          <span class="action-label">Export starred</span>
+          <span class="action-sub">
+            {{ starredCount() }} starred question{{ starredCount() === 1 ? '' : 's' }} —
+            {{ splitEnabled ? 'split into balanced batches of ~' + maxPerFile : 'single file' }}
+          </span>
+        </button>
       </div>
 
       @if (selectedBreakdown().length > 0) {
@@ -356,6 +369,10 @@ export class ExportComponent {
 
   readonly selectedBreakdown = computed(() => this.breakdown());
 
+  readonly starredCount = computed(
+    () => this.questionsService.questions().filter((q) => q.starred).length,
+  );
+
   /** All domains from ALL questions in the active pack (not just selected). */
   readonly allDomains = computed(() => {
     const counts = new Map<string, number>();
@@ -432,6 +449,19 @@ export class ExportComponent {
       const pack = this.packs.activePack();
       const content = this.exportService.buildMarkdownContent(questions, 1, 1, pack);
       const filename = this.exportService.buildFilename(pack.name, 'all', pack.version);
+      this.exportService.downloadFile(content, filename);
+    }
+  }
+
+  downloadStarred(): void {
+    const questions = this.questionsService.questions().filter((q) => q.starred);
+    if (questions.length === 0) return;
+    if (this.splitEnabled && this.maxPerFile > 0) {
+      this.emitBatches(questions, this.maxPerFile);
+    } else {
+      const pack = this.packs.activePack();
+      const content = this.exportService.buildMarkdownContent(questions, 1, 1, pack);
+      const filename = this.exportService.buildFilename(pack.name, 'starred', pack.version);
       this.exportService.downloadFile(content, filename);
     }
   }

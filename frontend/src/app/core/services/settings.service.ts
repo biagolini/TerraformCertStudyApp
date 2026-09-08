@@ -12,6 +12,7 @@ export class SettingsService {
   readonly settings = this.state.asReadonly();
   readonly theme = computed(() => this.state().theme);
   readonly defaultModel = computed(() => this.state().defaultModel);
+  readonly importExtractionModel = computed(() => this.state().importExtractionModel);
   readonly activePackId = computed(() => this.state().activePackId);
   readonly activeMethod = computed(() => this.state().activeMethod);
   readonly outputLanguage = computed(() => this.state().outputLanguage);
@@ -36,6 +37,10 @@ export class SettingsService {
 
   setDefaultModel(value: string): void {
     this.update((s) => ({ ...s, defaultModel: value.trim() || s.defaultModel }));
+  }
+
+  setImportExtractionModel(value: string): void {
+    this.update((s) => ({ ...s, importExtractionModel: value.trim() || s.importExtractionModel }));
   }
 
   setActivePackId(id: string): void {

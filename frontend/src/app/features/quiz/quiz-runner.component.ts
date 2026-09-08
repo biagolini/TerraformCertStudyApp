@@ -7,6 +7,7 @@ import { resolveSelectionBlock } from '../../core/utils/text-range.util';
 import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.component';
 import { QuizAnnotatedTextComponent } from './quiz-annotated-text.component';
 import { formatClock, QuizService } from '../../core/services/quiz.service';
+import { QuestionsService } from '../../core/services/questions.service';
 
 @Component({
   selector: 'app-quiz-runner',
@@ -66,7 +67,21 @@ import { formatClock, QuizService } from '../../core/services/quiz.service';
 
         <div class="runner-body">
           <div class="question-main">
-            <div class="q-domain"><app-domain-badge [domain]="q.domain" /></div>
+            <div class="q-domain">
+              <app-domain-badge [domain]="q.domain" />
+              <button
+                type="button"
+                class="star-btn"
+                [class.active]="isQuestionStarred()"
+                (click)="onToggleStar(q.id)"
+                [attr.aria-label]="isQuestionStarred() ? 'Unstar this question' : 'Star this question for later review'"
+                [attr.aria-pressed]="isQuestionStarred()"
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                  <path [attr.fill]="isQuestionStarred() ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M12 3.5l2.6 5.6 6 .7-4.4 4.2 1.1 6-5.3-3-5.3 3 1.1-6-4.4-4.2 6-.7z"/>
+                </svg>
+              </button>
+            </div>
             <div class="q-stem">
               <app-annotated-text
                 blockId="stem"
@@ -216,7 +231,10 @@ import { formatClock, QuizService } from '../../core/services/quiz.service';
       .runner-body { display: flex; gap: var(--space-lg); align-items: flex-start; }
       .question-main { flex: 1; min-width: 0; }
 
-      .q-domain { margin-bottom: var(--space-sm); }
+      .q-domain { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-sm); }
+      .star-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; background: none; color: var(--text-faint); flex-shrink: 0; }
+      .star-btn:hover { color: var(--color-amber); }
+      .star-btn.active { color: var(--color-amber); }
       .q-stem { font-size: var(--font-size-base); line-height: 1.55; color: var(--text-primary); margin: 0 0 var(--space-lg); }
       .multi-hint { font-size: var(--font-size-xs); color: var(--text-muted); margin: 0 0 var(--space-sm); }
 
@@ -278,8 +296,13 @@ import { formatClock, QuizService } from '../../core/services/quiz.service';
 })
 export class QuizRunnerComponent {
   protected readonly quiz = inject(QuizService);
+  private readonly questionsService = inject(QuestionsService);
 
   protected readonly question = this.quiz.currentQuestion;
+  protected readonly isQuestionStarred = computed(() => {
+    const q = this.question();
+    return q ? (this.questionsService.getById(q.id)?.starred ?? false) : false;
+  });
   protected readonly answer = this.quiz.currentAnswer;
   protected readonly progress = this.quiz.progress;
   protected readonly score = this.quiz.score;
@@ -311,6 +334,10 @@ export class QuizRunnerComponent {
 
   onContinuePastTime(): void {
     this.timeUpDismissed.set(true);
+  }
+
+  onToggleStar(questionId: string): void {
+    this.questionsService.toggleStarred(questionId);
   }
 
   isSelected(letter: string): boolean {

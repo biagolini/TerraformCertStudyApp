@@ -7,6 +7,7 @@ export type ReviewMode = 'generate' | 'manual';
 export interface AppSettings {
   theme: ThemeMode;
   defaultModel: string;
+  importExtractionModel: string;
   activePackId: string;
   activeMethod: StudyMethod;
   outputLanguage: string;
@@ -17,10 +18,17 @@ export interface AppSettings {
 }
 
 export const DEFAULT_MODEL = 'amazon.nova-lite-v1:0';
+// The system-defined inference profile id, not the bare foundation-model id —
+// GET /data/models (see lambda/data/app.py's _list_usable_models) prefers the
+// profile over the base id whenever both exist for the same underlying model,
+// so this must match exactly or the Settings dropdown shows it as "not in
+// current list" even though it's a perfectly valid, selectable option.
+export const DEFAULT_IMPORT_EXTRACTION_MODEL = 'us.amazon.nova-pro-v1:0';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'light',
   defaultModel: DEFAULT_MODEL,
+  importExtractionModel: DEFAULT_IMPORT_EXTRACTION_MODEL,
   activePackId: '',
   activeMethod: 'question',
   outputLanguage: '',

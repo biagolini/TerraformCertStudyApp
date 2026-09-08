@@ -26,6 +26,7 @@ import { ChatConversationComponent } from './features/chat/chat-conversation.com
 import { QuizComponent } from './features/quiz/quiz.component';
 import { ThemeToggleComponent } from './shared/components/theme-toggle.component';
 import { SyncStatusComponent } from './shared/components/sync-status.component';
+import { ImportStatusPillComponent } from './shared/components/import-status-pill.component';
 
 type Tab = 'create' | 'methods' | 'quiz' | 'export';
 
@@ -49,6 +50,7 @@ type Tab = 'create' | 'methods' | 'quiz' | 'export';
     ChatConversationComponent,
     QuizComponent,
     SyncStatusComponent,
+    ImportStatusPillComponent,
   ],
   styleUrl: './app.component.scss',
   template: `
@@ -73,6 +75,7 @@ type Tab = 'create' | 'methods' | 'quiz' | 'export';
           </svg>
         </button>
         <div class="header-actions">
+          <app-import-status-pill />
           <app-sync-status />
           <app-theme-toggle />
           <button type="button" class="icon-btn" (click)="openSettings()" aria-label="Open settings">

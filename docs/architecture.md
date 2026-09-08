@@ -21,6 +21,9 @@ graph TB
         DynamoDB["DynamoDB<br/>(user data)"]
         R53["Route53<br/>cert.yourdomain.com"]
         ACM["ACM Certificate"]
+        Assets["S3 Bucket<br/>(private: uploads/scratch/images)"]
+        SFN["Step Functions<br/>study-import-exam"]
+        LImport["3x Lambda<br/>import-preprocess/extract/finalize"]
     end
 
     Browser -->|HTTPS| CF
@@ -29,13 +32,21 @@ graph TB
     ACM -.->|TLS| CF
 
     Browser -->|"POST /converse<br/>Bearer token"| APIGW
-    Browser -->|"GET/PUT /data<br/>PUT/DELETE /data/{entity}/{id}<br/>Bearer token"| APIGW
+    Browser -->|"GET/PUT /data<br/>PUT/DELETE /data/{entity}/{id}<br/>POST/GET /data/imports*<br/>Bearer token"| APIGW
     APIGW -->|Cognito Authorizer| Cognito
     APIGW -->|"Streaming (NDJSON)"| LConverse
     APIGW -->|"Buffered (JSON)"| LData
     LConverse -->|converse_stream| Bedrock
     LData -->|ListFoundationModels<br/>ListInferenceProfiles| Bedrock
     LData -->|CRUD| DynamoDB
+    LData -->|"presigned PUT (upload)<br/>presigned GET (images)"| Assets
+    Browser -->|"PUT raw exam file<br/>(presigned URL, direct)"| Assets
+    Browser -->|"POST /data/imports/{id}/process<br/>(explicit, user-triggered)"| APIGW
+    LData -->|StartExecution| SFN
+    SFN -->|invoke| LImport
+    LImport -->|converse (vision + tool-use)| Bedrock
+    LImport -->|CRUD| DynamoDB
+    LImport <-->|images/scratch/uploads| Assets
 ```
 
 ## Components
@@ -50,6 +61,8 @@ graph TB
 | Storage | DynamoDB | Single-table design for user data |
 | AI | Amazon Bedrock | Dynamic model list (Nova, Claude, etc.) |
 | DNS | Route53 + ACM | Custom domain with TLS |
+| Assets | S3 (private) | Uploaded exam files + extracted question images, presigned-URL only |
+| Import pipeline | Step Functions + 3 Lambdas | Explicitly started by the user (`POST /data/imports/{id}/process`) — chunk → per-question Bedrock extraction (Map fan-out) → finalize — see [bulk import pipeline](./question-import-pipeline.md) |
 
 ## Authentication Flow
 
@@ -121,6 +134,7 @@ Setting `frontend_deploy_enabled = true` automatically: generates `environment.t
 ## Related docs
 
 - [Question ingestion pipeline](./question-ingestion.md)
+- [Bulk exam import pipeline](./question-import-pipeline.md)
 - [DynamoDB schema](./dynamodb-schema.md)
 - [Backend documentation](./backend.md)
 - [Frontend documentation](./frontend.md)

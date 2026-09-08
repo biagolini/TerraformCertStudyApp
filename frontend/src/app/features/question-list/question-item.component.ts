@@ -22,14 +22,28 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
       </label>
 
       <div class="content">
-        <button
-          type="button"
-          class="title-btn"
-          (click)="opened.emit()"
-          [attr.aria-label]="'Open review for ' + question().title"
-        >
-          <span class="title">{{ question().title | truncate: 120 }}</span>
-        </button>
+        <div class="title-row">
+          <button
+            type="button"
+            class="title-btn"
+            (click)="opened.emit()"
+            [attr.aria-label]="'Open review for ' + question().title"
+          >
+            <span class="title">{{ question().title | truncate: 120 }}</span>
+          </button>
+          <button
+            type="button"
+            class="star-btn"
+            [class.active]="question().starred"
+            (click)="$event.stopPropagation(); starToggled.emit()"
+            [attr.aria-label]="question().starred ? 'Unstar this question' : 'Star this question for later review'"
+            [attr.aria-pressed]="!!question().starred"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path [attr.fill]="question().starred ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M12 3.5l2.6 5.6 6 .7-4.4 4.2 1.1 6-5.3-3-5.3 3 1.1-6-4.4-4.2 6-.7z"/>
+            </svg>
+          </button>
+        </div>
 
         <div class="domain-control" (click)="$event.stopPropagation()">
           @if (showPicker()) {
@@ -128,6 +142,11 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
         border-bottom: 2px solid #ffffff;
         transform: rotate(-45deg) translate(0, -2px);
       }
+      .title-row {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--space-xs);
+      }
       .title-btn {
         text-align: left;
         background: none;
@@ -137,7 +156,24 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
         font-weight: 500;
         line-height: 1.35;
         min-width: 0;
-        width: 100%;
+        flex: 1;
+      }
+      .star-btn {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        background: none;
+        color: var(--text-faint);
+      }
+      .star-btn:hover {
+        color: var(--color-amber);
+      }
+      .star-btn.active {
+        color: var(--color-amber);
       }
       .title {
         display: -webkit-box;
@@ -185,6 +221,7 @@ export class QuestionItemComponent {
   readonly opened = output<void>();
   readonly selectionToggled = output<void>();
   readonly domainChanged = output<string>();
+  readonly starToggled = output<void>();
 
   protected readonly pickerOpen = signal(false);
   readonly showPicker = computed(() => this.pickerOpen());

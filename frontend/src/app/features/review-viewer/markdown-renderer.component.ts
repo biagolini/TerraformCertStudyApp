@@ -1,6 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { ImageAssetService } from '../../core/services/image-asset.service';
 
-type InlineSegment = { kind: 'text' | 'bold' | 'italic'; value: string };
+type InlineSegment =
+  | { kind: 'text' | 'bold' | 'italic'; value: string }
+  | { kind: 'img'; alt: string; ref: string };
 
 type Block =
   | { kind: 'h2' | 'h3'; inline: InlineSegment[] }
@@ -11,35 +15,52 @@ type Block =
 @Component({
   selector: 'app-markdown-renderer',
   standalone: true,
+  imports: [NgTemplateOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <ng-template #inline let-segments>
+      @for (seg of segments; track $index) {
+        @if (seg.kind === 'bold') {
+          <strong>{{ seg.value }}</strong>
+        } @else if (seg.kind === 'italic') {
+          <em>{{ seg.value }}</em>
+        } @else if (seg.kind === 'img') {
+          @if (imageAssets.resolve(seg.ref)(); as state) {
+            @if (state === 'error') {
+              <span class="md-img-error" [attr.title]="'Image failed to load: ' + seg.ref">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                  <path
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M4 16l4.5-6 3.5 4 3-3L20 16M4 5h16v14H4z"
+                  />
+                </svg>
+                {{ seg.alt || 'Image unavailable' }}
+              </span>
+            } @else if (state !== 'pending') {
+              <img class="md-img" [src]="state" [alt]="seg.alt" />
+            }
+          }
+        } @else {
+          <span>{{ seg.value }}</span>
+        }
+      }
+    </ng-template>
+
     <div class="markdown">
       @for (block of blocks(); track $index) {
         @switch (block.kind) {
           @case ('h2') {
             <h2 class="md-h2">
-              @for (seg of asInline(block); track $index) {
-                @if (seg.kind === 'bold') {
-                  <strong>{{ seg.value }}</strong>
-                } @else if (seg.kind === 'italic') {
-                  <em>{{ seg.value }}</em>
-                } @else {
-                  <span>{{ seg.value }}</span>
-                }
-              }
+              <ng-container *ngTemplateOutlet="inline; context: { $implicit: asInline(block) }" />
             </h2>
           }
           @case ('h3') {
             <h3 class="md-h3">
-              @for (seg of asInline(block); track $index) {
-                @if (seg.kind === 'bold') {
-                  <strong>{{ seg.value }}</strong>
-                } @else if (seg.kind === 'italic') {
-                  <em>{{ seg.value }}</em>
-                } @else {
-                  <span>{{ seg.value }}</span>
-                }
-              }
+              <ng-container *ngTemplateOutlet="inline; context: { $implicit: asInline(block) }" />
             </h3>
           }
           @case ('hr') {
@@ -47,30 +68,14 @@ type Block =
           }
           @case ('p') {
             <p class="md-p" [class.muted]="asParagraph(block).muted">
-              @for (seg of asParagraph(block).inline; track $index) {
-                @if (seg.kind === 'bold') {
-                  <strong>{{ seg.value }}</strong>
-                } @else if (seg.kind === 'italic') {
-                  <em>{{ seg.value }}</em>
-                } @else {
-                  <span>{{ seg.value }}</span>
-                }
-              }
+              <ng-container *ngTemplateOutlet="inline; context: { $implicit: asParagraph(block).inline }" />
             </p>
           }
           @case ('ul') {
             <ul class="md-ul">
               @for (item of asList(block).items; track $index) {
                 <li>
-                  @for (seg of item; track $index) {
-                    @if (seg.kind === 'bold') {
-                      <strong>{{ seg.value }}</strong>
-                    } @else if (seg.kind === 'italic') {
-                      <em>{{ seg.value }}</em>
-                    } @else {
-                      <span>{{ seg.value }}</span>
-                    }
-                  }
+                  <ng-container *ngTemplateOutlet="inline; context: { $implicit: item }" />
                 </li>
               }
             </ul>
@@ -126,6 +131,24 @@ type Block =
         color: var(--text-primary);
         font-weight: 700;
       }
+      .md-img {
+        display: block;
+        max-width: 100%;
+        border-radius: var(--radius-md);
+        margin: var(--space-xs) 0;
+      }
+      .md-img-error {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-xs);
+        margin: var(--space-xs) 0;
+        padding: var(--space-xs) var(--space-sm);
+        border: 1px dashed var(--bg-border);
+        border-radius: var(--radius-md);
+        color: var(--text-muted);
+        font-size: calc(var(--font-size-base) - 1px);
+        font-style: italic;
+      }
       em {
         font-style: italic;
       }
@@ -133,9 +156,23 @@ type Block =
   ],
 })
 export class MarkdownRendererComponent {
+  protected readonly imageAssets = inject(ImageAssetService);
+
   readonly source = input.required<string>();
 
   readonly blocks = computed<Block[]>(() => parseMarkdown(this.source()));
+
+  constructor() {
+    // Triggers the actual presign fetch here, outside template rendering —
+    // AuthService.getValidToken() synchronously writes a signal, and Angular
+    // forbids signal writes while a template is being rendered (NG0600), so
+    // this can't be done from the template's own `imageAssets.resolve()` call.
+    effect(() => {
+      for (const ref of collectImageRefs(this.blocks())) {
+        this.imageAssets.ensureFetched(ref);
+      }
+    });
+  }
 
   asInline(block: Block): InlineSegment[] {
     return block.kind === 'h2' || block.kind === 'h3' ? block.inline : [];
@@ -146,6 +183,20 @@ export class MarkdownRendererComponent {
   asList(block: Block): { items: InlineSegment[][] } {
     return block.kind === 'ul' ? { items: block.items } : { items: [] };
   }
+}
+
+function collectImageRefs(blocks: Block[]): string[] {
+  const refs: string[] = [];
+  const scan = (segments: InlineSegment[]) => {
+    for (const seg of segments) {
+      if (seg.kind === 'img') refs.push(seg.ref);
+    }
+  };
+  for (const block of blocks) {
+    if (block.kind === 'h2' || block.kind === 'h3' || block.kind === 'p') scan(block.inline);
+    else if (block.kind === 'ul') block.items.forEach(scan);
+  }
+  return refs;
 }
 
 function parseMarkdown(source: string): Block[] {
@@ -211,6 +262,22 @@ function parseInline(text: string): InlineSegment[] {
   };
 
   while (i < text.length) {
+    if (text.startsWith('![', i)) {
+      const altEnd = text.indexOf(']', i + 2);
+      if (altEnd !== -1 && text[altEnd + 1] === '(') {
+        const refEnd = text.indexOf(')', altEnd + 2);
+        if (refEnd !== -1) {
+          flushText();
+          segments.push({
+            kind: 'img',
+            alt: text.slice(i + 2, altEnd),
+            ref: text.slice(altEnd + 2, refEnd),
+          });
+          i = refEnd + 1;
+          continue;
+        }
+      }
+    }
     if (text.startsWith('**', i)) {
       const end = text.indexOf('**', i + 2);
       if (end !== -1) {

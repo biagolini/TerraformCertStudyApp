@@ -1317,7 +1317,7 @@ export class PackEditorComponent {
   onConfirmDelete(): void {
     const target = this.pack();
     if (!target) return;
-    this.questionsService.removeByPackId(target.id);
+    void this.questionsService.removeByPackId(target.id);
     this.chatService.removeByPackId(target.id);
     this.packs.remove(target.id);
     this.confirmingDelete.set(false);

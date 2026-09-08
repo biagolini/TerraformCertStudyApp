@@ -20,6 +20,8 @@ export interface Question {
   metadata: QuestionMetadata;
   createdAt: number;
   updatedAt: number;
+  /** Persistent "revisit this later" flag — independent of any per-attempt quiz state. */
+  starred?: boolean;
 }
 
 export function correctLetters(question: Pick<Question, 'alternatives'>): string[] {
@@ -28,4 +30,8 @@ export function correctLetters(question: Pick<Question, 'alternatives'>): string
 
 export function isMultipleChoice(question: Pick<Question, 'alternatives'>): boolean {
   return correctLetters(question).length > 1;
+}
+
+export function isStarred(question: Pick<Question, 'starred'>): boolean {
+  return question.starred ?? false;
 }

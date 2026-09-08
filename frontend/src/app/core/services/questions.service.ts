@@ -95,26 +95,51 @@ export class QuestionsService {
     this.persist(next);
   }
 
+  toggleStarred(id: string): void {
+    const current = this.getById(id);
+    this.updatePartial(id, { starred: !(current?.starred ?? false) });
+  }
+
   remove(id: string): void {
     this.persist(this.state().filter((q) => q.id !== id));
     this.deselect(id);
   }
 
-  clearActivePack(): void {
+  async clearActivePack(): Promise<{ deleted: number; failed: number }> {
     const activeId = this.packs.activePack().id;
-    const next = this.state().filter((q) => q.packId !== activeId);
-    this.persist(next);
-    this.selectedIdsState.set(new Set());
+    return this.removeByPackId(activeId);
   }
 
-  removeByPackId(packId: string): void {
+  /** Deletes every question in a pack — awaits each backend DELETE and only
+   * removes locally the ones actually confirmed deleted server-side. A
+   * fire-and-forget version of this previously let a failed (or merely
+   * slow) backend delete "disappear" locally only to reappear on the next
+   * sync, since nothing was actually removed on the server.
+   *
+   * Deletes are sent in small sequential batches, not all at once — this
+   * AWS account's Lambda concurrency limit is a mere 10 (shared across
+   * every function), so firing e.g. 178 DELETEs in parallel via a single
+   * Promise.all throttles almost all of them at the Lambda level, which
+   * API Gateway surfaces as a flood of HTTP 500s rather than 429s. */
+  async removeByPackId(packId: string): Promise<{ deleted: number; failed: number }> {
     const toDelete = this.state().filter((q) => q.packId === packId);
-    for (const q of toDelete) {
-      void this.storage.deleteQuestion(q.id);
+    if (toDelete.length === 0) return { deleted: 0, failed: 0 };
+
+    const BATCH_SIZE = 4;
+    const deletedIds = new Set<string>();
+    for (let i = 0; i < toDelete.length; i += BATCH_SIZE) {
+      const batch = toDelete.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(batch.map((q) => this.storage.deleteQuestion(q.id)));
+      batch.forEach((q, idx) => {
+        if (results[idx]) deletedIds.add(q.id);
+      });
     }
-    const next = this.state().filter((q) => q.packId !== packId);
+
+    const next = this.state().filter((q) => !deletedIds.has(q.id));
     this.persist(next);
     this.selectedIdsState.set(new Set());
+
+    return { deleted: deletedIds.size, failed: toDelete.length - deletedIds.size };
   }
 
   toggleSelected(id: string): void {

@@ -17,6 +17,11 @@ output "s3_frontend_bucket" {
   value       = aws_s3_bucket.frontend.id
 }
 
+output "s3_assets_bucket" {
+  description = "S3 bucket name for private uploaded exams and question images"
+  value       = aws_s3_bucket.assets.id
+}
+
 output "api_gateway_invoke_url" {
   description = "API Gateway stage invoke URL"
   value       = aws_api_gateway_stage.main.invoke_url

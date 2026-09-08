@@ -289,6 +289,33 @@ resource "aws_api_gateway_integration" "data_proxy_delete" {
   }
 }
 
+# --- POST /data/{proxy+} (import jobs: POST /data/imports) ---
+
+resource "aws_api_gateway_method" "data_proxy_post" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.data_proxy.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+
+  request_parameters = {
+    "method.request.path.proxy" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "data_proxy_post" {
+  rest_api_id             = aws_api_gateway_rest_api.main.id
+  resource_id             = aws_api_gateway_resource.data_proxy.id
+  http_method             = aws_api_gateway_method.data_proxy_post.http_method
+  type                    = "AWS_PROXY"
+  integration_http_method = "POST"
+  uri                     = aws_lambda_function.data.invoke_arn
+
+  request_parameters = {
+    "integration.request.header.x-user-id" = "context.authorizer.claims.sub"
+  }
+}
+
 # --- GET /data/{proxy+} (model discovery: GET /data/models) ---
 
 resource "aws_api_gateway_method" "data_proxy_get" {
@@ -359,7 +386,7 @@ resource "aws_api_gateway_integration_response" "data_proxy_options_200" {
 
   response_parameters = {
     "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,PUT,DELETE,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,PUT,DELETE,OPTIONS'"
     "method.response.header.Access-Control-Allow-Origin"  = "'*'"
   }
 }
@@ -377,6 +404,7 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_integration.data_proxy_put.uri,
       aws_api_gateway_integration.data_proxy_delete.uri,
       aws_api_gateway_integration.data_proxy_get.uri,
+      aws_api_gateway_integration.data_proxy_post.uri,
       aws_api_gateway_gateway_response.default_4xx.response_parameters,
       aws_api_gateway_gateway_response.default_5xx.response_parameters,
     ]))
@@ -403,6 +431,8 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.data_proxy_delete,
     aws_api_gateway_method.data_proxy_get,
     aws_api_gateway_integration.data_proxy_get,
+    aws_api_gateway_method.data_proxy_post,
+    aws_api_gateway_integration.data_proxy_post,
     aws_api_gateway_method.data_proxy_options,
     aws_api_gateway_integration.data_proxy_options,
     aws_api_gateway_gateway_response.default_4xx,
