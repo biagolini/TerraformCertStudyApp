@@ -16,12 +16,13 @@ import {
 import { parseQuestionReview } from '../../core/utils/question-parse.util';
 import { parseReadyMadePaste } from '../../core/utils/ready-made-parse.util';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
+import { ImageUploadHelperComponent } from '../../shared/components/image-upload-helper.component';
 import { ImportExamComponent } from '../import-exam/import-exam.component';
 
 @Component({
   selector: 'app-question-input',
   standalone: true,
-  imports: [FormsModule, AiDisclaimerComponent, ImportExamComponent],
+  imports: [FormsModule, AiDisclaimerComponent, ImportExamComponent, ImageUploadHelperComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="input-card">
@@ -180,6 +181,8 @@ import { ImportExamComponent } from '../import-exam/import-exam.component';
             class="textarea"
           ></textarea>
         </label>
+
+        <app-image-upload-helper />
 
         <button
           type="button"

@@ -16,6 +16,7 @@ import { renderQuestionMarkdown } from '../../core/utils/question-markdown.util'
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
 import { ConfirmDeleteDialogComponent } from '../../shared/components/confirm-delete-dialog.component';
 import { DomainBadgeComponent } from '../../shared/components/domain-badge.component';
+import { ImageUploadHelperComponent } from '../../shared/components/image-upload-helper.component';
 import { MarkdownRendererComponent } from './markdown-renderer.component';
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -32,7 +33,14 @@ function toCommaList(value: string): string[] {
 @Component({
   selector: 'app-review-viewer',
   standalone: true,
-  imports: [FormsModule, MatProgressSpinnerModule, AiDisclaimerComponent, DomainBadgeComponent, MarkdownRendererComponent],
+  imports: [
+    FormsModule,
+    MatProgressSpinnerModule,
+    AiDisclaimerComponent,
+    DomainBadgeComponent,
+    MarkdownRendererComponent,
+    ImageUploadHelperComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="viewer">
@@ -150,6 +158,8 @@ function toCommaList(value: string): string[] {
                 <span>Related services (comma-separated)</span>
                 <input type="text" class="edit-input" [(ngModel)]="editRelatedServicesDraft" aria-label="Edit related services" />
               </label>
+
+              <app-image-upload-helper />
 
               @if (editError()) {
                 <p class="edit-error" role="alert">{{ editError() }}</p>

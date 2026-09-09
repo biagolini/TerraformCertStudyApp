@@ -1,9 +1,9 @@
 # Bulk exam import pipeline
 
-How a whole practice exam file (PDF, Markdown, or a ZIP of Markdown + an
-`img/` folder) becomes many structured `Question` records (see
-[DynamoDB schema](./dynamodb-schema.md)) without the user adding them one at
-a time. Unlike the single-question [ingestion pipeline](./question-ingestion.md)
+How a whole practice exam file (PDF, Markdown, HTML, or a ZIP bundling
+Markdown/HTML with an image folder) becomes many structured `Question`
+records (see [DynamoDB schema](./dynamodb-schema.md)) without the user
+adding them one at a time. Unlike the single-question [ingestion pipeline](./question-ingestion.md)
 — which is deterministic parsing plus one small AI enrichment call — this
 pipeline asks a vision-capable model to do the whole structural extraction
 per question, because the source material is too messy and visually-coded
@@ -62,10 +62,20 @@ as if it were in progress.
 Reads the uploaded file and splits it into one **chunk per question**,
 using dumb boundary detection only:
 
-- **ZIP** — extracts the bundled `.md` + `img/` folder, uploads each image
-  to `scratch/{jobId}/raw/img/{basename}`, and splits the Markdown on
-  numbered headings (`#### 1. Question`, tolerating the ground truth's
-  3x-repeated headings per question).
+- **ZIP** — extracts the bundled `.md` or `.html`/`.htm` file plus any image
+  files anywhere in the archive, uploads each image to
+  `scratch/{jobId}/raw/img/{basename}`, and splits on numbered Markdown
+  headings (`#### 1. Question`, tolerating the ground truth's 3x-repeated
+  headings per question) or, for HTML, on each
+  `<span>Pergunta N</span>` / `<span>Question N</span>` anchor (the same
+  per-question status header a browser-saved quiz-results page renders —
+  the same "Pergunta N"/"Question N" convention the PDF path already relies
+  on). The HTML branch strips `<script>`/`<style>` first, converts `<img
+  src>` tags to the same `![]()` syntax the Markdown path uses, and inserts
+  line breaks at block-tag boundaries (`</p>`, `</div>`, `</li>`, `<br>`) so
+  adjacent alternatives don't run together into one wall of text — both
+  paths converge on the same `kind: "markdown"` chunk shape, so
+  `import-extract` doesn't need to know which source format produced it.
 - **Markdown** (no ZIP) — same splitter, no images (a bare `.md` upload has
   nowhere to source external image files from).
 - **PDF** — opens with PyMuPDF, searches each page's text for
@@ -91,28 +101,72 @@ trip the single-question flow uses; that round trip only exists there to
 support the interactive live-preview streaming UI, which a batch job has no
 need for.
 
-**Why vision, not a parser.** The two real source formats both hide the
-signal a deterministic parser would need:
+**Model selection.** The model is a per-request choice, not hardcoded: the
+frontend Settings screen has a dedicated **"Exam import model"** picker
+(`AppSettings.importExtractionModel`, default `us.amazon.nova-pro-v1:0` —
+distinct from "Default model", which only affects the interactive
+Generate-with-AI flow). The chosen model id travels with the job — stored
+on the `IMPORTJOB#` record when the user clicks "Process", forwarded
+through `import-preprocess`'s output alongside `packId`, and read by
+`import-extract` off the event (`event.get("modelId")`, falling back to the
+`BEDROCK_EXTRACTION_MODEL_ID` env var only if absent). A stronger model
+trades cost/latency for fewer extraction failures, but isn't free of
+tradeoffs: Nova Pro's Bedrock quota in this account is 25 requests/minute
+cross-region vs. Nova Lite's 200/minute, so `_converse_with_retry` uses a
+longer exponential backoff with jitter (up to 5 attempts, 3s/6s/12s/20s
+capped) to absorb the throttling a stronger-but-slower-quota model produces
+under the Map's 4-way concurrency — validated live at 75/75 successes on
+two different real files after tuning this.
+
+**Why vision, not a parser.** The real source formats all hide signal a
+deterministic parser would need:
 
 - A browser-printed PDF marks the correct option only with a **colored
   border** around its box — a layout/visual cue, not extractable from text.
-- Both formats include **irrelevant status labels** (`Incorreto`, `Correto`,
-  `Ignorado` — what some earlier test-taker answered) sitting right next to
-  the real content, which a naive parser could easily mistake for the
-  answer key.
+- All formats can include **irrelevant status labels** (`Incorreto`,
+  `Correto`, `Ignorado` — what some earlier test-taker answered) sitting
+  right next to the real content, which a naive parser could easily mistake
+  for the answer key.
 
 The system prompt (`lambda/import_extract/prompt.py`) explicitly tells the
 model to ignore those status labels and interleaved unrelated content, and
 to identify the true answer only from explicit "correct answer" prose or
 the bordered/labeled box.
 
-**Images**: the model may reference an image inline with a `{{IMG:n}}`
-placeholder (PDF path, n = index of a supplied page image) or by preserving
-the source's own `![alt](ref)` Markdown (ZIP/MD path). After the call, the
-Lambda rewrites these to `![alt]({jobId}/{questionId}/{filename})` and
-copies **only the images actually referenced in the surviving output**
-from `scratch/` to their permanent `images/{sub}/{jobId}/{questionId}/`
-key — nothing is promoted just because it was sent to the model.
+**Images**: the model references a supplied image inline with a `{{IMG:n}}`
+placeholder (n = 0-based index among the images it was given, in order) —
+this convention is the same for every source kind (PDF page images, or the
+images resolved from `![alt](ref)` in a Markdown/HTML chunk); the model is
+explicitly told never to emit literal `![...](...)` syntax itself, even if
+the source text still contains it. After the call, the Lambda rewrites
+`{{IMG:n}}` to `![alt]({jobId}/{questionId}/{filename})` and copies **only
+the images actually referenced in the surviving output** from `scratch/` to
+their permanent `images/{sub}/{jobId}/{questionId}/` key — nothing is
+promoted just because it was sent to the model. Before use, `_load_images`
+sniffs each image's real format from its magic bytes rather than trusting
+the file extension — a real HTML export was found to serve some `.jpg`
+files that are actually PNG-encoded, which Bedrock rejects with a MIME
+-mismatch error if told they're JPEG.
+
+**Known limitation, not a bug**: the model frequently doesn't bother
+referencing an image at all, even when one clearly illustrates the
+question or its explanation — confirmed by tracing a real chunk end to end
+(correct images, correctly resolved, correctly sent as vision input) and
+by two separate attempts at strengthening the prompt/tool-schema wording,
+neither of which moved a real 0-image-in-7-questions result. See the
+README's "Adding Questions" section for the user-facing mitigation (attach
+the image by hand via `POST /data/assets/upload`, then paste the generated
+`![alt](key)` snippet into the question).
+
+**Deleting a question also deletes its images.** `DELETE
+/data/questions/{id}` (in `lambda/data/app.py`, not this pipeline's own
+code) parses the question's stem/alternatives/comments for
+`![alt](relativeKey)` references, validates each key the same way the
+presign GET endpoint does, and best-effort deletes each one from S3 before
+removing the DynamoDB item — so re-importing or deleting a pack doesn't
+leave orphaned images billing for storage forever. Editing a question
+(`PUT`) does not do this cleanup yet if an image reference is removed or
+replaced.
 
 Any failure (model refusal, malformed output, validation failure) is caught
 internally and returned as `{"status": "FAILED"}` rather than thrown, so
@@ -131,12 +185,24 @@ failures, or preprocessing itself failed).
 ## Idempotency
 
 `questionId` is always `{jobId}-{chunkIndex}` — deterministic, never
-random. Any retry — a single Map iteration, or even a whole duplicate
-execution from EventBridge's at-least-once delivery — overwrites the same
+random. Retrying a job (clicking "Process" again on a `FAILED`/`PARTIAL`
+job, or re-running the same execution) overwrites the same
 `study-questions` item and the same `images/...` S3 keys rather than
 creating duplicates.
 
 ## Frontend
+
+Images are rendered by `markdown-renderer.component.ts` resolving each
+`![alt](key)` reference through `ImageAssetService` (presigned GET, cached
+per session). A key that fails to resolve — a since-deleted image, a bad
+key from hand-editing — renders a small dashed-border placeholder with the
+image's own alt text rather than silently showing nothing; the previous
+behavior (calling the presign fetch directly from the template) hit
+Angular's `NG0600` guard against writing a signal mid-render and failed
+silently every time, which is why this needed a constructor `effect()`
+instead of a template-level call. The same `ImageAssetService` also backs
+manual image attachment (`POST /data/assets/upload`) — see the README's
+"Adding Questions" section.
 
 `core/services/import-exam.service.ts` owns one `jobs` signal (the user's
 full job list, refreshed via `GET /data/imports`) that both

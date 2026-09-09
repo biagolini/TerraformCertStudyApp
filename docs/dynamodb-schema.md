@@ -20,7 +20,7 @@ anything else.
 
 | pk | sk | `data` payload |
 |----|----|-----------------|
-| `USER#{sub}` | `SETTINGS` | `AppSettings` (theme, defaultModel, activePackId, activeMethod, outputLanguage, defaultReviewMode) |
+| `USER#{sub}` | `SETTINGS` | `AppSettings` (theme, defaultModel, importExtractionModel, activePackId, activeMethod, outputLanguage, defaultReviewMode) |
 | `USER#{sub}` | `PACK#{id}` | `Pack` (name, description, version, domains, color, export intros) — see `frontend/src/app/core/models/pack.model.ts` |
 | `USER#{sub}` | `SCRIPT#{id}` | `Script` (transcript-summary session) — see `frontend/src/app/core/models/script.model.ts` |
 | `USER#{sub}` | `CHAT#{id}` | `ChatSession` (messages + summary) — see `frontend/src/app/core/models/chat.model.ts` |
@@ -45,16 +45,30 @@ before returning it to the frontend.
   id: string;
   packId: string;
   filename: string;
-  status: 'AWAITING_UPLOAD' | 'PROCESSING' | 'SUCCEEDED' | 'PARTIAL' | 'FAILED';
+  status: 'AWAITING_UPLOAD' | 'UPLOADED' | 'PROCESSING' | 'SUCCEEDED' | 'PARTIAL' | 'FAILED';
   totalQuestions: number | null;   // null until import-preprocess finishes chunking
   createdAt: number;
   completedAt: number | null;
   error: string | null;
+  modelId?: string;    // Bedrock model used for extraction — set on "Process",
+                        // from the frontend's "Exam import model" setting
+                        // (default us.amazon.nova-pro-v1:0); import-extract
+                        // falls back to its own env var default if absent
+  failures?: Array<{ index: number | null; error: string; preview: string | null }>;
+                        // set by import-finalize — one entry per failed chunk,
+                        // `preview` is a short snippet of the source text so the
+                        // user can locate the question in their original file
 }
 // native top-level attributes (sibling to pk/sk/data):
 processedCount: number; // atomic ADD from import-extract
 failedCount: number;    // atomic ADD from import-extract
 ```
+
+`UPLOADED` sits between `AWAITING_UPLOAD` and `PROCESSING`: set by
+`POST /data/imports/{id}/confirm-upload` once the browser's presigned PUT
+resolves, and left alone until the user explicitly picks the file to
+process — see the [import pipeline doc](./question-import-pipeline.md)'s
+"Upload and processing are two separate, explicit steps".
 
 ## Table: `${project_prefix}-questions`
 
@@ -75,9 +89,10 @@ anymore, and there is no v1 fallback kept in the app.
 ```ts
 export interface QuestionAlternative {
   letter: string;        // 'A', 'B', 'C'... — stable, matches how it reads in the UI
-  text: string;          // alternative statement (inline markdown: **bold**/*italic* only)
+  text: string;          // alternative statement (inline markdown: **bold**/*italic*/![alt](key))
   isCorrect: boolean;
   comment: string;       // rationale for THIS alternative, correct or not — always present
+                          // (inline markdown, same subset as `text`)
 }
 
 export interface QuestionMetadata {
@@ -90,7 +105,7 @@ export interface Question {
   packId: string;
   title: string;
   domain: string;
-  stem: string;                     // scenario + question text (inline markdown)
+  stem: string;                     // scenario + question text (inline markdown: **bold**/*italic*/![alt](key))
   alternatives: QuestionAlternative[];
   metadata: QuestionMetadata;
   createdAt: number;
@@ -102,6 +117,14 @@ export interface Question {
 
 Whether a question is single- or multiple-answer is never stored as a flag
 — it's always derived from `alternatives.filter(a => a.isCorrect).length`.
+
+**Image references.** `![alt](key)` in `stem`/`text`/`comment` is a relative
+S3 key, always `{jobId}/{questionId}/{filename}` (3 segments — validated
+server-side on every read), resolved to a presigned GET URL at render time.
+`jobId` is the actual import job for bulk-imported images, or a freshly
+minted id standing in for both segments for a manually-attached image (see
+[import pipeline doc](./question-import-pipeline.md)) — the app never
+distinguishes the two once the reference is written into a question.
 
 Example item (`data` attribute, pretty-printed):
 

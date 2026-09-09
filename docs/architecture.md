@@ -39,7 +39,7 @@ graph TB
     LConverse -->|converse_stream| Bedrock
     LData -->|ListFoundationModels<br/>ListInferenceProfiles| Bedrock
     LData -->|CRUD| DynamoDB
-    LData -->|"presigned PUT (upload)<br/>presigned GET (images)"| Assets
+    LData -->|"presigned PUT (exam upload,<br/>manual image upload)<br/>presigned GET (images)"| Assets
     Browser -->|"PUT raw exam file<br/>(presigned URL, direct)"| Assets
     Browser -->|"POST /data/imports/{id}/process<br/>(explicit, user-triggered)"| APIGW
     LData -->|StartExecution| SFN

@@ -536,6 +536,49 @@ def presign_asset():
     return _json({"url": url})
 
 
+MANUAL_IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
+
+
+def _safe_image_filename(raw_filename):
+    """Basename-only, restricted charset, must end in a supported image
+    extension — mirrors `_safe_import_filename` but for a single hand-picked
+    image rather than a whole exam file."""
+    name = os.path.basename(str(raw_filename or "")).strip()
+    if not name or not SAFE_FILENAME_RE.fullmatch(name):
+        return None
+    if os.path.splitext(name)[1].lower() not in MANUAL_IMAGE_EXTENSIONS:
+        return None
+    return name
+
+
+@app.route("/data/assets/upload", methods=["POST"])
+def create_manual_image_upload():
+    """Presigned PUT for a single image the user attaches by hand while
+    writing or editing a question (Add ready-made / edit mode) — distinct
+    from the bulk-import pipeline's own per-job image promotion. Mints its
+    own id to stand in for both the `jobId` and `questionId` path segments
+    `_validate_image_relative_key` expects, since a hand-added image isn't
+    tied to any import job and the question itself may not be saved yet."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    sub = pk.removeprefix("USER#")
+
+    body = request.get_json(force=True) or {}
+    filename = _safe_image_filename(body.get("filename"))
+    if not filename:
+        return _error("filename must be a .png, .jpg, .jpeg, .gif, or .webp file", 400)
+
+    image_id = str(uuid.uuid4())
+    relative_key = f"{image_id}/{image_id}/{filename}"
+    upload_url = s3.generate_presigned_url(
+        "put_object",
+        Params={"Bucket": ASSETS_BUCKET_NAME, "Key": f"images/{sub}/{relative_key}"},
+        ExpiresIn=900,
+    )
+    return _json({"relativeKey": relative_key, "uploadUrl": upload_url})
+
+
 # ==========================================================================
 # Model discovery — list Bedrock models usable by this app
 # ==========================================================================

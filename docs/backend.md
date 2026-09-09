@@ -102,6 +102,7 @@ backend/
 | GET | `/data/imports/{id}` | Poll one import job's status |
 | GET | `/data/imports` | List the user's import jobs |
 | GET | `/data/assets/presign` | Presigned GET URL for one question image (`?key={jobId}/{questionId}/{filename}`) |
+| POST | `/data/assets/upload` | Presigned PUT URL for a single hand-attached image (Add ready-made / edit mode) — mints its own id for the `{jobId}/{questionId}/{filename}` key shape, since a manual image isn't tied to any import job |
 
 **Model discovery (`GET /data/models`):**
 - Calls `ListFoundationModels(byOutputModality=TEXT)` + `ListInferenceProfiles(SYSTEM_DEFINED)`
@@ -121,7 +122,11 @@ behind API Gateway:
 1. **`import-preprocess`** — splits the uploaded PDF/Markdown/ZIP into
    per-question chunks (text + candidate images), no AI involved.
 2. **`import-extract`** (Map state, `MaxConcurrency: 4`) — one Bedrock
-   Converse call per chunk, forcing structured JSON via tool-use.
+   Converse call per chunk, forcing structured JSON via tool-use. The
+   model is a per-import choice from the frontend's "Exam import model"
+   setting (default Nova Pro), not hardcoded — see the pipeline doc's
+   "Model selection" for how a stronger model's much tighter Bedrock quota
+   is absorbed.
 3. **`import-finalize`** — aggregates the Map's results into the job's
    final status.
 
@@ -143,7 +148,7 @@ structured `Question` v2 item shape, and why questions get their own table.
 | Role | Permissions |
 |------|-------------|
 | Lambda converse | `bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream` on foundation-models + inference-profiles |
-| Lambda data | DynamoDB CRUD + `bedrock:ListFoundationModels`, `bedrock:ListInferenceProfiles` + S3 `PutObject` on `uploads/*` / `GetObject` on `images/*` (assets bucket) + `states:StartExecution` on `study-import-exam` |
+| Lambda data | DynamoDB CRUD + `bedrock:ListFoundationModels`, `bedrock:ListInferenceProfiles` + S3 `PutObject` on `uploads/*`, `GetObject`/`PutObject`/`DeleteObject` on `images/*` (assets bucket) + `states:StartExecution` on `study-import-exam` |
 | Lambda import-preprocess | S3 `GetObject` on `uploads/*`, `PutObject` on `scratch/*`; DynamoDB `GetItem`/`PutItem` on the general table |
 | Lambda import-extract | S3 `GetObject` on `scratch/*`, `PutObject` on `images/*`; DynamoDB `UpdateItem` (general table) + `PutItem` (questions table); `bedrock:InvokeModel` |
 | Lambda import-finalize | DynamoDB `GetItem`/`PutItem` on the general table |

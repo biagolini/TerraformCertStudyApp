@@ -135,6 +135,11 @@ resource "aws_iam_role_policy" "lambda_data_s3_assets" {
         Action   = "s3:DeleteObject"
         Resource = "${aws_s3_bucket.assets.arn}/images/*"
       },
+      {
+        Effect   = "Allow"
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.assets.arn}/images/*"
+      },
     ]
   })
 }

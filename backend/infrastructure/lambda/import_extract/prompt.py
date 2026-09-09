@@ -17,8 +17,8 @@ Rules:
 - IGNORE trailing "References:" / "Check out these Cheat Sheets:" link blocks.
 - Write a short, descriptive title.
 - List 3-6 key concepts/technologies tested in "topics", and any AWS service names mentioned in "relatedServices".
-- For each alternative's "comment": summarize why it's correct or incorrect, reusing the source material's own explanation where present rather than inventing new reasoning.
-- Images: if a supplied image is genuinely relevant to the stem, a specific alternative, or a comment (e.g. an architecture diagram the question or explanation depends on) — most supplied images are NOT relevant to any given question, so only do this when it truly matters — reference it inline with a `{{IMG:n}}` placeholder (n = 0-based index among the images you were given, in the order given) exactly where it belongs in that field's text (stem, an alternative's text, or a comment). Never write literal `![...](...)` Markdown image syntax yourself — always use `{{IMG:n}}` for any image you were given, even if the source text already contained its own image syntax at that spot.
+- For each alternative's "comment": summarize why it's correct or incorrect, reusing the source material's own explanation where present rather than inventing new reasoning. IMPORTANT: summarizing/shortening the prose is NOT a reason to drop an image reference that was in the part you're summarizing — see the Images rule below, which still applies even inside a shortened comment.
+- Images: every image you were given was extracted from material belonging to THIS specific question (not a random unrelated page), so assume an image is relevant unless it's obviously decorative or clearly about something else. If an image illustrates the stem, a specific alternative, or the reasoning in a comment (e.g. an architecture diagram the explanation depends on), you MUST reference it inline with a `{{IMG:n}}` placeholder (n = 0-based index among the images you were given, in the order given) exactly where it belongs in that field's text — do this even when you're summarizing or shortening the surrounding explanation for a comment; keeping the `{{IMG:n}}` marker takes priority over trimming length. Never write literal `![...](...)` Markdown image syntax yourself — always use `{{IMG:n}}` for any image you were given, even if the source text already contained its own image syntax at that spot.
 - You MUST call the emit_question tool exactly once with your extraction. Do not respond with plain text.
 """
 
@@ -61,7 +61,11 @@ def build_tool_schema(domain_names):
                         "domain": domain_property,
                         "stem": {
                             "type": "string",
-                            "description": "The full question text (scenario + question).",
+                            "description": (
+                                "The full question text (scenario + question). If one of the "
+                                "supplied images illustrates the scenario, include its "
+                                "{{IMG:n}} placeholder here."
+                            ),
                         },
                         "alternatives": {
                             "type": "array",
@@ -71,7 +75,17 @@ def build_tool_schema(domain_names):
                                     "letter": {"type": "string"},
                                     "text": {"type": "string"},
                                     "isCorrect": {"type": "boolean"},
-                                    "comment": {"type": "string"},
+                                    "comment": {
+                                        "type": "string",
+                                        "description": (
+                                            "Summary of why this alternative is correct or "
+                                            "incorrect. If the source explanation you are "
+                                            "summarizing was accompanied by one of the supplied "
+                                            "images, you MUST still include that image's "
+                                            "{{IMG:n}} placeholder in this summary — shortening "
+                                            "the text is not a reason to drop the image."
+                                        ),
+                                    },
                                 },
                                 "required": ["letter", "text", "isCorrect", "comment"],
                             },

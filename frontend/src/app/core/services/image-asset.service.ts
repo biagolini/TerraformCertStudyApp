@@ -2,12 +2,6 @@ import { Injectable, Signal, WritableSignal, inject, signal } from '@angular/cor
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
 
-/**
- * Resolves a question's relative image key (`{jobId}/{questionId}/{filename}`)
- * into a presigned S3 GET URL, cached in-memory per key for this session.
- * Presigned URLs expire after a few minutes — a page reload naturally clears
- * the cache, which is an accepted limitation rather than a bug.
- */
 /** A resolved image is either still pending, permanently failed (bad key,
  * 404, network error — anything that isn't going to fix itself on its own),
  * or a real presigned URL. Consumers render a placeholder for 'error' rather
@@ -15,6 +9,14 @@ import { AuthService } from './auth.service';
  * instead of invisible. */
 export type ImageLoadState = 'pending' | 'error';
 
+/**
+ * Resolves a question's relative image key (`{jobId}/{questionId}/{filename}`)
+ * into a presigned S3 GET URL, cached in-memory per key for this session.
+ * Presigned URLs expire after a few minutes — a page reload naturally clears
+ * the cache, which is an accepted limitation rather than a bug. Also handles
+ * manual single-image uploads (`uploadManual`) for the Add ready-made / edit
+ * flows, separate from the bulk-import pipeline's own image handling.
+ */
 @Injectable({ providedIn: 'root' })
 export class ImageAssetService {
   private readonly auth = inject(AuthService);
@@ -68,6 +70,33 @@ export class ImageAssetService {
       urlSignal.set(body.url ?? 'error');
     } catch {
       urlSignal.set('error');
+    }
+  }
+
+  /** Uploads one hand-picked image (Add ready-made / edit mode, not the bulk
+   * import pipeline) and returns the relative key to reference it with —
+   * `![alt](relativeKey)` — once written into a question. */
+  async uploadManual(file: File): Promise<{ relativeKey: string } | { error: string }> {
+    try {
+      const token = await this.auth.getValidToken();
+      const createRes = await fetch(`${environment.apiUrl}/data/assets/upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ filename: file.name }),
+      });
+      if (!createRes.ok) {
+        const body = await createRes.json().catch(() => ({}) as { error?: string });
+        return { error: body.error || 'Failed to start the upload.' };
+      }
+      const { relativeKey, uploadUrl } = (await createRes.json()) as {
+        relativeKey: string;
+        uploadUrl: string;
+      };
+      const putRes = await fetch(uploadUrl, { method: 'PUT', body: file });
+      if (!putRes.ok) return { error: 'Upload to storage failed.' };
+      return { relativeKey };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Upload failed.' };
     }
   }
 }

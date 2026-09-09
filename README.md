@@ -14,6 +14,16 @@ AI-powered study app for IT certification exams (AWS, Anthropic CCAF, and others
 - **Export** — download Markdown files grouped by domain
 - **Auth** — Cognito email/password login (no API keys needed)
 
+## Adding Questions
+
+Three ways to get a question into a pack, from the "New Question" panel:
+
+- **Generate with AI** — paste one exam question, AI produces a structured review (concepts, correct answer reasoning, incorrect alternatives analysis).
+- **Add ready-made** — paste an already-written Markdown review (e.g. copied from Claude App) and save it directly, no AI call.
+- **Import exam file** — upload a whole exam file (PDF, Markdown, HTML, or a ZIP bundling one of those with an image folder) and AI extracts every question in it automatically via Bedrock (Converse API, vision + forced tool-use). Runs as an async Step Functions job so a large file (dozens of questions) doesn't block the UI; check progress from the header pill.
+
+**Known limitation — images in imported exams:** the extraction model frequently fails to reference an image even when one exists and is clearly relevant to the question (a model instruction-following gap, not a bug — confirmed by inspecting the exact source chunk and image bytes sent to it). If a question comes in missing an image it should have, add it by hand: open the question in edit mode (or the "Add ready-made" screen), use "Attach an image" to upload it, then paste the generated `![alt](key)` snippet into the stem, an alternative, or a comment.
+
 ## Architecture
 
 ```mermaid
