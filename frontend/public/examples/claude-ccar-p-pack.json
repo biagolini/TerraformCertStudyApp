@@ -1,0 +1,36 @@
+{
+  "name": "Claude Certified Architect — Professional (CCAR-P)",
+  "version": "",
+  "color": "#b33771",
+  "description": "Advanced Anthropic credential for senior architects, technical leads, and enterprise deployment consultants who own Claude solutions end-to-end, from discovery through production and iteration. Extends the Architect Foundations (CCAR-F) scope (agentic architecture, Claude Code configuration, prompt engineering, tool and MCP design, context management) with stakeholder communication, governance, evaluation, and lifecycle management at enterprise scale. 63 questions, 120 minutes, 720/1000 passing score. Proctored via Pearson VUE; credential valid 12 months. No formal prerequisite, though Foundations-level knowledge is a practical baseline.",
+  "exportIntroQuestions": "## About this document\n\nThis document is a collection of practice exam questions for the **Claude Certified Architect — Professional (CCAR-P)** certification. The questions were selected because they represent the senior-level judgment required to own enterprise Claude solutions across their full lifecycle.\n\n### Certification context\n\nThis is the advanced credential in the Claude Certification Program. It builds on the Architect Foundations scope and validates the ability to design, govern, and evaluate Claude solutions at the scale of large enterprises, including topics such as:\n\n* Agentic architecture and orchestration for multi-agent, enterprise-scale systems\n* Integration architecture, governance, and evaluation across the solution lifecycle\n* Tool and MCP design decisions, Claude Code configuration, and context-management strategy at the system level\n* Stakeholder communication and alignment across technical and business audiences\n* Lifecycle management from discovery through production, iteration, and continuous improvement\n\n### About the questions\n\nEach question in this document is independent and should be analyzed as a standalone scenario. Practice exams intentionally present isolated situations, and questions may appear in any order during the actual certification exam. Information from one question should never be assumed to apply to another.\n\nFor each scenario, this document includes:\n\n* The original practice exam question.\n* An explanation of the reasoning behind the correct answer.\n* A discussion of why the remaining options are less appropriate for the stated requirements.\n\n### Learning objective\n\nThe primary goal of this material is to develop the architectural and lifecycle judgment expected of a senior owner of Claude solutions rather than memorization. The focus should be on scenario-based tradeoffs that span design, governance, evaluation, stakeholder alignment, and long-term operation.\n\nBy studying the reasoning behind each answer, readers can build the advanced architecture skills expected for the Claude Certified Architect — Professional certification exam.",
+  "exportIntroTranscripts": "## About this document\n\nThis document contains technical summaries of lesson transcripts related to the **Claude Certified Architect — Professional (CCAR-P)** certification.\n\n### Purpose\nOrganizes and synthesizes lesson content in a structured format for quick review and deeper understanding of the concepts presented.",
+  "exportIntroChat": "## About this document\n\nThis document contains AI study conversations related to the **Claude Certified Architect — Professional (CCAR-P)** certification.\n\n### Purpose\nRecords discussions and explanations generated during interactive AI study sessions, serving as complementary reference material.",
+  "domains": [
+    {
+      "name": "Agentic Architecture and Orchestration",
+      "order": 1,
+      "description": "Design workflow-versus-agent decisions, orchestration patterns, and multi-agent hierarchies for enterprise-scale Claude systems."
+    },
+    {
+      "name": "Tool Design, MCP, and Claude Code Configuration",
+      "order": 2,
+      "description": "Decide when to build tools versus MCP servers versus skills and how to design them well; configure Claude Code (CLAUDE.md hierarchies, settings, skills, and team-scale conventions)."
+    },
+    {
+      "name": "Prompt Engineering and Context Management",
+      "order": 3,
+      "description": "Design prompts at the system level and manage context (context windows, compaction, isolation via subagents) for reliability at scale."
+    },
+    {
+      "name": "Integration Architecture, Governance, and Evaluation",
+      "order": 4,
+      "description": "Design integration architecture, establish governance, and define evaluation strategies for Claude solutions across the enterprise."
+    },
+    {
+      "name": "Stakeholder Communication and Lifecycle Management",
+      "order": 5,
+      "description": "Communicate with technical and business stakeholders and own the solution lifecycle from discovery through production, iteration, and continuous improvement. This is the primary area that extends the Architect Foundations scope."
+    }
+  ]
+}

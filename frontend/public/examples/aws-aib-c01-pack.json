@@ -1,0 +1,31 @@
+{
+  "name": "AWS Certified AI Business Strategist (AIB-C01)",
+  "version": "",
+  "color": "#00cec9",
+  "description": "Business-focused certification validating the ability to translate AI capabilities into business outcomes, establish responsible AI practices, and drive AI adoption at scale. For professionals who evaluate, champion, or scale AI initiatives (product/program managers, sales, line-of-business leaders, consultants, analysts, marketers). Prioritizes strategic decision-making over technical implementation; no coding or AWS implementation experience required. 85 questions, 130 minutes, 700/1000 passing score. Beta exam (AIB-C01).",
+  "exportIntroQuestions": "## About this document\n\nThis document is a collection of practice exam questions for the **AWS Certified AI Business Strategist (AIB-C01)** certification. The questions were selected because they represent the strategic decision-making skills that every professional driving AI adoption should understand: evaluating investments, building business cases, applying governance, and scaling initiatives.\n\n### Certification context\n\nThis certification validates the ability to translate AI capabilities into business outcomes, including topics such as:\n\n* Foundational AI concepts and terminology applied to business contexts\n* AI strategy, business value creation, KPIs, and ROI frameworks\n* Responsible AI principles and governance structures for AI initiatives\n* Organizational AI readiness, change management, and enterprise transformation\n* High-level awareness of AWS AI services (Bedrock, SageMaker AI, Amazon Quick) and frameworks (AWS CAF, Well-Architected Responsible AI Lens) at a strategic level\n\n### About the questions\n\nEach question in this document is independent and should be analyzed as a standalone scenario. Practice exams intentionally present isolated situations, and questions may appear in any order during the actual certification exam. Information from one question should never be assumed to apply to another.\n\nFor each scenario, this document includes:\n\n* The original practice exam question.\n* An explanation of the reasoning behind the correct answer.\n* A discussion of why the remaining options are less appropriate for the stated requirements.\n\n### Learning objective\n\nThe primary goal of this material is to develop sound business judgment for AI decisions rather than memorization. The focus should be on understanding how to identify where AI fits, how to fund and prioritize initiatives, how to govern adoption and manage risk, and how to scale what works from pilot to production.\n\nBy studying the reasoning behind each answer, readers can build the strategic decision-making skills expected for the AWS Certified AI Business Strategist certification exam.",
+  "exportIntroTranscripts": "## About this document\n\nThis document contains technical summaries of lesson transcripts related to the **AWS Certified AI Business Strategist (AIB-C01)** certification.\n\n### Purpose\nOrganizes and synthesizes lesson content in a structured format for quick review and deeper understanding of the concepts presented.",
+  "exportIntroChat": "## About this document\n\nThis document contains AI study conversations related to the **AWS Certified AI Business Strategist (AIB-C01)** certification.\n\n### Purpose\nRecords discussions and explanations generated during interactive AI study sessions, serving as complementary reference material.",
+  "domains": [
+    {
+      "name": "AI Fundamentals and Literacy",
+      "order": 1,
+      "description": "Domain 1 (24%): Apply foundational AI concepts and terminology to business contexts, select appropriate AI solution types based on business requirements and constraints, use generative AI techniques (prompt engineering, model adaptation) to achieve business outcomes."
+    },
+    {
+      "name": "AI Strategy and Business Value Creation",
+      "order": 2,
+      "description": "Domain 2 (28%): Develop and prioritize AI strategies aligned with organizational objectives, measure AI business value using KPIs, ROI frameworks, and baseline metrics, position AI initiatives for competitive advantage and business model transformation."
+    },
+    {
+      "name": "AI Governance and Responsible AI Leadership",
+      "order": 3,
+      "description": "Domain 3 (24%): Apply responsible AI principles when making business decisions that require tradeoffs, establish governance structures and ensure regulatory compliance, identify enterprise AI risks and direct appropriate mitigation strategies."
+    },
+    {
+      "name": "Business Readiness, Leadership, and AI Transformation",
+      "order": 4,
+      "description": "Domain 4 (24%): Assess organizational AI readiness and maturity across people, processes, technology, and governance, evaluate data and infrastructure foundations, lead enterprise-wide change management and build AI-ready workforce capabilities, scale AI initiatives from pilots to enterprise-wide deployments using iterative approaches."
+    }
+  ]
+}

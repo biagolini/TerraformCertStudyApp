@@ -1,0 +1,51 @@
+{
+  "name": "Claude Certified Developer — Foundations (CCDV-F)",
+  "version": "",
+  "color": "#6c5ce7",
+  "description": "Anthropic certification for engineers who build, integrate, and ship production-grade applications, agents, and workflows on the Claude platform. Covers the Claude API, model selection and optimization, agents and workflows (Agent SDK), prompt and context engineering, tools and MCP, security and safety, Claude Code, and evaluation/testing. Recommended: 1-5 years software engineering, 6+ months hands-on with Claude, Python and/or TypeScript. 53 questions, 120 minutes, 720/1000 passing score. Proctored via Pearson VUE; credential valid 12 months.",
+  "exportIntroQuestions": "## About this document\n\nThis document is a collection of practice exam questions for the **Claude Certified Developer — Foundations (CCDV-F)** certification. The questions were selected because they represent the engineering tradeoffs developers make when building production applications, agents, and workflows on Claude.\n\n### Certification context\n\nThis certification validates the ability to build, integrate, and ship production-grade Claude solutions, including topics such as:\n\n* Claude API mechanics (messages, streaming, prompt caching, batch versus realtime, vision, extended thinking)\n* Model selection and optimization (tokens, context windows, Opus/Sonnet/Haiku tradeoffs, token budgeting)\n* Agents and workflows using the Agent SDK, agent loops, and subagents\n* Prompt and context engineering, tools, and MCP servers\n* Security and safety, Claude Code, and evaluation, testing, and debugging\n\n### About the questions\n\nEach question in this document is independent and should be analyzed as a standalone scenario. Practice exams intentionally present isolated situations, and questions may appear in any order during the actual certification exam. Information from one question should never be assumed to apply to another.\n\nFor each scenario, this document includes:\n\n* The original practice exam question.\n* An explanation of the reasoning behind the correct answer.\n* A discussion of why the remaining options are less appropriate for the stated requirements.\n\n### Learning objective\n\nThe primary goal of this material is to develop applied engineering judgment for building on Claude rather than memorization. The exam is scenario-first, so the focus should be on making the right implementation tradeoff (batch versus realtime, workflow versus agent, MCP server versus custom tool) given concrete constraints.\n\nBy studying the reasoning behind each answer, readers can build the development skills expected for the Claude Certified Developer — Foundations certification exam.",
+  "exportIntroTranscripts": "## About this document\n\nThis document contains technical summaries of lesson transcripts related to the **Claude Certified Developer — Foundations (CCDV-F)** certification.\n\n### Purpose\nOrganizes and synthesizes lesson content in a structured format for quick review and deeper understanding of the concepts presented.",
+  "exportIntroChat": "## About this document\n\nThis document contains AI study conversations related to the **Claude Certified Developer — Foundations (CCDV-F)** certification.\n\n### Purpose\nRecords discussions and explanations generated during interactive AI study sessions, serving as complementary reference material.",
+  "domains": [
+    {
+      "name": "Applications and Integration",
+      "order": 1,
+      "description": "Domain 1 (33.1%): Claude API mechanics (messages, tools, streaming, vision, extended thinking, prompt caching, batch versus realtime); core software engineering (REST, JSON, async, refactoring); application design across Claude Code, Desktop, claude.ai, and the API; configuration management (CLAUDE.md, settings.json, model version pinning); requirements and lifecycle basics."
+    },
+    {
+      "name": "Model Selection and Optimization",
+      "order": 2,
+      "description": "Domain 2 (16.8%): LLM fundamentals (tokens, context windows, sampling, extended and adaptive thinking); Opus versus Sonnet versus Haiku tradeoffs across quality, latency, and cost; token budgeting with prompt caching."
+    },
+    {
+      "name": "Agents and Workflows",
+      "order": 3,
+      "description": "Domain 3 (14.7%): Design agents and workflows using the Agent SDK, agent loops, and subagents; apply frameworks such as LangGraph and PydanticAI; decide when to use a deterministic workflow versus an autonomous agent."
+    },
+    {
+      "name": "Prompt and Context Engineering",
+      "order": 4,
+      "description": "Domain 4 (11.0%): Engineer prompts and manage context for reliable, production-grade behavior; apply structured output and few-shot techniques; handle context windows and compaction."
+    },
+    {
+      "name": "Tools and MCPs",
+      "order": 5,
+      "description": "Domain 5 (10.6%): Design and integrate tools and Model Context Protocol (MCP) servers; choose between custom tools, MCP servers, and skills; implement tool interfaces and error handling."
+    },
+    {
+      "name": "Security and Safety",
+      "order": 6,
+      "description": "Domain 6 (8.1%): Apply security and safety practices for Claude-powered applications, including data handling, guardrails, and safe tool and agent execution."
+    },
+    {
+      "name": "Claude Code",
+      "order": 7,
+      "description": "Domain 7 (3.1%): Configure and use Claude Code for development workflows, including CLAUDE.md files, settings, and team conventions."
+    },
+    {
+      "name": "Eval, Testing, and Debugging",
+      "order": 8,
+      "description": "Domain 8 (2.6%): Design evaluations, test Claude-powered features, and debug application and agent behavior."
+    }
+  ]
+}
