@@ -1,4 +1,10 @@
 const ANY_HEADING = /^#{1,6}\s+.+$/;
+// Matched BY NAME (not position) and removed from the heading list before the
+// positional "last 4 headings" parsing below runs — unlike the core 4
+// sections, this one is optional, so its presence/absence can't be inferred
+// from heading count alone the way the others can.
+const GENERAL_COMMENT_HEADING =
+  /^#{1,6}\s*(General comment|General explanation|Coment[aá]rio geral|Explica[cç][aã]o geral)\s*:?$/i;
 const OPTION_LINE = /^\*([A-Za-z])\.\s*(.+?)\*$/;
 // A short italic label followed by a colon (e.g. "*Translation: ...*", "*Tradução: ...*",
 // "*Traducción: ...*"). Generic on purpose: older reviews were generated with localized
@@ -19,6 +25,7 @@ export interface ParsedQuestionDraft {
   stem: string;
   alternatives: ParsedAlternative[];
   topics: string[];
+  generalComment: string | null;
 }
 
 /** Line indices of every `#`-heading in the document, in order. */
@@ -78,6 +85,8 @@ function extractLetterComments(lines: string[]): Map<string, string> {
  * that order) rather than by matching specific heading text, so this tolerates
  * prompt/heading wording and language changing over time. A leading heading before
  * those four (when present) is treated as the "key concepts" / topics section.
+ * An optional "General comment" section, wherever it appears, is matched BY
+ * NAME instead and never counts toward that positional group.
  * Returns null when the review doesn't have this shape at all — callers must not
  * save a question that fails to parse.
  */
@@ -86,9 +95,24 @@ function parseFailure(reason: string): null {
   return null;
 }
 
+/** Pulls out an optional "General comment" section by heading name, and
+ * returns the remaining headings with it removed — so the positional "last
+ * 4 headings" logic below never sees it and stays unaffected by whether
+ * this optional section is present. */
+function extractGeneralComment(
+  lines: string[],
+  headings: number[],
+): { generalComment: string | null; headings: number[] } {
+  const idx = headings.find((h) => GENERAL_COMMENT_HEADING.test(lines[h].trim()));
+  if (idx === undefined) return { generalComment: null, headings };
+  const content = sectionAfter(lines, idx, headings).join('\n').trim();
+  return { generalComment: content || null, headings: headings.filter((h) => h !== idx) };
+}
+
 export function parseQuestionReview(review: string): ParsedQuestionDraft | null {
   const lines = review.replace(/\r\n/g, '\n').split('\n');
-  const headings = headingIndices(lines);
+  const allHeadings = headingIndices(lines);
+  const { generalComment, headings } = extractGeneralComment(lines, allHeadings);
   if (headings.length < 4) {
     return parseFailure(
       `Found only ${headings.length} heading(s) — need at least 4 (Question / Alternatives / Correct answer / Incorrect answers).`,
@@ -152,5 +176,5 @@ export function parseQuestionReview(review: string): ParsedQuestionDraft | null 
         .map((text) => text.replace(/\*\*/g, '').trim())
     : [];
 
-  return { stem, alternatives, topics };
+  return { stem, alternatives, topics, generalComment };
 }

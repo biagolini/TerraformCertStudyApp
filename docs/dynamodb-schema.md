@@ -112,6 +112,11 @@ export interface Question {
   updatedAt: number;
   starred?: boolean;   // persistent "revisit this later" flag — independent of
                         // any per-attempt quiz state; optional/absent = false
+  generalComment?: string; // overall explanation for the question as a whole,
+                        // distinct from any one alternative's own comment;
+                        // shown alongside the alternatives' comments (review
+                        // viewer) or gated behind the same reveal-after-
+                        // answering state (quiz runner) — never before them
 }
 ```
 

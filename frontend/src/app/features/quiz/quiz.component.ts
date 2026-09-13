@@ -26,6 +26,20 @@ import { QuizSetupComponent } from './quiz-setup.component';
       }
     }
   `,
+  styles: [
+    `
+      // Routed directly at /quiz — this host element sits as a direct
+      // child of .app-main's 2-column grid (a sibling of <router-outlet>,
+      // inserted by the router rather than written in AppComponent's own
+      // template, so a rule from THAT component's stylesheet can't reach
+      // it under Angular's view encapsulation — :host is the correct way
+      // to size this component's own host element instead).
+      :host {
+        display: block;
+        grid-column: 1 / -1;
+      }
+    `,
+  ],
 })
 export class QuizComponent {
   protected readonly quiz = inject(QuizService);

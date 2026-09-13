@@ -1087,6 +1087,7 @@ export class PackEditorComponent {
 
   readonly templates = [
     { file: 'aws-ans-c01-pack.json', label: 'AWS Advanced Networking Specialty (ANS-C01)' },
+    { file: 'aws-aib-c01-pack.json', label: 'AWS AI Business Strategist (AIB-C01)' },
     { file: 'aws-aif-c01-pack.json', label: 'AWS AI Practitioner (AIF-C01)' },
     { file: 'aws-clf-c02-pack.json', label: 'AWS Cloud Practitioner (CLF-C02)' },
     { file: 'aws-soa-c03-pack.json', label: 'AWS CloudOps Engineer Associate (SOA-C03)' },

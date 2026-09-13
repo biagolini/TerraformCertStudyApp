@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { Pack, packDisplayLabel } from '../../core/models/pack.model';
 import { PacksService } from '../../core/services/packs.service';
 import { QuestionsService } from '../../core/services/questions.service';
@@ -257,6 +258,7 @@ import { PackEditorComponent } from './pack-editor.component';
 export class PacksDrawerComponent {
   private readonly packsService = inject(PacksService);
   private readonly questionsService = inject(QuestionsService);
+  private readonly router = inject(Router);
 
   readonly closed = output<void>();
 
@@ -275,7 +277,7 @@ export class PacksDrawerComponent {
   }
 
   onSelect(pack: Pack): void {
-    this.packsService.setActive(pack.id);
+    this.router.navigate(['/questions', pack.id]);
     this.closed.emit();
   }
 
@@ -296,13 +298,18 @@ export class PacksDrawerComponent {
 
   onPackSaved(pack: Pack): void {
     this.closeEditor();
-    // If a new pack was created, the service already set it active.
+    // If a new pack was created, the service already set it active — route
+    // there too so the URL doesn't disagree with what's on screen.
     if (this.activeId() === pack.id) {
+      this.router.navigate(['/questions', pack.id]);
       this.closed.emit();
     }
   }
 
   onPackDeleted(_id: string): void {
     this.closeEditor();
+    // Deleting the active pack re-points activePackId elsewhere (PacksService)
+    // — keep the URL in sync rather than leaving it pointed at a removed pack.
+    this.router.navigate(['/questions', this.activeId()]);
   }
 }

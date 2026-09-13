@@ -159,8 +159,21 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
   `,
   styles: [
     `
+      // Routed directly at /export — a direct child of .app-main's 2-column
+      // grid (a router-inserted sibling of <router-outlet>, not literally
+      // written in AppComponent's template, so a rule from that
+      // component's stylesheet can't reach it under view encapsulation —
+      // :host sizes this component's own host element instead).
       :host {
         display: block;
+        grid-column: 1 / -1;
+      }
+      @media (min-width: 768px) {
+        :host {
+          max-width: 960px;
+          margin: 0 auto;
+          width: 100%;
+        }
       }
       .export {
         display: flex;

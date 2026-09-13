@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { BedrockService } from '../../core/services/bedrock.service';
 import { ModelsService } from '../../core/services/models.service';
@@ -193,7 +193,7 @@ import { ImportExamComponent } from '../import-exam/import-exam.component';
           <span>{{ savingManual() ? 'Saving…' : 'Save review' }}</span>
         </button>
       } @else {
-        <app-import-exam />
+        <app-import-exam [packId]="packId()" />
       }
 
       @if (activeView() === 'generate' && outputLanguage()) {
@@ -493,6 +493,8 @@ export class QuestionInputComponent {
   private readonly packs = inject(PacksService);
   private readonly enrichment = inject(QuestionEnrichmentService);
 
+  readonly packId = input.required<string>();
+
   protected readonly outputLanguage = this.settings.outputLanguage;
   protected readonly outputLanguageName = computed(() => outputLanguageLabel(this.outputLanguage()));
   protected readonly streaming = signal(false);
@@ -617,6 +619,7 @@ export class QuestionInputComponent {
       metadata: { topics: parsed.topics, relatedServices },
       createdAt: now,
       updatedAt: now,
+      generalComment: parsed.generalComment ?? undefined,
     };
   }
 

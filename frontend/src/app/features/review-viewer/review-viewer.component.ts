@@ -151,6 +151,11 @@ function toCommaList(value: string): string[] {
               </div>
 
               <label class="edit-label">
+                <span>General comment (optional)</span>
+                <textarea class="edit-textarea" rows="3" [(ngModel)]="editGeneralCommentDraft" placeholder="An overall explanation that doesn't belong to a single alternative" aria-label="Edit general comment"></textarea>
+              </label>
+
+              <label class="edit-label">
                 <span>Topics (comma-separated)</span>
                 <input type="text" class="edit-input" [(ngModel)]="editTopicsDraft" aria-label="Edit topics" />
               </label>
@@ -215,6 +220,16 @@ function toCommaList(value: string): string[] {
                 </div>
               }
             </div>
+
+            @if (question.generalComment && revealAnswers()) {
+              <div class="general-comment">
+                <div class="option-comment-label">
+                  <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+                  <span>General comment</span>
+                </div>
+                <app-markdown-renderer [source]="question.generalComment" />
+              </div>
+            }
 
             @if (question.metadata.topics.length > 0 || question.metadata.relatedServices.length > 0) {
               <div class="metadata-block">
@@ -332,6 +347,7 @@ function toCommaList(value: string): string[] {
       .option-comment { margin: var(--space-sm) 0 0; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); background: var(--bg-elevated); border-left: 2px solid var(--bg-border); font-size: var(--font-size-sm); color: var(--text-muted); line-height: 1.5; }
       .option-comment-label { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; color: var(--text-faint); font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
       .option-status { flex-shrink: 0; margin-top: 3px; }
+      .general-comment { padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); background: var(--bg-elevated); border-left: 2px solid var(--color-purple); font-size: var(--font-size-sm); color: var(--text-muted); line-height: 1.5; }
 
       .metadata-block { display: flex; flex-direction: column; gap: var(--space-sm); }
       .chip-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); }
@@ -426,6 +442,7 @@ export class ReviewViewerComponent {
   protected editAlternatives: AlternativeDraft[] = [];
   protected editTopicsDraft = '';
   protected editRelatedServicesDraft = '';
+  protected editGeneralCommentDraft = '';
   protected refineDraft = '';
   private refineController: AbortController | null = null;
 
@@ -495,6 +512,7 @@ export class ReviewViewerComponent {
       this.editAlternatives = question.alternatives.map((a) => ({ ...a }));
       this.editTopicsDraft = question.metadata.topics.join(', ');
       this.editRelatedServicesDraft = question.metadata.relatedServices.join(', ');
+      this.editGeneralCommentDraft = question.generalComment ?? '';
       this.editError.set(null);
       this.editing.set(true);
     }
@@ -549,6 +567,7 @@ export class ReviewViewerComponent {
           topics: toCommaList(this.editTopicsDraft),
           relatedServices: toCommaList(this.editRelatedServicesDraft),
         },
+        generalComment: this.editGeneralCommentDraft.trim() || undefined,
       };
       const success = await this.storage.updateQuestion(updated);
       if (success) {
@@ -601,6 +620,7 @@ export class ReviewViewerComponent {
           topics: parsed.topics.length > 0 ? parsed.topics : question.metadata.topics,
           relatedServices,
         },
+        generalComment: parsed.generalComment ?? question.generalComment,
       };
       const success = await this.storage.updateQuestion(updated);
       if (success) {

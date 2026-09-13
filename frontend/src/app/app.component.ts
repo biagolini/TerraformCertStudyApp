@@ -1,54 +1,26 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
-import { StudyMethod } from './core/models/method.model';
-import { packDisplayLabel } from './core/models/pack.model';
-import { Question } from './core/models/question.model';
-import { Script } from './core/models/script.model';
-import { ChatSession } from './core/models/chat.model';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { PacksService } from './core/services/packs.service';
 import { QuestionsService } from './core/services/questions.service';
-import { ScriptsService } from './core/services/scripts.service';
-import { ChatService } from './core/services/chat.service';
-import { SettingsService } from './core/services/settings.service';
 import { AuthService } from './core/services/auth.service';
 import { ThemeService } from './core/services/theme.service';
-import { ExportComponent } from './features/export/export.component';
-import { MethodsTabComponent } from './features/methods/methods-tab.component';
 import { PacksDrawerComponent } from './features/packs/packs-drawer.component';
-import { QuestionInputComponent } from './features/question-input/question-input.component';
-import { QuestionListComponent } from './features/question-list/question-list.component';
-import { ReviewViewerComponent } from './features/review-viewer/review-viewer.component';
 import { SettingsComponent } from './features/settings/settings.component';
-import { ScriptListComponent } from './features/transcripts/script-list.component';
-import { ScriptViewerComponent } from './features/transcripts/script-viewer.component';
-import { TranscriptInputComponent } from './features/transcripts/transcript-input.component';
-import { ChatListComponent } from './features/chat/chat-list.component';
-import { ChatConversationComponent } from './features/chat/chat-conversation.component';
-import { QuizComponent } from './features/quiz/quiz.component';
 import { ThemeToggleComponent } from './shared/components/theme-toggle.component';
 import { SyncStatusComponent } from './shared/components/sync-status.component';
 import { ImportStatusPillComponent } from './shared/components/import-status-pill.component';
-
-type Tab = 'create' | 'methods' | 'quiz' | 'export';
 
 @Component({
   selector: 'app-main',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    QuestionInputComponent,
-    QuestionListComponent,
-    ReviewViewerComponent,
-    ExportComponent,
+    RouterLink,
+    RouterLinkActive,
+    RouterOutlet,
     SettingsComponent,
     PacksDrawerComponent,
     ThemeToggleComponent,
-    MethodsTabComponent,
-    TranscriptInputComponent,
-    ScriptListComponent,
-    ScriptViewerComponent,
-    ChatListComponent,
-    ChatConversationComponent,
-    QuizComponent,
     SyncStatusComponent,
     ImportStatusPillComponent,
   ],
@@ -92,119 +64,36 @@ type Tab = 'create' | 'methods' | 'quiz' | 'export';
         </div>
       </header>
 
-      <main class="app-main" [class.mode-export]="activeTab() === 'export'" [class.mode-methods]="activeTab() === 'methods'">
-        @switch (activeTab()) {
-          @case ('create') {
-            @switch (activeMethod()) {
-              @case ('question') {
-                @if (showLeftColumnQ()) {
-                  <section class="column column-left">
-                    <div class="stack">
-                      @if (showInputForm()) {
-                        <app-question-input (generated)="onGenerated($event)" />
-                      }
-                      @if (showListPanel()) {
-                        <app-question-list
-                          [activeId]="activeQuestionId()"
-                          (opened)="onOpenQuestion($event)"
-                        />
-                      }
-                    </div>
-                  </section>
-                }
-                @if (showViewerPanel()) {
-                  <section class="column column-right">
-                    <app-review-viewer
-                      [question]="activeQuestion()"
-                      [showBackButton]="isMobile()"
-                      (back)="onCloseViewer()"
-                      (newQuestion)="onNewQuestion()"
-                      (deleted)="onQuestionDeleted($event)"
-                    />
-                  </section>
-                }
-              }
-              @case ('transcript') {
-                @if (showLeftColumnT()) {
-                  <section class="column column-left">
-                    <div class="stack">
-                      @if (showInputForm()) {
-                        <app-transcript-input (generated)="onScriptGenerated($event)" />
-                      }
-                      @if (showScriptList()) {
-                        <app-script-list [activeId]="activeScriptId()" (opened)="onOpenScript($event)" />
-                      }
-                    </div>
-                  </section>
-                }
-                @if (showScriptViewer()) {
-                  <section class="column column-right">
-                    <app-script-viewer
-                      [script]="activeScript()"
-                      [showBackButton]="isMobile()"
-                      (back)="onCloseScript()"
-                      (deleted)="onScriptDeleted($event)"
-                    />
-                  </section>
-                }
-              }
-              @case ('chat') {
-                @if (showLeftColumnC()) {
-                  <section class="column column-left">
-                    <app-chat-list [activeId]="activeChatId()" (opened)="onOpenChat($event)" />
-                  </section>
-                }
-                @if (showChatConversation()) {
-                  <section class="column column-right">
-                    <app-chat-conversation
-                      [session]="activeChat()"
-                      [showBackButton]="isMobile()"
-                      (back)="onCloseChat()"
-                      (deleted)="onChatDeleted($event)"
-                    />
-                  </section>
-                }
-              }
-            }
-          }
-          @case ('methods') {
-            <section class="column column-full">
-              <app-methods-tab (chosen)="onMethodChosen($event)" />
-            </section>
-          }
-          @case ('quiz') {
-            <section class="column column-full">
-              <app-quiz />
-            </section>
-          }
-          @case ('export') {
-            <section class="column column-export">
-              <app-export />
-            </section>
-          }
-        }
+      <main class="app-main">
+        <router-outlet />
       </main>
 
       <nav class="tabbar" aria-label="Primary">
-        <button type="button" class="tab" [class.active]="activeTab() === 'create'" (click)="setTab('create')">
+        <a routerLink="/questions" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }" class="tab">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
             <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
           </svg>
-          <span>Create</span>
-        </button>
-        <button type="button" class="tab" [class.active]="activeTab() === 'methods'" (click)="setTab('methods')">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 6h6v6H4zM14 6h6v6h-6zM4 16h6v4H4zM14 16h6v4h-6z"/>
-          </svg>
-          <span>Methods</span>
-        </button>
-        <button type="button" class="tab" [class.active]="activeTab() === 'quiz'" (click)="setTab('quiz')">
+          <span>Questions</span>
+        </a>
+        <a routerLink="/quiz" routerLinkActive="active" class="tab">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
             <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9 11l2.5 2.5L16 8M5 4h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/>
           </svg>
           <span>Quiz</span>
-        </button>
-        <button type="button" class="tab" [class.active]="activeTab() === 'export'" (click)="setTab('export')">
+        </a>
+        <a routerLink="/transcripts" routerLinkActive="active" class="tab">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M7 4h7l5 5v11a1 1 0 01-1 1H7a1 1 0 01-1-1V5a1 1 0 011-1zM14 4v5h5M9 13h6M9 17h6"/>
+          </svg>
+          <span>Transcripts</span>
+        </a>
+        <a routerLink="/chat" routerLinkActive="active" class="tab">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 4h16v12H8l-4 4z"/>
+          </svg>
+          <span>Chat</span>
+        </a>
+        <a routerLink="/export" routerLinkActive="active" class="tab">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
             <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 4v12M7 11l5 5 5-5M4 20h16"/>
           </svg>
@@ -212,7 +101,7 @@ type Tab = 'create' | 'methods' | 'quiz' | 'export';
           @if (selectedCount() > 0) {
             <span class="badge">{{ selectedCount() }}</span>
           }
-        </button>
+        </a>
       </nav>
 
       @if (packsOpen()) {
@@ -234,144 +123,25 @@ type Tab = 'create' | 'methods' | 'quiz' | 'export';
 export class AppComponent {
   private readonly packs = inject(PacksService);
   private readonly questionsService = inject(QuestionsService);
-  private readonly scriptsService = inject(ScriptsService);
-  private readonly chatService = inject(ChatService);
-  private readonly settings = inject(SettingsService);
   private readonly auth = inject(AuthService);
   protected readonly themeService = inject(ThemeService);
 
-  protected readonly activeTab = signal<Tab>('create');
-  protected readonly activeQuestionId = signal<string | null>(null);
-  protected readonly activeScriptId = signal<string | null>(null);
-  protected readonly activeChatId = signal<string | null>(null);
   protected readonly settingsOpen = signal(false);
   protected readonly packsOpen = signal(false);
-  private readonly viewportWidth = signal<number>(
-    typeof window !== 'undefined' ? window.innerWidth : 1024,
-  );
 
-  readonly activeMethod = this.settings.activeMethod;
   readonly activePackName = computed(() => this.packs.activePack().name);
   readonly activePackVersion = computed(() => this.packs.activePack().version);
   readonly activePackColor = computed(() => this.packs.activeColor());
   readonly activePackColorSoft = computed(() => withAlpha(this.activePackColor(), 0.16));
 
   readonly selectedCount = this.questionsService.selectedCount;
-  readonly isMobile = computed(() => this.viewportWidth() < 768);
-
-  readonly activeQuestion = computed(() => {
-    const id = this.activeQuestionId();
-    if (!id) return null;
-    return this.questionsService.questions().find((q) => q.id === id) ?? null;
-  });
-
-  readonly activeScript = computed(() => {
-    const id = this.activeScriptId();
-    if (!id) return null;
-    return this.scriptsService.scripts().find((s) => s.id === id) ?? null;
-  });
-
-  readonly activeChat = computed(() => {
-    const id = this.activeChatId();
-    if (!id) return null;
-    return this.chatService.sessions().find((s) => s.id === id) ?? null;
-  });
-
-  readonly showInputForm = computed(() => {
-    if (this.isMobile()) {
-      // On mobile, when a viewer is open, hide input.
-      if (this.activeMethod() === 'question' && this.activeQuestionId()) return false;
-      if (this.activeMethod() === 'transcript' && this.activeScriptId()) return false;
-    }
-    return true;
-  });
-
-  readonly showListPanel = computed(() => {
-    if (this.isMobile()) {
-      return this.activeMethod() === 'question' && !this.activeQuestionId();
-    }
-    return true;
-  });
-
-  readonly showViewerPanel = computed(() => {
-    if (this.activeMethod() !== 'question') return false;
-    if (this.isMobile()) return !!this.activeQuestionId();
-    return true;
-  });
-
-  readonly showLeftColumnQ = computed(
-    () => this.activeMethod() === 'question' && (this.showInputForm() || this.showListPanel()),
-  );
-
-  readonly showScriptList = computed(() => {
-    if (this.isMobile()) {
-      return this.activeMethod() === 'transcript' && !this.activeScriptId();
-    }
-    return true;
-  });
-
-  readonly showScriptViewer = computed(() => {
-    if (this.activeMethod() !== 'transcript') return false;
-    if (this.isMobile()) return !!this.activeScriptId();
-    return true;
-  });
-
-  readonly showLeftColumnT = computed(
-    () => this.activeMethod() === 'transcript' && (this.showInputForm() || this.showScriptList()),
-  );
-
-  readonly showLeftColumnC = computed(() => {
-    if (this.activeMethod() !== 'chat') return false;
-    if (this.isMobile()) return !this.activeChatId();
-    return true;
-  });
-
-  readonly showChatConversation = computed(() => {
-    if (this.activeMethod() !== 'chat') return false;
-    if (this.isMobile()) return !!this.activeChatId();
-    return true;
-  });
 
   constructor() {
-    if (typeof window !== 'undefined') {
-      window.addEventListener('resize', () => this.viewportWidth.set(window.innerWidth));
-    }
     effect(() => {
       const anyOpen = this.settingsOpen() || this.packsOpen();
       if (typeof document === 'undefined') return;
       document.body.style.overflow = anyOpen ? 'hidden' : '';
     });
-    let lastPackId: string | null = null;
-    effect(() => {
-      const id = this.packs.activePack().id;
-      if (lastPackId !== null && lastPackId !== id) {
-        this.activeQuestionId.set(null);
-      }
-      lastPackId = id;
-    });
-    // Reset viewer state when method changes.
-    let lastMethod: StudyMethod | null = null;
-    effect(() => {
-      const m = this.activeMethod();
-      if (lastMethod !== null && lastMethod !== m) {
-        this.activeQuestionId.set(null);
-        this.activeScriptId.set(null);
-        this.activeChatId.set(null);
-      }
-      lastMethod = m;
-    });
-  }
-
-  setTab(tab: Tab): void {
-    if (tab === 'create' && this.isMobile()) {
-      // On mobile, tapping "Create" in the bottom bar returns to the input form
-      // for a new item, closing any open viewer. This avoids having to scroll up
-      // and use the back arrow to start a new question/transcript.
-      this.activeQuestionId.set(null);
-      this.activeScriptId.set(null);
-      this.activeChatId.set(null);
-    }
-    this.activeTab.set(tab);
   }
 
   openSettings(): void { this.settingsOpen.set(true); }
@@ -379,64 +149,6 @@ export class AppComponent {
   onLogout(): void { this.auth.logout(); }
   openPacks(): void { this.packsOpen.set(true); }
   closePacks(): void { this.packsOpen.set(false); }
-
-  onMethodChosen(_method: StudyMethod): void {
-    this.activeTab.set('create');
-  }
-
-  onGenerated(question: Question): void {
-    this.activeQuestionId.set(question.id);
-  }
-
-  onOpenQuestion(question: Question): void {
-    this.activeQuestionId.set(question.id);
-  }
-
-  onCloseViewer(): void {
-    this.activeQuestionId.set(null);
-  }
-
-  onNewQuestion(): void {
-    // Close the current viewer so the input form is shown (mobile) / focused
-    // (desktop), and scroll back to the top where the form lives.
-    this.activeQuestionId.set(null);
-    // Wait for DOM re-render before scrolling (Angular conditionally hides/shows panels)
-    requestAnimationFrame(() => {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-  }
-
-  onQuestionDeleted(id: string): void {
-    if (this.activeQuestionId() === id) this.activeQuestionId.set(null);
-  }
-
-  onScriptGenerated(script: Script): void {
-    this.activeScriptId.set(script.id);
-  }
-
-  onOpenScript(script: Script): void {
-    this.activeScriptId.set(script.id);
-  }
-
-  onCloseScript(): void {
-    this.activeScriptId.set(null);
-  }
-
-  onScriptDeleted(id: string): void {
-    if (this.activeScriptId() === id) this.activeScriptId.set(null);
-  }
-
-  onOpenChat(session: ChatSession): void {
-    this.activeChatId.set(session.id);
-  }
-
-  onCloseChat(): void {
-    this.activeChatId.set(null);
-  }
-
-  onChatDeleted(id: string): void {
-    if (this.activeChatId() === id) this.activeChatId.set(null);
-  }
 }
 
 function withAlpha(hexColor: string, alpha: number): string {

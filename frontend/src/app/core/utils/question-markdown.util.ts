@@ -7,7 +7,9 @@ import { Question } from '../models/question.model';
  * reconstruct a Markdown "current review" to send to the AI refine prompt,
  * which is re-parsed afterwards — this is the inverse of parseQuestionReview.
  */
-export function renderQuestionMarkdown(question: Pick<Question, 'stem' | 'alternatives'>): string {
+export function renderQuestionMarkdown(
+  question: Pick<Question, 'stem' | 'alternatives' | 'generalComment'>,
+): string {
   const lines: string[] = ['#### Question:', question.stem, '', '#### Alternatives:'];
 
   for (const a of question.alternatives) {
@@ -26,6 +28,10 @@ export function renderQuestionMarkdown(question: Pick<Question, 'stem' | 'altern
     for (const a of incorrect) {
       lines.push(`*${a.letter}. ${a.text}*`, '', a.comment || '(no explanation provided)', '');
     }
+  }
+
+  if (question.generalComment) {
+    lines.push('#### General comment:', question.generalComment, '');
   }
 
   return lines.join('\n').trim();

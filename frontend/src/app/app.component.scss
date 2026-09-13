@@ -121,6 +121,15 @@
   padding-bottom: calc(var(--tabbar-height) + var(--space-md));
 }
 
+// <router-outlet> is a real DOM element and, left alone, becomes a grid
+// item itself (occupying a real cell) — pushing every routed page's actual
+// content (which arrives as router-outlet's next sibling) one grid cell
+// off from where it belongs. It renders nothing on its own, so it's
+// removed from grid/flex layout participation entirely.
+.app-main router-outlet {
+  display: none;
+}
+
 .column {
   min-width: 0;
 }
@@ -129,6 +138,13 @@
   grid-column: 1 / -1;
 }
 
+// Note: /quiz and /export's own full-width grid-column treatment lives in
+// their own components' :host styles (quiz.component.ts, export.component.ts),
+// not here — a rule written in AppComponent's stylesheet can't reach them:
+// they're router-inserted siblings of <router-outlet>, not elements
+// literally written in AppComponent's template, so Angular's view
+// encapsulation attribute (added to everything actually in this
+// component's template) never lands on them.
 
 .stack {
   display: flex;
@@ -142,7 +158,7 @@
   right: 0;
   bottom: 0;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   background: var(--bg-surface);
   border-top: 1px solid var(--bg-border);
   padding-bottom: env(safe-area-inset-bottom);
@@ -160,6 +176,7 @@
   color: var(--text-muted);
   font-size: var(--font-size-xs);
   font-weight: 500;
+  text-decoration: none;
   transition: color var(--transition-fast);
 }
 
@@ -232,23 +249,20 @@
     grid-template-columns: minmax(320px, 360px) 1fr;
     gap: var(--space-lg);
     padding: var(--space-lg);
-    padding-bottom: var(--space-lg);
-  }
-
-  .app-main.mode-export {
-    grid-template-columns: 1fr;
-    max-width: 960px;
-    margin: 0 auto;
-    width: 100%;
+    // The tabbar stays fixed/overlaid at the bottom on desktop too (same as
+    // mobile) rather than sitting in normal flow at the end of the content
+    // — a long list (many questions) used to mean scrolling all the way
+    // down just to reach the nav. Reserve space for it here instead.
+    padding-bottom: calc(var(--tabbar-height) + var(--space-lg));
   }
 
   .tabbar {
-    position: static;
-    grid-template-columns: repeat(4, max-content);
+    grid-template-columns: repeat(5, max-content);
     justify-content: center;
     border-top: 1px solid var(--bg-border);
     background: var(--bg-base);
     padding: var(--space-sm) 0;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
   }
 
   .tab {

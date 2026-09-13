@@ -223,10 +223,14 @@ def _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id):
         alt["text"] = _rewrite_images(alt.get("text", ""), kind, image_keys, sub, job_id, question_id)
         alt["comment"] = _rewrite_images(alt.get("comment", ""), kind, image_keys, sub, job_id, question_id)
 
+    general_comment = (question_input.get("generalComment") or "").strip()
+    if general_comment:
+        general_comment = _rewrite_images(general_comment, kind, image_keys, sub, job_id, question_id)
+
     topics = question_input.get("topics")
     related_services = question_input.get("relatedServices")
     now = int(time.time() * 1000)
-    return {
+    result = {
         "id": question_id,
         "packId": pack_id,
         "title": question_input.get("title") or "Imported question",
@@ -241,6 +245,9 @@ def _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id):
         "createdAt": now,
         "updatedAt": now,
     }
+    if general_comment:
+        result["generalComment"] = general_comment
+    return result
 
 
 # Bedrock Converse's supported image formats, keyed by file extension.

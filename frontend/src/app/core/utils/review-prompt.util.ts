@@ -77,7 +77,7 @@ STRICT CONSTRAINTS:
 - NEVER include code blocks of any language
 - NEVER use emojis
 - NEVER add --- (horizontal rule) anywhere in your response
-- NEVER add extra sections beyond the ones in the template (no "Explicação geral", no "Summary", no closing remarks)
+- NEVER add extra sections beyond the ones in the template — the only exception is the optional "General comment" section, which may be added ONLY when it has real content per its own instructions below
 - NEVER use heading levels other than #### inside the review
 - Keep narrative language, fluid and suitable for reading aloud
 - Use **bold** for important terms and key concepts
@@ -118,7 +118,9 @@ An **in-memory cache** is ideal for small, read-heavy, rarely-changing data beca
 
 - **Why it is incorrect**: Recomputing on every request wastes compute and adds latency with no benefit.
 
-(Notice that the correct answer keeps its original letter **B** and the incorrect ones are listed in ascending order A then C — never reordered.)`;
+#### General comment:
+
+(Notice that the correct answer keeps its original letter **B** and the incorrect ones are listed in ascending order A then C — never reordered. The "General comment" heading above was left empty because there was nothing beyond the per-alternative explanations to add — that's the expected shape when this section doesn't apply.)`;
 }
 
 const OUTPUT_FORMAT_TRANSLATED = `#### Key concepts related to this question:
@@ -154,7 +156,10 @@ const OUTPUT_FORMAT_TRANSLATED = `#### Key concepts related to this question:
 - **Additional problem**: [Operational risk, anti-pattern, or negative consequence — optional]
 - **When it would be valid**: [Context where the approach could make sense — optional]
 
-[Repeat for each incorrect alternative, in ASCENDING order by original letter (A, B, C, ...) — restate the letter and exact alternative text, but no translation line]`;
+[Repeat for each incorrect alternative, in ASCENDING order by original letter (A, B, C, ...) — restate the letter and exact alternative text, but no translation line]
+
+#### General comment:
+[OPTIONAL. Use this ONLY for an overall insight or piece of context that applies to the question as a whole and does not belong to any single alternative's own explanation above — e.g. a unifying concept, a common exam trap across multiple options, or context the source material presented separately from any one option. Write it in the output language selected above only, no translation line. If there is nothing like that to add, leave this section completely empty (just the heading, no text below it) — do NOT repeat or summarize the per-alternative explanations here.]`;
 
 const OUTPUT_FORMAT_SINGLE = `#### Key concepts related to this question:
 - [List 3-6 core concepts/technologies tested]
@@ -186,4 +191,7 @@ const OUTPUT_FORMAT_SINGLE = `#### Key concepts related to this question:
 - **Additional problem**: [Operational risk, anti-pattern, or negative consequence — optional]
 - **When it would be valid**: [Context where the approach could make sense — optional]
 
-[Repeat for each incorrect alternative, in ASCENDING order by original letter (A, B, C, ...) — restate the letter and exact alternative text]`;
+[Repeat for each incorrect alternative, in ASCENDING order by original letter (A, B, C, ...) — restate the letter and exact alternative text]
+
+#### General comment:
+[OPTIONAL. Use this ONLY for an overall insight or piece of context that applies to the question as a whole and does not belong to any single alternative's own explanation above — e.g. a unifying concept, a common exam trap across multiple options, or context the source material presented separately from any one option. If there is nothing like that to add, leave this section completely empty (just the heading, no text below it) — do NOT repeat or summarize the per-alternative explanations here.]`;

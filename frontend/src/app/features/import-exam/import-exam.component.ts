@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ImportExamService } from '../../core/services/import-exam.service';
 import { PacksService } from '../../core/services/packs.service';
@@ -197,8 +197,16 @@ export class ImportExamComponent {
   private readonly importService = inject(ImportExamService);
   private readonly packsService = inject(PacksService);
 
+  readonly packId = input.required<string>();
+
   protected readonly packs = this.packsService.packs;
-  protected readonly selectedPackId = signal('');
+  // Defaults to (and resets to) the currently routed pack whenever it
+  // changes, while still letting the user manually pick a different target
+  // pack for a one-off cross-pack upload — a plain signal set once in the
+  // constructor used to go stale the moment the user switched packs
+  // elsewhere without this component being destroyed/recreated, silently
+  // scoping new uploads to the wrong pack.
+  protected readonly selectedPackId = linkedSignal(() => this.packId());
 
   protected readonly selectedFile = signal<File | null>(null);
   protected readonly error = signal<string | null>(null);
@@ -216,10 +224,6 @@ export class ImportExamComponent {
       .filter((j) => isImportJobTerminal(j))
       .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)),
   );
-
-  constructor() {
-    this.selectedPackId.set(this.packsService.activePack().id);
-  }
 
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
