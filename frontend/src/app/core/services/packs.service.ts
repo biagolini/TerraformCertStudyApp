@@ -45,7 +45,7 @@ export class PacksService {
   };
 
   readonly packs = computed(() =>
-    [...this.state()].sort((a, b) => a.createdAt - b.createdAt),
+    [...this.state()].sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt)),
   );
 
   readonly activePack = computed<Pack>(() => {
@@ -159,6 +159,30 @@ export class PacksService {
   setActive(id: string): void {
     if (!this.state().some((p) => p.id === id)) return;
     this.settings.setActivePackId(id);
+  }
+
+  /** Swaps this pack with the one immediately before it in drawer order. No-op if already first. */
+  moveUp(id: string): void {
+    this.swapWithNeighbor(id, -1);
+  }
+
+  /** Swaps this pack with the one immediately after it in drawer order. No-op if already last. */
+  moveDown(id: string): void {
+    this.swapWithNeighbor(id, 1);
+  }
+
+  private swapWithNeighbor(id: string, direction: -1 | 1): void {
+    const ordered = this.packs();
+    const index = ordered.findIndex((p) => p.id === id);
+    const neighborIndex = index + direction;
+    if (index === -1 || neighborIndex < 0 || neighborIndex >= ordered.length) return;
+
+    const reordered = [...ordered];
+    [reordered[index], reordered[neighborIndex]] = [reordered[neighborIndex], reordered[index]];
+    // Reassign sequential order to every pack, not just the two swapped, so any
+    // pack still relying on the createdAt fallback gets a real order at this point.
+    const next = reordered.map((p, i) => ({ ...p, order: i }));
+    this.persist(next);
   }
 
   getById(id: string): Pack | undefined {

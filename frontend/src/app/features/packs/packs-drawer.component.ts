@@ -84,6 +84,30 @@ import { PackEditorComponent } from './pack-editor.component';
                   />
                 </svg>
               </button>
+              <div class="reorder-controls">
+                <button
+                  type="button"
+                  class="reorder-btn"
+                  (click)="onMoveUp(pack)"
+                  [disabled]="isFirst(pack)"
+                  [attr.aria-label]="'Move ' + label(pack) + ' up'"
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                    <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 15l6-6 6 6"/>
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="reorder-btn"
+                  (click)="onMoveDown(pack)"
+                  [disabled]="isLast(pack)"
+                  [attr.aria-label]="'Move ' + label(pack) + ' down'"
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                    <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/>
+                  </svg>
+                </button>
+              </div>
             </li>
           }
         </ul>
@@ -165,7 +189,7 @@ import { PackEditorComponent } from './pack-editor.component';
       }
       .pack-row {
         display: grid;
-        grid-template-columns: 1fr auto;
+        grid-template-columns: 1fr auto auto;
         align-items: stretch;
         background: var(--bg-elevated);
         border: 1px solid var(--bg-border);
@@ -235,6 +259,31 @@ import { PackEditorComponent } from './pack-editor.component';
         background: var(--bg-subtle);
         color: var(--text-primary);
       }
+      .reorder-controls {
+        display: flex;
+        flex-direction: column;
+        border-left: 1px solid var(--bg-border);
+      }
+      .reorder-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 1;
+        padding: 0 var(--space-sm);
+        color: var(--text-muted);
+      }
+      .reorder-btn:first-child {
+        border-bottom: 1px solid var(--bg-border);
+      }
+      .reorder-btn:hover:not(:disabled) {
+        background: var(--bg-subtle);
+        color: var(--text-primary);
+      }
+      .reorder-btn:disabled {
+        color: var(--text-faint);
+        cursor: default;
+        opacity: 0.4;
+      }
       .new-btn {
         display: inline-flex;
         align-items: center;
@@ -274,6 +323,23 @@ export class PacksDrawerComponent {
 
   countFor(packId: string): number {
     return this.questionsService.allQuestions().filter((q) => q.packId === packId).length;
+  }
+
+  isFirst(pack: Pack): boolean {
+    return this.packs()[0]?.id === pack.id;
+  }
+
+  isLast(pack: Pack): boolean {
+    const list = this.packs();
+    return list[list.length - 1]?.id === pack.id;
+  }
+
+  onMoveUp(pack: Pack): void {
+    this.packsService.moveUp(pack.id);
+  }
+
+  onMoveDown(pack: Pack): void {
+    this.packsService.moveDown(pack.id);
   }
 
   onSelect(pack: Pack): void {

@@ -27,6 +27,9 @@ export interface Pack {
   examDurationMinutes?: number;
   /** Extra time some candidates are entitled to (e.g. AWS's +30 min for non-native English speakers), in minutes. */
   accommodationMinutes?: number;
+  /** Manual sort position in the packs drawer (lower first). Unset = falls back to
+   * createdAt, so packs never reordered by the user keep their creation order. */
+  order?: number;
 }
 
 export interface PackColorOption {
