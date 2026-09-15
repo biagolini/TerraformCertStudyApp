@@ -183,6 +183,10 @@ export class PacksService {
     // pack still relying on the createdAt fallback gets a real order at this point.
     const next = reordered.map((p, i) => ({ ...p, order: i }));
     this.persist(next);
+    // A reorder click is discrete and infrequent, unlike per-keystroke edits —
+    // don't leave it sitting in the 500ms debounce window, where a quick
+    // reload/tab-switch to check the other device could drop it silently.
+    void this.storage.flushPendingSync();
   }
 
   getById(id: string): Pack | undefined {

@@ -419,6 +419,27 @@ export class StorageService {
     }, 500);
   }
 
+  /**
+   * Cancels any pending debounced sync and pushes immediately. The 500ms
+   * debounce above exists to coalesce rapid-fire edits (e.g. typing) — but for
+   * a discrete, deliberate action like reordering packs, waiting means a quick
+   * reload right after clicking can silently drop the change (nothing flushes
+   * a pending setTimeout on unload). Call this after actions where that gap
+   * would be surprising.
+   */
+  async flushPendingSync(): Promise<void> {
+    if (!this.syncTimer) return;
+    clearTimeout(this.syncTimer);
+    this.syncTimer = null;
+    await this.pushAll({
+      packs: this._packs(),
+      questions: this._questions(),
+      scripts: this._scripts(),
+      chats: this._chats(),
+      settings: this._settings(),
+    });
+  }
+
   /** Fire-and-forget HTTP request */
   private async fire(url: string, method: string, body?: unknown): Promise<void> {
     try {
