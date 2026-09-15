@@ -1,9 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { packDisplayLabel } from '../../core/models/pack.model';
+import { QuizAttempt } from '../../core/models/quiz-attempt.model';
 import { QuizMode, QuizScope } from '../../core/models/quiz.model';
 import { PacksService } from '../../core/services/packs.service';
+import { QuizAttemptsService } from '../../core/services/quiz-attempts.service';
 import { QuizService } from '../../core/services/quiz.service';
 import { SettingsService } from '../../core/services/settings.service';
+import { slugify } from '../../core/utils/file-splitter.util';
 
 @Component({
   selector: 'app-quiz-setup',
@@ -18,6 +21,36 @@ import { SettingsService } from '../../core/services/settings.service';
         </div>
         <button type="button" class="history-link" (click)="quiz.viewHistory()">History</button>
       </header>
+
+      @if (inProgress().length > 0) {
+        <div class="resume-list">
+          @for (attempt of inProgress(); track attempt.id) {
+            <div class="resume-row">
+              <div class="resume-meta">
+                <span class="resume-exam">{{ attempt.examName }}</span>
+                <span class="resume-sub">
+                  {{ attempt.mode === 'instant' ? 'Instant feedback' : 'Exam simulation' }}
+                  · {{ answeredCount(attempt) }}/{{ attempt.answers.length }} answered
+                </span>
+              </div>
+              <div class="resume-actions">
+                <button type="button" class="btn-ghost-sm" (click)="onDiscard(attempt)">Discard</button>
+                <button type="button" class="btn-resume" (click)="onResume(attempt)">Resume</button>
+              </div>
+            </div>
+          }
+        </div>
+      }
+
+      @if (pendingConflict(); as conflict) {
+        <div class="conflict-banner">
+          <p>You have an unfinished session for this exam ({{ answeredCount(conflict) }}/{{ conflict.answers.length }} answered). Starting a new quiz will discard it.</p>
+          <div class="conflict-actions">
+            <button type="button" class="btn-ghost-sm" (click)="pendingConflict.set(null)">Cancel</button>
+            <button type="button" class="btn-resume" (click)="onDiscardAndStart(conflict)">Discard &amp; start new</button>
+          </div>
+        </div>
+      }
 
       <span class="field-label">Scope</span>
       <div class="scope-group">
@@ -212,6 +245,35 @@ import { SettingsService } from '../../core/services/settings.service';
 
       .empty-hint { color: var(--text-muted); font-size: var(--font-size-sm); line-height: 1.5; margin: 0; }
 
+      .resume-list { display: flex; flex-direction: column; gap: var(--space-sm); }
+      .resume-row {
+        display: flex; align-items: center; justify-content: space-between; gap: var(--space-md);
+        padding: var(--space-md); border-radius: var(--radius-md); border: 1.5px solid var(--color-purple);
+        background: var(--bg-elevated);
+      }
+      .resume-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+      .resume-exam { font-weight: 600; font-size: var(--font-size-base); color: var(--text-primary); }
+      .resume-sub { font-size: var(--font-size-xs); color: var(--text-muted); }
+      .resume-actions { display: flex; gap: var(--space-sm); flex-shrink: 0; }
+      .btn-resume {
+        padding: 0 var(--space-md); min-height: var(--touch-min); border-radius: var(--radius-md); border: none;
+        background: var(--color-purple); color: #fff; font-weight: 600; font-size: var(--font-size-sm); cursor: pointer;
+      }
+      .btn-resume:hover { filter: brightness(1.08); }
+      .btn-ghost-sm {
+        padding: 0 var(--space-md); min-height: var(--touch-min); border-radius: var(--radius-md);
+        border: 1px solid var(--bg-border); background: transparent; color: var(--text-secondary);
+        font-size: var(--font-size-sm); cursor: pointer;
+      }
+      .btn-ghost-sm:hover { background: var(--bg-subtle); }
+
+      .conflict-banner {
+        display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-md);
+        border-radius: var(--radius-md); border: 1.5px solid var(--color-red); background: var(--bg-elevated);
+      }
+      .conflict-banner p { font-size: var(--font-size-sm); color: var(--text-secondary); margin: 0; }
+      .conflict-actions { display: flex; justify-content: flex-end; gap: var(--space-sm); }
+
       .start-btn {
         display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm);
         width: 100%; min-height: 48px; padding: 0 var(--space-lg); border-radius: var(--radius-md);
@@ -227,6 +289,14 @@ export class QuizSetupComponent {
   protected readonly quiz = inject(QuizService);
   private readonly packs = inject(PacksService);
   private readonly settings = inject(SettingsService);
+  private readonly attemptsService = inject(QuizAttemptsService);
+
+  protected readonly inProgress = this.attemptsService.inProgressAttempts;
+  protected readonly pendingConflict = signal<QuizAttempt | null>(null);
+
+  constructor() {
+    void this.attemptsService.load();
+  }
 
   protected readonly scope = signal<QuizScope>('pack');
   protected readonly mode = signal<QuizMode>('instant');
@@ -289,7 +359,35 @@ export class QuizSetupComponent {
     this.countOverride.set(this.effectiveCount() + delta);
   }
 
+  answeredCount(attempt: QuizAttempt): number {
+    return attempt.answers.filter((a) => a.checked).length;
+  }
+
+  onResume(attempt: QuizAttempt): void {
+    this.quiz.resume(attempt);
+  }
+
+  async onDiscard(attempt: QuizAttempt): Promise<void> {
+    await this.attemptsService.discard(attempt);
+  }
+
+  async onDiscardAndStart(attempt: QuizAttempt): Promise<void> {
+    await this.attemptsService.discard(attempt);
+    this.pendingConflict.set(null);
+    this.beginQuiz();
+  }
+
   onStart(): void {
+    const examSlug = slugify(this.packs.activePack().name);
+    const conflict = this.inProgress().find((a) => a.examSlug === examSlug);
+    if (conflict) {
+      this.pendingConflict.set(conflict);
+      return;
+    }
+    this.beginQuiz();
+  }
+
+  private beginQuiz(): void {
     this.quiz.start({
       scope: this.scope(),
       mode: this.mode(),

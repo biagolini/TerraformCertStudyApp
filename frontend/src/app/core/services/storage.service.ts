@@ -330,7 +330,10 @@ export class StorageService {
     }
   }
 
-  /** Persists a finished quiz attempt. Returns true on success. */
+  /** Persists a quiz attempt — in-progress or finished, distinguished by
+   * `attempt.status`. Same route/full-overwrite semantics either way: the sk is
+   * derived server-side from examSlug+startedAt+id, which stay fixed for the life
+   * of a session, so repeated calls with the same attempt overwrite the same item. */
   async saveAttempt(attempt: QuizAttempt): Promise<boolean> {
     try {
       const token = await this.getAuthToken();
@@ -338,6 +341,23 @@ export class StorageService {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(attempt),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Deletes an in-progress (or finished) attempt. examSlug/startedAt are required
+   * as query params so the Lambda can reconstruct the exact sort key — DynamoDB
+   * deletes are by full key, not by an arbitrary attribute filter. */
+  async deleteAttempt(attempt: Pick<QuizAttempt, 'id' | 'examSlug' | 'startedAt'>): Promise<boolean> {
+    try {
+      const token = await this.getAuthToken();
+      const params = new URLSearchParams({ examSlug: attempt.examSlug, startedAt: String(attempt.startedAt) });
+      const res = await fetch(`${this.apiUrl}/data/attempts/${attempt.id}?${params}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
       });
       return res.ok;
     } catch {

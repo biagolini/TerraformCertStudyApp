@@ -1,7 +1,7 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { Question, correctLetters as questionCorrectLetters } from '../models/question.model';
 import { Pack } from '../models/pack.model';
-import { QuizAttempt, QuizAttemptAnswer } from '../models/quiz-attempt.model';
+import { QuizAttempt, QuizAttemptAnswer, QuizAttemptStatus } from '../models/quiz-attempt.model';
 import { DEFAULT_QUIZ_SETTINGS, QuizAnswer, QuizPhase, QuizScope, QuizSettings } from '../models/quiz.model';
 import { slugify } from '../utils/file-splitter.util';
 import { TextRange, toggleRanges } from '../utils/text-range.util';
@@ -95,6 +95,11 @@ export class QuizService {
   private tickInterval: ReturnType<typeof setInterval> | null = null;
   private startedAt = 0;
   private activePackAtStart: Pack | null = null;
+  /** Stable across the whole session (set once at start()/resume()) so every
+   * in-progress sync and the final finish() save overwrite the same DynamoDB item. */
+  private attemptId = '';
+  private annotationSyncTimer: ReturnType<typeof setTimeout> | null = null;
+  private static readonly ANNOTATION_SYNC_DEBOUNCE_MS = 3000;
 
   readonly settings = this.settingsState.asReadonly();
   readonly questions = this.questionsState.asReadonly();
@@ -260,6 +265,7 @@ export class QuizService {
     const ordered = settings.shuffle ? shuffle(filtered) : filtered;
     const selected = ordered.slice(0, Math.max(1, Math.min(settings.count, ordered.length)));
 
+    this.attemptId = crypto.randomUUID();
     this.settingsState.set(settings);
     this.questionsState.set(selected);
     this.currentIndexState.set(0);
@@ -297,6 +303,7 @@ export class QuizService {
       selected = [letter];
     }
     this.setAnswer(q.id, { selected, checked: false, correct: false, score: 0, answeredAt: Date.now() });
+    this.syncInProgress();
   }
 
   /** Grades the current question immediately (instant-feedback mode). */
@@ -307,18 +314,21 @@ export class QuizService {
     if (answer.selected.length === 0 || answer.checked) return;
     const score = scoreAnswer(questionCorrectLetters(q), answer.selected, this.allowsPartialCredit());
     this.setAnswer(q.id, { ...answer, checked: true, correct: score === 1, score });
+    this.syncInProgress();
   }
 
   next(): void {
     this.flushTimeSpent();
     this.currentIndexState.update((i) => Math.min(i + 1, this.questionsState().length - 1));
     this.questionStartedAtState.set(Date.now());
+    this.syncInProgress();
   }
 
   previous(): void {
     this.flushTimeSpent();
     this.currentIndexState.update((i) => Math.max(i - 1, 0));
     this.questionStartedAtState.set(Date.now());
+    this.syncInProgress();
   }
 
   goTo(index: number): void {
@@ -326,6 +336,7 @@ export class QuizService {
     this.flushTimeSpent();
     this.currentIndexState.set(index);
     this.questionStartedAtState.set(Date.now());
+    this.syncInProgress();
   }
 
   /** Toggles a highlight/strikethrough range for the current question's block
@@ -338,6 +349,7 @@ export class QuizService {
     const updatedForBlock = toggleRanges(current[key][blockId] ?? [], range);
     const updated: QuestionAnnotations = { ...current, [key]: { ...current[key], [blockId]: updatedForBlock } };
     this.annotationsState.update((prev) => ({ ...prev, [q.id]: updated }));
+    this.scheduleAnnotationSync();
   }
 
   toggleReviewFlag(): void {
@@ -351,6 +363,7 @@ export class QuizService {
     if (!q) return;
     const current = this.annotationsState()[q.id] ?? EMPTY_ANNOTATIONS;
     this.annotationsState.update((prev) => ({ ...prev, [q.id]: { ...current, note: text } }));
+    this.scheduleAnnotationSync();
   }
 
   /** Grades every answered question, builds + persists the attempt, and moves to results. */
@@ -365,8 +378,9 @@ export class QuizService {
     }
     this.answersState.set(graded);
     this.clearTicker();
+    this.cancelAnnotationDebounce();
 
-    const attempt = this.buildAttempt(graded, partialCredit);
+    const attempt = this.snapshotAttempt('FINISHED');
     this.lastAttemptState.set(attempt);
     this.phaseState.set('results');
 
@@ -375,12 +389,64 @@ export class QuizService {
     });
   }
 
+  /** Restores an in-progress attempt exactly as it was left off, on this or another
+   * device. Reuses the attempt's own id/examSlug/startedAt so every subsequent sync
+   * and the eventual finish() overwrite the same DynamoDB item. */
+  resume(attempt: QuizAttempt): void {
+    this.clearTicker();
+    this.cancelAnnotationDebounce();
+    this.attemptId = attempt.id;
+    this.settingsState.set(attempt.settings);
+
+    const questions = attempt.answers.map(
+      (a) => this.questionsService.getById(a.questionId) ?? synthesizeQuestionFromAnswer(a, attempt.packId),
+    );
+    this.questionsState.set(questions);
+
+    const answers: Record<string, QuizAnswer> = {};
+    const annotations: Record<string, QuestionAnnotations> = {};
+    const times: Record<string, number> = {};
+    const flags: Record<string, boolean> = {};
+    for (const a of attempt.answers) {
+      answers[a.questionId] = {
+        selected: a.selected,
+        checked: a.checked,
+        correct: a.score === 1,
+        score: a.score,
+        answeredAt: a.answeredAt,
+      };
+      annotations[a.questionId] = { highlights: a.highlights, strikethroughs: a.strikethroughs, note: a.note };
+      times[a.questionId] = a.timeSpentSeconds;
+      flags[a.questionId] = a.markedForReview;
+    }
+    this.answersState.set(answers);
+    this.annotationsState.set(annotations);
+    this.timeSpentState.set(times);
+    this.reviewFlagsState.set(flags);
+    this.currentIndexState.set(Math.max(0, Math.min(attempt.currentIndex, questions.length - 1)));
+    this.lastAttemptState.set(null);
+
+    this.startedAt = attempt.startedAt;
+    this.timeLimitReachedAtState.set(attempt.timeLimitReachedAt ?? null);
+    // Deliberately NOT restored from the attempt — always reset to "now" so the
+    // offline gap between sessions isn't wrongly counted as time on this question.
+    this.questionStartedAtState.set(Date.now());
+
+    this.activePackAtStart = resolveResumePack(this.packs.packs(), attempt);
+
+    if (attempt.settings.trackTime) {
+      this.tickInterval = setInterval(() => this.tickState.update((t) => t + 1), 1000);
+    }
+    this.phaseState.set(questions.length > 0 ? 'running' : 'setup');
+  }
+
   viewHistory(): void {
     this.phaseState.set('history');
   }
 
   reset(): void {
     this.clearTicker();
+    this.cancelAnnotationDebounce();
     this.questionsState.set([]);
     this.answersState.set({});
     this.currentIndexState.set(0);
@@ -415,8 +481,13 @@ export class QuizService {
     return this.activePackAtStart?.allowPartialCredit ?? this.packs.activePack().allowPartialCredit ?? false;
   }
 
-  private buildAttempt(answers: Record<string, QuizAnswer>, partialCredit: boolean): QuizAttempt {
+  /** Builds the full attempt blob from CURRENT state as-is (no forced grading) —
+   * used both for eager/debounced in-progress syncs and, after finish() grades
+   * every question, for the final save. Both cases overwrite the same DynamoDB
+   * item, since `id`/`examSlug`/`startedAt` never change across a session. */
+  private snapshotAttempt(status: QuizAttemptStatus): QuizAttempt {
     const pack = this.activePackAtStart ?? this.packs.activePack();
+    const answers = this.answersState();
     const annotations = this.annotationsState();
     const times = this.timeSpentState();
     const flags = this.reviewFlagsState();
@@ -431,6 +502,7 @@ export class QuizService {
         correctLetters: questionCorrectLetters(q),
         score: a.score,
         answeredAt: a.answeredAt,
+        checked: a.checked,
         stemSnapshot: q.stem,
         alternativesSnapshot: q.alternatives.map((alt) => ({ letter: alt.letter, text: alt.text })),
         highlights: ann.highlights,
@@ -445,25 +517,104 @@ export class QuizService {
     const scorePercent = maxScore === 0 ? 0 : Math.round((totalScore / maxScore) * 10000) / 100;
 
     return {
-      id: crypto.randomUUID(),
+      id: this.attemptId,
+      status,
+      packId: pack.id,
       examSlug: slugify(pack.name) || 'exam',
       examName: pack.name,
       scope: this.settingsState().scope,
       mode: this.settingsState().mode,
-      partialCredit,
+      partialCredit: this.allowsPartialCredit(),
+      settings: this.settingsState(),
       answers: answerRecords,
+      currentIndex: this.currentIndexState(),
       totalScore,
       maxScore,
       scorePercent,
       startedAt: this.startedAt,
-      finishedAt: Date.now(),
+      finishedAt: status === 'FINISHED' ? Date.now() : undefined,
       timeLimitReachedAt: this.timeLimitReachedAtState() ?? undefined,
     };
+  }
+
+  /** Fire-and-forget: never awaited by callers, so navigation/answering always
+   * returns immediately regardless of network state. Failures are swallowed and
+   * logged inside StorageService, never surfaced here as a blocking error. */
+  private syncInProgress(): void {
+    if (this.phaseState() !== 'running') return;
+    this.cancelAnnotationDebounce();
+    void this.attemptsService.syncInProgress(this.snapshotAttempt('IN_PROGRESS'));
+  }
+
+  private scheduleAnnotationSync(): void {
+    if (this.phaseState() !== 'running') return;
+    if (this.annotationSyncTimer) clearTimeout(this.annotationSyncTimer);
+    this.annotationSyncTimer = setTimeout(() => {
+      this.annotationSyncTimer = null;
+      void this.attemptsService.syncInProgress(this.snapshotAttempt('IN_PROGRESS'));
+    }, QuizService.ANNOTATION_SYNC_DEBOUNCE_MS);
+  }
+
+  private cancelAnnotationDebounce(): void {
+    if (this.annotationSyncTimer) {
+      clearTimeout(this.annotationSyncTimer);
+      this.annotationSyncTimer = null;
+    }
   }
 
   private setAnswer(questionId: string, answer: QuizAnswer): void {
     this.answersState.update((prev) => ({ ...prev, [questionId]: answer }));
   }
+}
+
+/** Best-effort reconstruction of a `Question` for a resumed session when the live
+ * question row is gone (deleted since the attempt was saved). Built purely from the
+ * attempt's own frozen snapshot — no `comment`/rationale text was ever frozen into
+ * `alternativesSnapshot`, so a resumed already-checked question loses its rationale
+ * in this fallback path. Accepted, documented degradation for a rare edge case. */
+export function synthesizeQuestionFromAnswer(a: QuizAttemptAnswer, packId: string): Question {
+  return {
+    id: a.questionId,
+    packId,
+    title: a.title,
+    domain: a.domain,
+    stem: a.stemSnapshot,
+    alternatives: a.alternativesSnapshot.map((alt) => ({
+      letter: alt.letter,
+      text: alt.text,
+      isCorrect: a.correctLetters.includes(alt.letter),
+      comment: '',
+    })),
+    metadata: { topics: [], relatedServices: [] },
+    createdAt: 0,
+    updatedAt: 0,
+  };
+}
+
+/** Resolves the pack an in-progress attempt should use for exam-rule lookups
+ * (timer config, partial credit). Tries the exact pack by id first (picks up any
+ * edits made since the attempt was saved), then falls back to matching by exam
+ * name for a deleted pack. NEVER falls back to the currently active pack — that
+ * would silently apply an unrelated exam's timer rules to this resumed session.
+ * When both lookups miss, returns a minimal stand-in carrying only the attempt's
+ * own `partialCredit` flag and no timer fields, so `hasTimerConfig()` naturally
+ * evaluates false rather than showing numbers from the wrong exam. */
+export function resolveResumePack(packs: Pack[], attempt: Pick<QuizAttempt, 'packId' | 'examSlug' | 'examName' | 'partialCredit'>): Pack {
+  const byId = packs.find((p) => p.id === attempt.packId);
+  if (byId) return byId;
+  const bySlug = packs.find((p) => slugify(p.name) === attempt.examSlug);
+  if (bySlug) return bySlug;
+  return {
+    id: attempt.packId,
+    name: attempt.examName,
+    description: '',
+    version: '',
+    domains: [],
+    color: '#7f8c9c',
+    createdAt: 0,
+    updatedAt: 0,
+    allowPartialCredit: attempt.partialCredit,
+  };
 }
 
 function sameSet(a: string[], b: string[]): boolean {

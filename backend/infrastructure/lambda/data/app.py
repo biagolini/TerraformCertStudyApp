@@ -287,6 +287,31 @@ def put_attempt(item_id):
     return _json({"ok": True})
 
 
+@app.route("/data/attempts/<item_id>", methods=["DELETE"])
+def delete_attempt(item_id):
+    """Discards an in-progress (or finished) attempt. examSlug/startedAt are
+    required query params — the sk embeds both, so a delete by id alone can't
+    address the correct item without a preceding read. Mirrors put_attempt's sk
+    construction exactly, but WITHOUT its startedAt fallback: a wrong/defaulted
+    value here would reconstruct the wrong sk and silently delete nothing
+    (delete_item on a missing key is a no-op, not an error), leaving the real
+    item behind while looking like success to the caller."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    exam_slug = request.args.get("examSlug")
+    started_at_raw = request.args.get("startedAt")
+    if not exam_slug or not started_at_raw:
+        return _error("examSlug and startedAt query params are required", 400)
+    try:
+        started_at = int(started_at_raw)
+    except ValueError:
+        return _error("startedAt must be an integer", 400)
+    sk = f"ATTEMPT#{exam_slug}#{started_at:013d}#{item_id}"
+    quiz_attempts_table.delete_item(Key={"pk": pk, "sk": sk})
+    return _json({"ok": True})
+
+
 @app.route("/data/attempts", methods=["GET"])
 def get_attempts():
     """List the user's quiz attempts, most-recent first. Not part of GET /data —

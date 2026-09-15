@@ -1,20 +1,24 @@
 # DynamoDB schema
 
-Two single-table-design tables, both partitioned per Cognito user
+Three single-table-design tables, all partitioned per Cognito user
 (`pk = USER#{sub}`). Every item stores its payload as a single JSON string
 under a `data` attribute — the Lambda (`lambda/data/app.py`) never inspects
-or validates that JSON, it only routes by `sk` prefix. The frontend owns the
-`data` shape; this doc is the source of truth for it.
+or validates that JSON, it only routes by `sk` prefix (this is why adding a
+new field to a persisted shape is a frontend-only change: it just flows
+through unchanged). The frontend owns the `data` shape; this doc is the
+source of truth for it.
 
-## Why two tables
+## Why three tables
 
 Questions are the largest, most structured, and most actively-evolving
 entity (they carry the app's entire quiz/study content and may need
 independent scaling or GSIs later, e.g. querying by topic). Packs, scripts,
 chats, and settings are small, low-churn configuration that changes
-together and has no reason to scale independently. Splitting them keeps the
-config table simple and lets the questions table evolve without touching
-anything else.
+together and has no reason to scale independently. Quiz attempts are
+write-heavy in a different way (a single in-progress attempt can be
+overwritten many times per session, see below) and grow unboundedly over a
+user's lifetime, unlike config. Splitting all three keeps the config table
+simple and lets each of the others evolve/scale independently.
 
 ## Table: `${project_prefix}-data` (general/config)
 
@@ -167,6 +171,87 @@ Example item (`data` attribute, pretty-printed):
   parsed stem + alternatives (`question-enrichment.service.ts`,
   `extractRelatedServices`) — the same code path used both live (every new
   question) and by the one-time migration script.
+
+## Table: `${project_prefix}-quiz-attempts`
+
+| pk | sk | `data` payload |
+|----|----|-----------------|
+| `USER#{sub}` | `ATTEMPT#{examSlug}#{startedAt:013d}#{id}` | `QuizAttempt` (below) |
+
+Billing: `PAY_PER_REQUEST`. Keys: `pk` (S, hash), `sk` (S, range). The sk
+embeds `examSlug` + a zero-padded 13-digit `startedAt` + `id` so listing a
+user's attempts newest-first (`GET /data/attempts`, optionally filtered to
+one exam) is a cheap `begins_with` prefix `Query` with `ScanIndexForward:
+false` — no GSI needed. `examSlug`/`startedAt` are fixed once at quiz-start
+time and never change for the life of a session, so repeated
+`PUT /data/attempts/{id}` calls with the same triple overwrite the exact
+same item — **this is how one row serves both the in-progress autosave and
+the eventual finished record**; only the `status` field (and everything
+that changed since the last save) differs between calls.
+
+### `QuizAttempt` shape — resumable in-progress + finished, one record
+
+```ts
+export type QuizAttemptStatus = 'IN_PROGRESS' | 'FINISHED';
+
+export interface QuizAttemptAnswer {
+  questionId: string;
+  title: string;
+  domain: string;
+  selected: string[];
+  correctLetters: string[];
+  score: number;             // 0..1, fractional only under partial credit
+  answeredAt?: number;       // epoch ms of the last selection change
+  checked: boolean;          // instant-mode "Check answer" already clicked
+  stemSnapshot: string;      // frozen at save time — highlight/strikethrough
+  alternativesSnapshot: { letter: string; text: string }[]; // offsets are only
+                             // valid against this exact frozen text; no `comment`
+                             // text is ever frozen here (see resume caveat below)
+  highlights: Partial<Record<string, TextRange[]>>;  // keyed by 'stem' or a letter
+  strikethroughs: Partial<Record<string, TextRange[]>>;
+  note: string;
+  timeSpentSeconds: number;
+  markedForReview: boolean;
+}
+
+export interface QuizAttempt {
+  id: string;
+  status: QuizAttemptStatus;
+  packId: string;            // the specific pack — examSlug/examName alone can't
+                              // distinguish two packs sharing one exam name
+  examSlug: string;          // slugify(pack.name) — the sk grouping key
+  examName: string;
+  scope: QuizScope;
+  mode: QuizMode;
+  partialCredit: boolean;
+  settings: QuizSettings;    // full snapshot, needed to reconstruct the session on resume
+  answers: QuizAttemptAnswer[];
+  currentIndex: number;      // which question the runner reopens on
+  totalScore: number;        // always computed from `answers` as-is — "score so
+  maxScore: number;          // far" while IN_PROGRESS, final once FINISHED —
+  scorePercent: number;      // never optional, so readers don't need null-guards
+  startedAt: number;
+  finishedAt?: number;       // only present once status is FINISHED
+  timeLimitReachedAt?: number; // epoch ms — set once if the exam clock ever hit zero
+}
+```
+
+- **Legacy rows** saved before `status` existed have no `status` field at
+  all (full-JSON-passthrough backend, so old items are simply missing new
+  keys) — the frontend treats a missing status as `FINISHED`, since they
+  can only ever have been finished attempts.
+- **Resume caveat**: `alternativesSnapshot` never carries each
+  alternative's rationale (`comment`) text — only `letter`+`text`. Resuming
+  normally reconstructs questions from the live `Question` rows (full
+  fidelity, including comments), falling back to this frozen snapshot only
+  if the live question was deleted since the attempt was saved — in that
+  rare fallback path, an already-checked question's rationale is not
+  shown. This is an accepted, documented degradation, not a bug.
+- **Delete**: `DELETE /data/attempts/{id}?examSlug=&startedAt=` discards a
+  session (used for the setup screen's "Discard" action on an in-progress
+  attempt). Both query params are required and must be exact — they're how
+  the Lambda reconstructs the sk to delete, since DynamoDB deletes are by
+  full key, not by an arbitrary attribute filter.
 
 ## Related docs
 

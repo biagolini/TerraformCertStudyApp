@@ -32,7 +32,7 @@ import { QuizAnnotatedTextComponent } from './quiz-annotated-text.component';
                   <span class="attempt-meta">
                     {{ attempt.mode === 'instant' ? 'Instant feedback' : 'Exam simulation' }}
                     · {{ attempt.answers.length }} question{{ attempt.answers.length === 1 ? '' : 's' }}
-                    · {{ formatDate(attempt.finishedAt) }}
+                    · {{ formatDate(attempt.finishedAt ?? attempt.startedAt) }}
                     @if (attempt.partialCredit) { · partial credit }
                   </span>
                 </div>
@@ -151,7 +151,7 @@ export class QuizHistoryComponent {
   protected readonly quiz = inject(QuizService);
   protected readonly attemptsService = inject(QuizAttemptsService);
 
-  protected readonly attempts = this.attemptsService.attempts;
+  protected readonly attempts = this.attemptsService.finishedAttempts;
   protected readonly expandedId = signal<string | null>(null);
   protected readonly expandedQuestionId = signal<string | null>(null);
 
