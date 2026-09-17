@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { correctLetters } from '../../core/models/question.model';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
@@ -35,8 +35,9 @@ import { QuestionsService } from '../../core/services/questions.service';
           <button
             type="button"
             class="tool-btn"
-            (mousedown)="$event.preventDefault()"
-            (touchstart)="$event.preventDefault()"
+            (mousedown)="onToolPointerDown('Highlight', $event)"
+            (touchstart)="onToolPointerDown('Highlight', $event)"
+            (touchend)="onHighlightTouchEnd($event)"
             (click)="onHighlightClick()"
           >
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9 11l6-6 4 4-6 6m-4-4l-3 7 7-3m-4-4l4 4"/></svg>
@@ -45,14 +46,25 @@ import { QuestionsService } from '../../core/services/questions.service';
           <button
             type="button"
             class="tool-btn"
-            (mousedown)="$event.preventDefault()"
-            (touchstart)="$event.preventDefault()"
+            (mousedown)="onToolPointerDown('Strikethrough', $event)"
+            (touchstart)="onToolPointerDown('Strikethrough', $event)"
+            (touchend)="onStrikethroughTouchEnd($event)"
             (click)="onStrikethroughClick()"
           >
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 12h16M8 12c0-2 1.5-4 4-4s4 1 4 2M8 12c0 2 1.5 5 4 5 2.5 0 3.5-1.3 4-2.5"/></svg>
             <span>Strikethrough</span>
           </button>
-          <button type="button" class="tool-btn" [class.active]="noteOpen()" (click)="noteOpen.set(!noteOpen())">
+          <button
+            type="button"
+            class="tool-btn"
+            [disabled]="!quiz.hasCurrentMarks()"
+            (click)="onClearMarksClick()"
+            aria-label="Clear all highlights and strikethroughs on this question"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M20 20H9l-6-6a2 2 0 010-2.8L12.6 2.6a2 2 0 012.8 0l5.7 5.7a2 2 0 010 2.8L14 18"/></svg>
+            <span>Clear marks</span>
+          </button>
+          <button type="button" class="tool-btn" [class.active]="noteOpen()" (click)="onNoteToggleClick()">
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 5h16v11H8l-4 4V5z"/></svg>
             <span>Note</span>
           </button>
@@ -223,6 +235,18 @@ import { QuestionsService } from '../../core/services/questions.service';
           </aside>
         </div>
       </section>
+
+      @if (debugEnabled()) {
+        <div class="debug-panel">
+          <div class="debug-header">
+            <span>Debug log ({{ debugLog().length }})</span>
+            <button type="button" (click)="debugLog.set([])">Clear</button>
+          </div>
+          @for (line of debugLog(); track $index) {
+            <div class="debug-line">{{ line }}</div>
+          }
+        </div>
+      }
     }
   `,
   styles: [
@@ -241,6 +265,21 @@ import { QuestionsService } from '../../core/services/questions.service';
       .tool-btn { display: inline-flex; align-items: center; gap: var(--space-xs); padding: 0 var(--space-md); min-height: 34px; border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-secondary); font-size: var(--font-size-sm); font-weight: 600; font-family: var(--font-family); cursor: pointer; }
       .tool-btn:hover { border-color: var(--color-purple); color: var(--color-purple); }
       .tool-btn.active { background: var(--bg-elevated); border-color: var(--color-purple); color: var(--color-purple); }
+      .tool-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+      .tool-btn:disabled:hover { border-color: var(--bg-border); color: var(--text-secondary); }
+
+      /* Temporary on-device diagnostic panel — enable with ?debug=1, remove once the
+       * mobile Safari highlight/strikethrough investigation is closed out. */
+      .debug-panel {
+        position: fixed; left: var(--space-sm); right: var(--space-sm); bottom: var(--space-sm);
+        max-height: 40vh; overflow-y: auto; background: rgba(0, 0, 0, 0.92); color: #7CFC7C;
+        font-family: 'SF Mono', Menlo, monospace; font-size: 11px; line-height: 1.5;
+        border-radius: var(--radius-md); padding: var(--space-sm); z-index: 999;
+        box-shadow: 0 0 0 1px rgba(255,255,255,0.15);
+      }
+      .debug-header { display: flex; justify-content: space-between; align-items: center; color: #fff; font-weight: 700; margin-bottom: 4px; }
+      .debug-header button { background: #333; color: #fff; border: none; border-radius: 4px; padding: 2px 8px; font-size: 11px; }
+      .debug-line { white-space: pre-wrap; word-break: break-word; border-bottom: 1px solid rgba(255,255,255,0.08); padding: 2px 0; }
       .note-textarea { width: 100%; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary); font-family: var(--font-family); font-size: var(--font-size-sm); line-height: 1.5; resize: vertical; box-sizing: border-box; }
       .note-textarea:focus-visible { outline: none; border-color: var(--color-purple); }
       /* Fixed light-yellow background regardless of theme, so the text color must
@@ -349,6 +388,48 @@ export class QuizRunnerComponent {
   protected readonly annotations = this.quiz.currentAnnotations;
   protected readonly noteOpen = signal(false);
 
+  /** Temporary on-device diagnostic panel for the mobile Safari highlight/
+   * strikethrough investigation — the on-screen panel needs ?debug=1 in the URL,
+   * but every log line always prints to console too, unconditionally, so a
+   * console session alone (no query param) is enough to confirm a fresh deploy
+   * is running and see click/selection activity. Remove this whole block once
+   * that investigation is resolved. */
+  private static readonly BUILD_MARKER = 'quiz-runner-debug-2026-09-17-c-touchend-fix';
+  protected readonly debugEnabled = signal(
+    typeof location !== 'undefined' && new URLSearchParams(location.search).get('debug') === '1',
+  );
+  protected readonly debugLog = signal<string[]>([]);
+
+  private log(msg: string): void {
+    const line = `[${new Date().toISOString().slice(11, 23)}] ${msg}`;
+    console.log(`[QuizRunner] ${line}`);
+    if (this.debugEnabled()) {
+      this.debugLog.update((prev) => [line, ...prev].slice(0, 40));
+    }
+  }
+
+  onToolPointerDown(label: string, event: Event): void {
+    this.log(`${event.type} on "${label}" button`);
+    event.preventDefault();
+  }
+
+  onNoteToggleClick(): void {
+    this.log('clicked "Note" button');
+    this.noteOpen.set(!this.noteOpen());
+  }
+
+  constructor() {
+    console.log(`[QuizRunner] loaded — build marker: ${QuizRunnerComponent.BUILD_MARKER}`);
+    if (this.debugEnabled()) {
+      const onSelectionChange = () => {
+        const sel = document.getSelection();
+        this.log(`selectionchange -> "${sel?.toString() ?? ''}" collapsed=${sel?.isCollapsed}`);
+      };
+      document.addEventListener('selectionchange', onSelectionChange);
+      inject(DestroyRef).onDestroy(() => document.removeEventListener('selectionchange', onSelectionChange));
+    }
+  }
+
   private readonly timeUpDismissed = signal(false);
   protected readonly showTimeUpDialog = computed(
     () => !this.isInstant() && this.quiz.timeLimitReachedAt() !== null && !this.timeUpDismissed(),
@@ -378,18 +459,78 @@ export class QuizRunnerComponent {
     this.quiz.toggleOption(letter);
   }
 
+  /** WebKit suppresses the synthesized `click` event entirely after
+   * `touchstart.preventDefault()` (needed to stop iOS from clearing the text
+   * selection on tap) — confirmed live on a real iPhone via Web Inspector:
+   * `touchstart` logged on every tap, `click` never followed. So the actual
+   * action must run from `touchend` on touch devices; `click` stays as the
+   * mouse/desktop path. This timestamp guards against double-firing on the
+   * rare hybrid device where click still follows touchend. */
+  private lastTouchHandledAt = 0;
+
+  onHighlightTouchEnd(event: Event): void {
+    event.preventDefault();
+    this.lastTouchHandledAt = Date.now();
+    this.log('touchend on "Highlight" — handling directly (click is suppressed by WebKit here)');
+    this.performHighlight();
+  }
+
   onHighlightClick(): void {
+    if (Date.now() - this.lastTouchHandledAt < 500) {
+      this.log('click on "Highlight" ignored — already handled via touchend');
+      return;
+    }
+    this.performHighlight();
+  }
+
+  private performHighlight(): void {
+    const sel = document.getSelection();
+    this.log(`Highlight action — selection="${sel?.toString() ?? ''}" collapsed=${sel?.isCollapsed}`);
     const resolved = resolveSelectionBlock();
+    this.log(
+      resolved
+        ? `resolveSelectionBlock -> block="${resolved.blockId}" range=${resolved.range.start}-${resolved.range.end}`
+        : 'resolveSelectionBlock -> null (no mark applied)',
+    );
     if (!resolved) return;
     this.quiz.toggleAnnotation('highlight', resolved.blockId, resolved.range);
     document.getSelection()?.removeAllRanges();
+    this.log(`after removeAllRanges — collapsed=${document.getSelection()?.isCollapsed}`);
+  }
+
+  onStrikethroughTouchEnd(event: Event): void {
+    event.preventDefault();
+    this.lastTouchHandledAt = Date.now();
+    this.log('touchend on "Strikethrough" — handling directly (click is suppressed by WebKit here)');
+    this.performStrikethrough();
   }
 
   onStrikethroughClick(): void {
+    if (Date.now() - this.lastTouchHandledAt < 500) {
+      this.log('click on "Strikethrough" ignored — already handled via touchend');
+      return;
+    }
+    this.performStrikethrough();
+  }
+
+  private performStrikethrough(): void {
+    const sel = document.getSelection();
+    this.log(`Strikethrough action — selection="${sel?.toString() ?? ''}" collapsed=${sel?.isCollapsed}`);
     const resolved = resolveSelectionBlock();
+    this.log(
+      resolved
+        ? `resolveSelectionBlock -> block="${resolved.blockId}" range=${resolved.range.start}-${resolved.range.end}`
+        : 'resolveSelectionBlock -> null (no mark applied)',
+    );
     if (!resolved) return;
     this.quiz.toggleAnnotation('strike', resolved.blockId, resolved.range);
     document.getSelection()?.removeAllRanges();
+    this.log(`after removeAllRanges — collapsed=${document.getSelection()?.isCollapsed}`);
+  }
+
+  onClearMarksClick(): void {
+    this.log('clicked "Clear marks" button');
+    this.quiz.clearAnnotations();
   }
 
   onNextInstant(): void {

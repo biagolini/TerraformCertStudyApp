@@ -212,6 +212,14 @@ export class QuizService {
     return this.annotationsState()[q.id] ?? EMPTY_ANNOTATIONS;
   });
 
+  /** Whether the current question has any highlight/strikethrough mark at all —
+   * drives disabling the "Clear marks" toolbar button when there's nothing to clear. */
+  readonly hasCurrentMarks = computed(() => {
+    const ann = this.currentAnnotations();
+    return Object.values(ann.highlights).some((r) => r && r.length > 0) ||
+      Object.values(ann.strikethroughs).some((r) => r && r.length > 0);
+  });
+
   readonly answeredFlags = computed(() =>
     this.questionsState().map((q) => (this.answersState()[q.id]?.selected.length ?? 0) > 0),
   );
@@ -349,6 +357,21 @@ export class QuizService {
     const updatedForBlock = toggleRanges(current[key][blockId] ?? [], range);
     const updated: QuestionAnnotations = { ...current, [key]: { ...current[key], [blockId]: updatedForBlock } };
     this.annotationsState.update((prev) => ({ ...prev, [q.id]: updated }));
+    this.scheduleAnnotationSync();
+  }
+
+  /** Removes every highlight/strikethrough mark from the current question in one
+   * shot — the escape hatch for when reselecting the exact original range to
+   * toggle a mark off (see toggleRanges' full-coverage rule) is too fiddly,
+   * especially on touch. Leaves the note text untouched. */
+  clearAnnotations(): void {
+    const q = this.currentQuestion();
+    if (!q) return;
+    const current = this.annotationsState()[q.id] ?? EMPTY_ANNOTATIONS;
+    this.annotationsState.update((prev) => ({
+      ...prev,
+      [q.id]: { ...current, highlights: {}, strikethroughs: {} },
+    }));
     this.scheduleAnnotationSync();
   }
 
