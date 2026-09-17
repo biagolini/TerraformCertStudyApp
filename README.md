@@ -79,6 +79,31 @@ terraform apply
 # 3. Access the app at your configured domain
 ```
 
+## Local Frontend Development
+
+To run the Angular SPA locally you need Node.js (which ships with `npm`). Install the LTS release from [nodejs.org](https://nodejs.org/) or via a version manager such as `nvm`. Confirm it is available with `node -v` and `npm -v`.
+
+Install the frontend dependencies and start the dev server:
+
+```bash
+cd frontend
+npm install --legacy-peer-deps
+npm start
+```
+
+Open `http://localhost:4200/`. The dev server reloads on save.
+
+`npm start` runs `ng serve` (the same as `ng s`). If you have the Angular CLI installed globally you can call `ng serve` or `ng s` directly instead.
+
+**Why `--legacy-peer-deps`:** a plain `npm install` currently fails with an `ERESOLVE` conflict because `@angular/animations` pins an exact `@angular/core` version that the other `@angular/*` packages do not resolve to. The `--legacy-peer-deps` flag lets the install proceed. The clean fix is to align every `@angular/*` package on the same `21.2.x` version in `frontend/package.json`, after which a plain `npm install` works.
+
+Other useful scripts (run from `frontend/`):
+
+```bash
+npm run build    # production build
+npm test         # unit tests
+```
+
 ## Available Models
 
 The model list is **loaded dynamically** from Bedrock at login (`GET /data/models`). The app discovers all text-in/text-out models with streaming support that are active and invocable in your account. Models requiring inference profiles (e.g., Nova 2) are resolved automatically.
