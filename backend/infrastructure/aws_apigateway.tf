@@ -125,6 +125,86 @@ resource "aws_api_gateway_gateway_response" "default_5xx" {
   }
 }
 
+# --- /review resource ---
+
+resource "aws_api_gateway_resource" "review" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  parent_id   = aws_api_gateway_rest_api.main.root_resource_id
+  path_part   = "review"
+}
+
+# --- POST /review (streaming) ---
+
+resource "aws_api_gateway_method" "review_post" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.review.id
+  http_method   = "POST"
+  authorization = "COGNITO_USER_POOLS"
+  authorizer_id = aws_api_gateway_authorizer.cognito.id
+}
+
+resource "aws_api_gateway_integration" "review_post" {
+  rest_api_id             = aws_api_gateway_rest_api.main.id
+  resource_id             = aws_api_gateway_resource.review.id
+  http_method             = aws_api_gateway_method.review_post.http_method
+  type                    = "AWS_PROXY"
+  integration_http_method = "POST"
+  uri                     = aws_lambda_function.review.response_streaming_invoke_arn
+  response_transfer_mode  = "STREAM"
+  timeout_milliseconds    = 900000
+  credentials             = aws_iam_role.api_gateway_lambda.arn
+}
+
+# --- OPTIONS /review (CORS) ---
+
+resource "aws_api_gateway_method" "review_options" {
+  rest_api_id   = aws_api_gateway_rest_api.main.id
+  resource_id   = aws_api_gateway_resource.review.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "review_options" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.review.id
+  http_method = aws_api_gateway_method.review_options.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "review_options_200" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.review.id
+  http_method = aws_api_gateway_method.review_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+
+  response_models = {
+    "application/json" = "Empty"
+  }
+}
+
+resource "aws_api_gateway_integration_response" "review_options_200" {
+  rest_api_id = aws_api_gateway_rest_api.main.id
+  resource_id = aws_api_gateway_resource.review.id
+  http_method = aws_api_gateway_method.review_options.http_method
+  status_code = aws_api_gateway_method_response.review_options_200.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
 # ============================================================================
 # /data resource — CRUD for DynamoDB user data
 # ============================================================================
@@ -399,6 +479,7 @@ resource "aws_api_gateway_deployment" "main" {
   triggers = {
     redeployment = sha256(jsonencode([
       aws_api_gateway_integration.converse_post.uri,
+      aws_api_gateway_integration.review_post.uri,
       aws_api_gateway_integration.data_get.uri,
       aws_api_gateway_integration.data_put.uri,
       aws_api_gateway_integration.data_proxy_put.uri,
@@ -419,6 +500,10 @@ resource "aws_api_gateway_deployment" "main" {
     aws_api_gateway_integration.converse_post,
     aws_api_gateway_method.converse_options,
     aws_api_gateway_integration.converse_options,
+    aws_api_gateway_method.review_post,
+    aws_api_gateway_integration.review_post,
+    aws_api_gateway_method.review_options,
+    aws_api_gateway_integration.review_options,
     aws_api_gateway_method.data_get,
     aws_api_gateway_integration.data_get,
     aws_api_gateway_method.data_put,
@@ -453,6 +538,14 @@ resource "aws_lambda_permission" "apigw" {
   statement_id  = "AllowAPIGateway"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.converse.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*"
+}
+
+resource "aws_lambda_permission" "apigw_review" {
+  statement_id  = "AllowAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.review.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*"
 }

@@ -32,6 +32,13 @@ export interface Pack {
   order?: number;
 }
 
+/** The subset of a Pack that AI prompts (review agent, chat) need as context. */
+export interface PackContext {
+  name: string;
+  description: string;
+  domains: PackDomain[];
+}
+
 export interface PackColorOption {
   id: string;
   name: string;

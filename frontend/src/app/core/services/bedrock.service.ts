@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import { DEFAULT_MODEL, outputLanguageLabel } from '../models/settings.model';
-import { PackContext, buildSystemPrompt } from '../utils/review-prompt.util';
+import { PackContext } from '../models/pack.model';
 import { buildTranscriptScriptPrompt } from '../utils/transcript-prompt.util';
 import { buildChatSystemPrompt, buildChatSummaryPrompt } from '../utils/chat-prompt.util';
 import { buildRelatedServicesPrompt, buildRelatedServicesUserMessage } from '../utils/enrichment-prompt.util';
@@ -14,14 +14,25 @@ interface BedrockMessage {
 }
 
 /**
- * Talks to the API Gateway /converse endpoint, which invokes a Lambda that
- * calls Amazon Bedrock (Nova models) via converse_stream. Authentication is
- * done with the Cognito id token (Bearer). Responses are streamed as NDJSON.
+ * Talks to the API Gateway. /converse invokes a Lambda that calls Amazon
+ * Bedrock directly via converse_stream (chat, transcripts, titles, related-
+ * services extraction). /review invokes a Lambda that calls the AgentCore
+ * Runtime review agent instead (question review generation/refinement).
+ * Authentication is done with the Cognito id token (Bearer). Both endpoints
+ * stream responses as the same NDJSON envelope.
  */
 @Injectable({ providedIn: 'root' })
 export class BedrockService {
   private readonly auth = inject(AuthService);
 
+  /**
+   * Question review generation now runs on the AgentCore Runtime review
+   * agent (Strands, with skills + AWS-documentation MCP tool) instead of a
+   * client-built system prompt sent straight to Bedrock — see /review's
+   * Lambda and backend/infrastructure/agent/review_agent/. The agent still
+   * streams the same Markdown template, so response parsing
+   * (question-parse.util.ts) and everything downstream is unchanged.
+   */
   async *streamReview(
     question: string,
     pack: PackContext,
@@ -31,11 +42,8 @@ export class BedrockService {
   ): AsyncGenerator<string, void, void> {
     const trimmedQuestion = question.trim();
     if (!trimmedQuestion) throw new Error('Question cannot be empty.');
-    const system = buildSystemPrompt(pack, outputLanguage);
-    yield* this.streamConverse(
-      system,
-      [{ role: 'user', content: [{ text: trimmedQuestion }] }],
-      model,
+    yield* this.streamReviewRequest(
+      { mode: 'from_scratch', questionText: trimmedQuestion, pack, outputLanguage },
       signal,
     );
   }
@@ -75,21 +83,8 @@ export class BedrockService {
     if (!trimmedFeedback) throw new Error('Feedback cannot be empty.');
     if (!currentReview.trim()) throw new Error('No review to refine.');
 
-    const system = buildSystemPrompt(pack, outputLanguage);
-    const userMessage = `You previously generated the exam review below. Refine it based on the user's feedback while keeping the SAME OUTPUT FORMAT specified in your instructions.
-
-=== CURRENT REVIEW ===
-${currentReview}
-
-=== USER FEEDBACK ===
-${trimmedFeedback}
-
-Return the FULL refined review. Apply only the changes needed to address the feedback; preserve everything else.`;
-
-    yield* this.streamConverse(
-      system,
-      [{ role: 'user', content: [{ text: userMessage }] }],
-      model,
+    yield* this.streamReviewRequest(
+      { mode: 'refine', currentReview, feedback: trimmedFeedback, pack, outputLanguage },
       signal,
     );
   }
@@ -211,10 +206,43 @@ Return the FULL refined review. Apply only the changes needed to address the fee
       signal,
     });
 
-    if (!response.ok) {
-      const message = await this.extractError(response);
-      throw new Error(message);
-    }
+    if (!response.ok) throw new Error(await this.extractError(response));
+    yield* this.readNdjsonStream(response);
+  }
+
+  /**
+   * Question review generation — POSTs to /review, which invokes the
+   * AgentCore Runtime review agent and relays its SSE output as the same
+   * NDJSON envelope /converse uses, so response parsing is identical.
+   */
+  private async *streamReviewRequest(
+    body: {
+      mode: 'from_scratch' | 'refine';
+      pack: PackContext;
+      outputLanguage?: string;
+      questionText?: string;
+      currentReview?: string;
+      feedback?: string;
+    },
+    signal: AbortSignal,
+  ): AsyncGenerator<string, void, void> {
+    const token = await this.auth.getValidToken();
+
+    const response = await fetch(`${environment.apiUrl}/review`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+      signal,
+    });
+
+    if (!response.ok) throw new Error(await this.extractError(response));
+    yield* this.readNdjsonStream(response);
+  }
+
+  private async *readNdjsonStream(response: Response): AsyncGenerator<string, void, void> {
     if (!response.body) throw new Error('Streaming is not supported in this environment.');
 
     const reader = response.body.getReader();

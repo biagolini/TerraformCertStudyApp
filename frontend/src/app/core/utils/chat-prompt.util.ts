@@ -1,5 +1,5 @@
 import { outputLanguageLabel } from '../models/settings.model';
-import { PackContext } from './review-prompt.util';
+import { PackContext } from '../models/pack.model';
 
 export function buildChatSystemPrompt(pack: PackContext, outputLanguage = ''): string {
   const languageName = outputLanguage ? outputLanguageLabel(outputLanguage) : '';

@@ -31,8 +31,11 @@ export function parseTitleFromResponse(text: string, fallback: string): string {
 }
 
 export function stripInferredMetadata(text: string): string {
+  // Also swallow a leading heading marker (e.g. "#### INFERRED_DOMAIN: ...")
+  // — some models (observed: Nova) add one despite being told these are
+  // plain-text trailer lines, not a review section.
   return text
-    .replace(/\n?INFERRED_DOMAIN:\s*.+/gi, '')
-    .replace(/\n?INFERRED_TITLE:\s*.+/gi, '')
+    .replace(/\n?#{0,6}\s*INFERRED_DOMAIN:\s*.+/gi, '')
+    .replace(/\n?#{0,6}\s*INFERRED_TITLE:\s*.+/gi, '')
     .trimEnd();
 }

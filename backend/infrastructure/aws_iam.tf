@@ -69,7 +69,10 @@ resource "aws_iam_role_policy" "api_gateway_lambda_invoke" {
         "lambda:InvokeFunction",
         "lambda:InvokeFunctionUrl",
       ]
-      Resource = aws_lambda_function.converse.arn
+      Resource = [
+        aws_lambda_function.converse.arn,
+        aws_lambda_function.review.arn,
+      ]
     }]
   })
 }

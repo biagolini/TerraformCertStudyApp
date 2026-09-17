@@ -14,11 +14,13 @@ import os
 import random
 import re
 import time
+import uuid
 from urllib.parse import unquote
 
 import boto3
 from botocore.exceptions import ClientError
 
+from markdown_review import parse_review_markdown
 from prompt import build_system_prompt, build_tool_schema
 
 # ModelErrorException in particular is a known non-deterministic Nova Lite
@@ -49,12 +51,14 @@ TABLE_NAME = os.environ["TABLE_NAME"]
 QUESTIONS_TABLE_NAME = os.environ["QUESTIONS_TABLE_NAME"]
 ASSETS_BUCKET_NAME = os.environ["ASSETS_BUCKET_NAME"]
 DEFAULT_MODEL_ID = os.environ["BEDROCK_EXTRACTION_MODEL_ID"]
+AGENT_RUNTIME_ARN = os.environ["AGENT_RUNTIME_ARN"]
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(TABLE_NAME)
 questions_table = dynamodb.Table(QUESTIONS_TABLE_NAME)
 s3 = boto3.client("s3")
 bedrock = boto3.client("bedrock-runtime")
+agentcore = boto3.client("bedrock-agentcore")
 
 IMG_PLACEHOLDER_RE = re.compile(r"\{\{IMG:(\d+)\}\}")
 MARKDOWN_IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
@@ -107,21 +111,41 @@ def _increment_job_counters(pk, job_id, failed):
     )
 
 
-def _get_pack_domain_names(pk, pack_id):
-    """The pack's configured domain names, so the model is constrained to
-    pick from real values instead of inventing a new one for every question
-    that lacks an explicit category in its source text."""
+def _load_pack(pk, pack_id):
+    """Raw pack `data` dict — source for both the vision call's domain enum
+    (names only) and the review agent's fuller pack context (name/
+    description/domains)."""
     item = table.get_item(Key={"pk": pk, "sk": f"PACK#{pack_id}"}).get("Item")
     if not item:
-        return []
-    data = json.loads(item["data"]) if isinstance(item.get("data"), str) else item.get("data", {})
+        return {}
+    return json.loads(item["data"]) if isinstance(item.get("data"), str) else item.get("data", {})
+
+
+def _pack_domain_names(pack):
+    """The pack's configured domain names, so the vision model is
+    constrained to pick from real values instead of inventing a new one for
+    every question that lacks an explicit category in its source text."""
     names = []
-    for d in data.get("domains") or []:
+    for d in pack.get("domains") or []:
         if isinstance(d, dict) and d.get("name"):
             names.append(d["name"])
         elif isinstance(d, str) and d.strip():
             names.append(d.strip())
     return names
+
+
+def _pack_context(pack):
+    """The shape the review agent expects — see
+    agent/review_agent/app.py's _pack_context_block."""
+    return {
+        "name": pack.get("name", ""),
+        "description": pack.get("description", ""),
+        "domains": [
+            {"name": d.get("name", ""), "description": d.get("description", "")}
+            for d in (pack.get("domains") or [])
+            if isinstance(d, dict) and d.get("name")
+        ],
+    }
 
 
 def _resolve_domain(raw_domain, domain_names):
@@ -170,9 +194,47 @@ def _converse_with_retry(**kwargs):
     raise last_error  # pragma: no cover — loop always returns or raises above
 
 
+def _generate_explanation(stem, alternatives, pack, output_language=""):
+    """Calls the AgentCore Runtime review agent (mode=explain_structured,
+    non-streaming) for the explanation content this Lambda used to write
+    itself with a much weaker prompt — see markdown_review.py and
+    agent/review_agent/app.py. Structure (stem/alternatives/correct letter)
+    is already known and passed through verbatim; the agent only writes."""
+    payload = {
+        "mode": "explain_structured",
+        "stream": False,
+        "pack": _pack_context(pack),
+        "outputLanguage": output_language,
+        "stem": stem,
+        "alternatives": [
+            {"letter": a["letter"], "text": a["text"], "isCorrect": a["isCorrect"]} for a in alternatives
+        ],
+    }
+    response = agentcore.invoke_agent_runtime(
+        agentRuntimeArn=AGENT_RUNTIME_ARN,
+        runtimeSessionId=uuid.uuid4().hex + uuid.uuid4().hex,
+        payload=json.dumps(payload).encode("utf-8"),
+    )
+    # The agent's HTTP contract is always SSE-framed ("data: {...}" lines),
+    # even for this logically non-streaming call — see review_agent/app.py's
+    # module docstring on why (its entrypoint is always an async generator).
+    result = None
+    for line in response["response"].iter_lines(chunk_size=1):
+        if not line:
+            continue
+        text = line.decode("utf-8")
+        if text.startswith("data: "):
+            text = text[len("data: "):]
+        result = json.loads(text)
+    if not result or "error" in result:
+        raise ValueError(f"Review agent failed: {(result or {}).get('error', 'empty response')}")
+    return result
+
+
 def _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id):
     image_blocks, image_keys = _load_images(chunk)
-    domain_names = _get_pack_domain_names(pk, pack_id)
+    pack = _load_pack(pk, pack_id)
+    domain_names = _pack_domain_names(pack)
 
     user_text = _build_user_text(chunk)
     if domain_names:
@@ -221,14 +283,20 @@ def _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id):
     stem = _rewrite_images(stem, kind, image_keys, sub, job_id, question_id)
     for alt in alternatives:
         alt["text"] = _rewrite_images(alt.get("text", ""), kind, image_keys, sub, job_id, question_id)
-        alt["comment"] = _rewrite_images(alt.get("comment", ""), kind, image_keys, sub, job_id, question_id)
 
-    general_comment = (question_input.get("generalComment") or "").strip()
-    if general_comment:
-        general_comment = _rewrite_images(general_comment, kind, image_keys, sub, job_id, question_id)
+    # Explanation content (comment/generalComment/topics/relatedServices) is
+    # written by the review agent, not this vision call — see
+    # _generate_explanation's docstring. The agent receives only text (no
+    # images), so its output never contains {{IMG:n}} placeholders to rewrite.
+    explanation = _generate_explanation(stem, alternatives, pack)
+    parsed = parse_review_markdown(explanation.get("reviewMarkdown", ""))
+    comments_by_letter = parsed["comments"]
+    for alt in alternatives:
+        alt["comment"] = comments_by_letter.get(alt["letter"].upper(), "")
 
-    topics = question_input.get("topics")
-    related_services = question_input.get("relatedServices")
+    general_comment = parsed["generalComment"]
+    topics = parsed["topics"]
+    related_services = explanation.get("relatedServices")
     now = int(time.time() * 1000)
     result = {
         "id": question_id,

@@ -3,8 +3,9 @@ import { ParsedAlternative } from './question-parse.util';
 /**
  * System prompt for a single, non-streaming completion that extracts the vendor
  * services/products a question is actually about, from its already-parsed content.
- * Kept separate from review-prompt.util.ts since this runs once per saved question
- * (not during the main streamed review generation) and has a much narrower job.
+ * Kept separate from the review agent's own explanation-writing prompt since this
+ * runs once per saved question (not during the main streamed review generation)
+ * and has a much narrower job.
  */
 export function buildRelatedServicesPrompt(): string {
   return `You extract the specific named services or products a certification exam question is about.

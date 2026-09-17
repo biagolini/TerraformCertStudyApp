@@ -60,3 +60,9 @@ variable "bedrock_extraction_model_id" {
   type        = string
   default     = "us.amazon.nova-pro-v1:0"
 }
+
+variable "review_agent_model_id" {
+  description = "Bedrock model ID the AgentCore Runtime review agent uses to write question explanations. Quality over speed is the explicit priority for this pipeline, which originally pointed this at Claude Sonnet — but Anthropic models are blocked in this account behind an AWS Marketplace payment-instrument issue (see docs/review-agent-model-cost-comparison.md). Using Nova 2 Lite (with reasoning — see REASONING_MODEL_PATTERNS in agent/review_agent/app.py) as the interim default: already working in this account, cheaper than Nova Pro, and reasoning fits the agent's research-then-write pattern. Swap back to a Claude id here once Marketplace billing is fixed — no other code changes needed."
+  type        = string
+  default     = "us.amazon.nova-2-lite-v1:0"
+}
