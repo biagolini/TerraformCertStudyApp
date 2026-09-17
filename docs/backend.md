@@ -1,15 +1,6 @@
 # Backend
 
-Terraform-managed AWS infrastructure. Two Flask + Lambda Web Adapter
-Lambdas behind API Gateway (converse, data) handle everything
-request/response; three plain-Python Lambdas orchestrated by Step
-Functions (`import_preprocess`, `import_extract`, `import_finalize`)
-handle the [bulk exam import pipeline](./question-import-pipeline.md) —
-see that doc for why the import pipeline needed its own async workflow
-instead of another API Gateway route. The pipeline is only ever started
-explicitly (`POST /data/imports/{id}/process`), never automatically on
-upload — see that doc's "Upload and processing are two separate, explicit
-steps" section for why.
+Terraform-managed AWS infrastructure. Two Flask + Lambda Web Adapter Lambdas behind API Gateway (converse, data) handle everything request/response; three plain-Python Lambdas orchestrated by Step Functions (`import_preprocess`, `import_extract`, `import_finalize`) handle the [bulk exam import pipeline](./question-import-pipeline.md) — see that doc for why the import pipeline needed its own async workflow instead of another API Gateway route. The pipeline is only ever started explicitly (`POST /data/imports/{id}/process`), never automatically on upload — see that doc's "Upload and processing are two separate, explicit steps" section for why.
 
 ## Project Structure
 
@@ -113,35 +104,17 @@ backend/
 
 ## Bulk Exam Import Pipeline
 
-A Step Functions Standard workflow (`study-import-exam`), started
-explicitly by `POST /data/imports/{id}/process` (`states:StartExecution`
-from `lambda/data/app.py`) once the user picks an already-uploaded file to
-process — never automatically on upload. Three plain-Python Lambdas, not
-behind API Gateway:
+A Step Functions Standard workflow (`study-import-exam`), started explicitly by `POST /data/imports/{id}/process` (`states:StartExecution` from `lambda/data/app.py`) once the user picks an already-uploaded file to process — never automatically on upload. Three plain-Python Lambdas, not behind API Gateway:
 
-1. **`import-preprocess`** — splits the uploaded PDF/Markdown/ZIP into
-   per-question chunks (text + candidate images), no AI involved.
-2. **`import-extract`** (Map state, `MaxConcurrency: 4`) — one Bedrock
-   Converse call per chunk, forcing structured JSON via tool-use. The
-   model is a per-import choice from the frontend's "Exam import model"
-   setting (default Nova Pro), not hardcoded — see the pipeline doc's
-   "Model selection" for how a stronger model's much tighter Bedrock quota
-   is absorbed.
-3. **`import-finalize`** — aggregates the Map's results into the job's
-   final status.
+1. **`import-preprocess`** — splits the uploaded PDF/Markdown/ZIP into per-question chunks (text + candidate images), no AI involved.
+2. **`import-extract`** (Map state, `MaxConcurrency: 4`) — one Bedrock Converse call per chunk, forcing structured JSON via tool-use. The model is a per-import choice from the frontend's "Exam import model" setting (default Nova Pro), not hardcoded — see the pipeline doc's "Model selection" for how a stronger model's much tighter Bedrock quota is absorbed.
+3. **`import-finalize`** — aggregates the Map's results into the job's final status.
 
-See [Bulk exam import pipeline](./question-import-pipeline.md) for the full
-design, including why extraction needs a vision-capable model instead of a
-deterministic parser, and how images get associated with the right
-question.
+See [Bulk exam import pipeline](./question-import-pipeline.md) for the full design, including why extraction needs a vision-capable model instead of a deterministic parser, and how images get associated with the right question.
 
 ## DynamoDB Schema
 
-Two single-table-design tables, both partitioned per user (`pk =
-USER#{sub}`): a general/config table (settings, packs, scripts, chats) and
-a dedicated questions table. See
-[DynamoDB schema](./dynamodb-schema.md) for the full `pk`/`sk` layout, the
-structured `Question` v2 item shape, and why questions get their own table.
+Two single-table-design tables, both partitioned per user (`pk = USER#{sub}`): a general/config table (settings, packs, scripts, chats) and a dedicated questions table. See [DynamoDB schema](./dynamodb-schema.md) for the full `pk`/`sk` layout, the structured `Question` v2 item shape, and why questions get their own table.
 
 ## IAM Permissions
 
