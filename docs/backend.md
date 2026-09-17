@@ -104,28 +104,32 @@ backend/
 
 ## Bulk Exam Import Pipeline
 
-A Step Functions Standard workflow (`study-import-exam`), started explicitly by `POST /data/imports/{id}/process` (`states:StartExecution` from `lambda/data/app.py`) once the user picks an already-uploaded file to process — never automatically on upload. Three plain-Python Lambdas, not behind API Gateway:
+Two independent Step Functions Standard workflows with a human review step between them — a structure-extraction phase, a review screen, then an explanation-generation phase. Four plain-Python Lambdas, not behind API Gateway:
 
-1. **`import-preprocess`** — splits the uploaded PDF/Markdown/ZIP into per-question chunks (text + candidate images), no AI involved.
-2. **`import-extract`** (Map state, `MaxConcurrency: 4`) — one Bedrock Converse call per chunk, forcing structured JSON via tool-use. The model is a per-import choice from the frontend's "Exam import model" setting (default Nova Pro), not hardcoded — see the pipeline doc's "Model selection" for how a stronger model's much tighter Bedrock quota is absorbed.
-3. **`import-finalize`** — aggregates the Map's results into the job's final status.
+1. **`import-preprocess`** — splits the uploaded PDF/Markdown/ZIP into per-question chunks (text + candidate images), no AI involved. Part of Phase 1 (`study-import-exam`), started explicitly by `POST /data/imports/{id}/process`.
+2. **`import-extract`** (Phase 1's Map state, `MaxConcurrency: 4`, also invoked directly for a single-question re-extract) — one Bedrock Converse call per chunk, forcing structured JSON via tool-use — structure only (stem/alternatives/domain/title), no explanation. The model is a per-import choice from the frontend's "Exam import model" setting (default Nova Pro), not hardcoded — see the pipeline doc's "Model selection" for how a stronger model's much tighter Bedrock quota is absorbed. Writes a draft row per chunk, always — even on failure.
+3. **`import-explain`** (Phase 2's Map state, `MaxConcurrency: 4`, `study-import-exam-explain`) — one AgentCore Runtime review-agent call per human-approved draft, writing the final `Question` and flipping that draft's `promoted` flag. Started explicitly by `POST /data/imports/{id}/generate-explanations` once the user reviews and submits drafts from `features/import-review`.
+4. **`import-finalize`** — shared by both phases (`event["phase"]` selects the status vocabulary) — aggregates a Map's results into the job's status.
 
-See [Bulk exam import pipeline](./question-import-pipeline.md) for the full design, including why extraction needs a vision-capable model instead of a deterministic parser, and how images get associated with the right question.
+See [Bulk exam import pipeline](./question-import-pipeline.md) for the full design, including why extraction needs a vision-capable model instead of a deterministic parser, how images get associated with the right question, and why `import-finalize` checks the whole job's remaining drafts rather than just the current batch before ever reporting `SUCCEEDED`.
 
 ## DynamoDB Schema
 
-Two single-table-design tables, both partitioned per user (`pk = USER#{sub}`): a general/config table (settings, packs, scripts, chats) and a dedicated questions table. See [DynamoDB schema](./dynamodb-schema.md) for the full `pk`/`sk` layout, the structured `Question` v2 item shape, and why questions get their own table.
+Four single-table-design tables, all partitioned per user (`pk = USER#{sub}`): a general/config table (settings, packs, scripts, chats, import jobs), a dedicated questions table, a quiz-attempts table, and an import-drafts table (transient, human-review-pending structure-extraction results, TTL-expired). See [DynamoDB schema](./dynamodb-schema.md) for the full `pk`/`sk` layout, the structured `Question` v2 item shape, and why each gets its own table.
 
 ## IAM Permissions
 
 | Role | Permissions |
 |------|-------------|
 | Lambda converse | `bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream` on foundation-models + inference-profiles |
-| Lambda data | DynamoDB CRUD + `bedrock:ListFoundationModels`, `bedrock:ListInferenceProfiles` + S3 `PutObject` on `uploads/*`, `GetObject`/`PutObject`/`DeleteObject` on `images/*` (assets bucket) + `states:StartExecution` on `study-import-exam` |
+| Lambda review | `bedrock-agentcore:InvokeAgentRuntime` on the review agent's Runtime |
+| Lambda data | DynamoDB CRUD + `bedrock:ListFoundationModels`, `bedrock:ListInferenceProfiles` + S3 `PutObject` on `uploads/*`, `GetObject`/`PutObject`/`DeleteObject` on `images/*` (assets bucket) + `states:StartExecution` on both `study-import-exam` and `study-import-exam-explain` + `lambda:InvokeFunction` on `import-extract` (per-question re-extract) |
 | Lambda import-preprocess | S3 `GetObject` on `uploads/*`, `PutObject` on `scratch/*`; DynamoDB `GetItem`/`PutItem` on the general table |
-| Lambda import-extract | S3 `GetObject` on `scratch/*`, `PutObject` on `images/*`; DynamoDB `UpdateItem` (general table) + `PutItem` (questions table); `bedrock:InvokeModel` |
-| Lambda import-finalize | DynamoDB `GetItem`/`PutItem` on the general table |
-| Step Functions (`study-import-exam`) | `lambda:InvokeFunction` on the 3 import Lambdas; CloudWatch Logs delivery (for `logging_configuration`) |
+| Lambda import-extract | S3 `GetObject` on `scratch/*`, `PutObject` on `images/*`; DynamoDB `UpdateItem` (general table) + `GetItem`/`PutItem` (import-drafts table); `bedrock:InvokeModel` |
+| Lambda import-explain | DynamoDB `GetItem`/`UpdateItem` (general + import-drafts tables), `PutItem` (questions table); `bedrock-agentcore:InvokeAgentRuntime` on the review agent's Runtime |
+| Lambda import-finalize | DynamoDB `GetItem`/`PutItem` (general table), `Query` (import-drafts table — checks remaining unpromoted drafts before reporting a phase="explain" job SUCCEEDED) |
+| Step Functions (`study-import-exam`) | `lambda:InvokeFunction` on `import-preprocess`/`import-extract`/`import-finalize`; CloudWatch Logs delivery (for `logging_configuration`) |
+| Step Functions (`study-import-exam-explain`) | `lambda:InvokeFunction` on `import-explain`/`import-finalize`; CloudWatch Logs delivery |
 | API Gateway | `lambda:InvokeFunction`, `lambda:InvokeFunctionUrl` |
 
 ## Related docs

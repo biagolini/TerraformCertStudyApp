@@ -92,7 +92,7 @@ def handler(event, context):
         if not chunks:
             raise ValueError("No questions were detected in the uploaded file")
 
-        _update_job(pk, job_id, status="PROCESSING", totalQuestions=len(chunks))
+        _update_job(pk, job_id, status="EXTRACTING", totalQuestions=len(chunks))
     except Exception as e:
         _update_job(pk, job_id, status="FAILED", error=str(e))
         raise

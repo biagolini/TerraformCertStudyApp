@@ -15,9 +15,21 @@ import os
 import uuid
 
 import boto3
+from botocore.config import Config
 from flask import Flask, Response, request
 
-agentcore = boto3.client("bedrock-agentcore", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+# boto3's default read_timeout (60s) applies to any gap between received
+# chunks, not just total call duration — normally fine for the streaming
+# path (tokens keep the read timeout resetting), but a slow MCP doc-lookup
+# tool round-trip that produces no token output for a while could still
+# trip it (confirmed happening for the non-streaming explain_structured
+# path in lambda/import_explain/app.py, which has no per-token flow to
+# reset the clock at all). Same generous timeout here as a precaution.
+agentcore = boto3.client(
+    "bedrock-agentcore",
+    region_name=os.environ.get("AWS_REGION", "us-east-1"),
+    config=Config(read_timeout=170, connect_timeout=10, retries={"max_attempts": 0}),
+)
 RUNTIME_ARN = os.environ["AGENT_RUNTIME_ARN"]
 
 app = Flask(__name__)

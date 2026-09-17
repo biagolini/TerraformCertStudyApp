@@ -148,6 +148,17 @@ resource "aws_iam_role_policy" "agentcore_runtime_access" {
         ]
         Resource = "*"
       },
+      {
+        # The Runtime container calls the Gateway's MCP endpoint directly
+        # over SigV4-signed HTTP (see app.py's SigV4HttpxAuth) — that call
+        # is itself authorized as this action, scoped to the gateway ARN.
+        # Missing this was invisible in local testing (which used a broad
+        # admin AWS profile) and only surfaced as a 403 from the deployed
+        # Runtime, whose execution role has no implicit access.
+        Effect   = "Allow"
+        Action   = "bedrock-agentcore:InvokeGateway"
+        Resource = "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:gateway/${data.external.gateway.result.gateway_id}"
+      },
     ]
   })
 }
@@ -193,4 +204,29 @@ data "external" "runtime" {
     aws_iam_role_policy.agentcore_runtime_access,
     data.external.gateway,
   ]
+}
+
+# --- Log group for every review call (see app.py's review_call_start/end
+# log lines) — AgentCore Runtime auto-creates this log group on first
+# invocation with no retention limit; managing it here caps cost/retention
+# without changing where the Runtime itself writes. ---
+
+resource "aws_cloudwatch_log_group" "agentcore_runtime" {
+  name              = "/aws/bedrock-agentcore/runtimes/${data.external.runtime.result.runtime_id}-DEFAULT"
+  retention_in_days = 14
+
+  # `data.external` outputs are always "(known after apply)" during plan —
+  # every single time, even when the resolved value won't change — which
+  # forces a replace on `name` (a ForceNew attribute) on every apply that
+  # touches this stack. That replace then races AWS's own re-creation of
+  # this same log group on the Runtime's next invocation, producing a
+  # ResourceAlreadyExistsException (observed directly, twice, requiring a
+  # manual `terraform import` each time). The runtime_id this name is built
+  # from is stable for the life of this Runtime — ignoring it here is safe;
+  # a genuine Runtime recreation (new runtime_id) would need one manual
+  # `terraform import` to pick up the new name, same fix as before, just no
+  # longer needed on every routine apply.
+  lifecycle {
+    ignore_changes = [name]
+  }
 }

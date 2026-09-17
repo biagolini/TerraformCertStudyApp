@@ -52,14 +52,17 @@ resource "aws_lambda_function" "data" {
 
   environment {
     variables = {
-      AWS_LAMBDA_EXEC_WRAPPER  = "/opt/bootstrap"
-      AWS_LWA_INVOKE_MODE      = "buffered"
-      PORT                     = "8000"
-      TABLE_NAME               = aws_dynamodb_table.data.name
-      QUESTIONS_TABLE_NAME     = aws_dynamodb_table.questions.name
-      QUIZ_ATTEMPTS_TABLE_NAME = aws_dynamodb_table.quiz_attempts.name
-      ASSETS_BUCKET_NAME       = aws_s3_bucket.assets.id
-      IMPORT_STATE_MACHINE_ARN = aws_sfn_state_machine.import_exam.arn
+      AWS_LAMBDA_EXEC_WRAPPER          = "/opt/bootstrap"
+      AWS_LWA_INVOKE_MODE              = "buffered"
+      PORT                             = "8000"
+      TABLE_NAME                       = aws_dynamodb_table.data.name
+      QUESTIONS_TABLE_NAME             = aws_dynamodb_table.questions.name
+      QUIZ_ATTEMPTS_TABLE_NAME         = aws_dynamodb_table.quiz_attempts.name
+      IMPORT_DRAFTS_TABLE_NAME         = aws_dynamodb_table.import_drafts.name
+      ASSETS_BUCKET_NAME               = aws_s3_bucket.assets.id
+      IMPORT_STATE_MACHINE_ARN         = aws_sfn_state_machine.import_exam.arn
+      IMPORT_EXPLAIN_STATE_MACHINE_ARN = aws_sfn_state_machine.import_exam_explain.arn
+      IMPORT_EXTRACT_LAMBDA_ARN        = aws_lambda_function.import_extract.arn
     }
   }
 
@@ -106,6 +109,7 @@ resource "aws_iam_role_policy" "lambda_data_dynamodb" {
         aws_dynamodb_table.data.arn,
         aws_dynamodb_table.questions.arn,
         aws_dynamodb_table.quiz_attempts.arn,
+        aws_dynamodb_table.import_drafts.arn,
       ]
     }]
   })
@@ -153,9 +157,29 @@ resource "aws_iam_role_policy" "lambda_data_sfn_start" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
+      Effect = "Allow"
+      Action = "states:StartExecution"
+      Resource = [
+        aws_sfn_state_machine.import_exam.arn,
+        aws_sfn_state_machine.import_exam_explain.arn,
+      ]
+    }]
+  })
+}
+
+# --- Per-question re-extract: direct synchronous invoke of the Phase 1
+# extraction Lambda (see lambda/data/app.py's re_extract_draft) ---
+
+resource "aws_iam_role_policy" "lambda_data_invoke_extract" {
+  name = "${var.project_prefix}-lambda-data-invoke-extract"
+  role = aws_iam_role.lambda_data.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
       Effect   = "Allow"
-      Action   = "states:StartExecution"
-      Resource = aws_sfn_state_machine.import_exam.arn
+      Action   = "lambda:InvokeFunction"
+      Resource = aws_lambda_function.import_extract.arn
     }]
   })
 }

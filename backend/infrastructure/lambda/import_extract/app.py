@@ -1,10 +1,24 @@
-"""Bulk exam import — Step Functions Task #2 (one Map iteration per chunk).
+"""Bulk exam import — Phase 1, Step Functions Task #2 (one Map iteration per
+chunk).
 
 Makes a single Bedrock Converse call per question chunk, forcing structured
 JSON output via tool-use — no Markdown-generate-then-regex-parse round trip,
-since this is a batch job with no interactive streaming UI to serve. Any
-extraction failure is caught internally and returned as a normal
-`{"status": "FAILED"}` result rather than raised, so one bad question never
+since this is a batch job with no interactive streaming UI to serve. This
+Lambda extracts STRUCTURE ONLY (stem/alternatives/domain/title) and writes a
+"draft" row to the import-drafts table for human review — it does not call
+the AI explanation agent and does not write to the `questions` table at all
+(see lambda/import_explain/app.py for Phase 2, which reads an approved draft
+and does that). This split exists so a bad extraction can be caught and
+fixed (via a re-extract, this same handler invoked directly on one chunk,
+optionally with a `hint`) before the more expensive explanation step ever
+runs on it.
+
+Any extraction failure is caught internally and always still produces a
+draft row (`extractStatus: "FAILED"`, with `error`/`preview` set) rather
+than leaving that chunk's slot in the review list empty — so the review
+screen is the single place both "wrong" and "outright failed" extractions
+get fixed. The Step Functions result returned from `handler()` mirrors this
+via `{"status": "FAILED"}` rather than raising, so one bad question never
 fails the whole Map (see the ASL template's Catch for the rarer case of an
 infrastructure-level failure, e.g. a Lambda timeout, that Python can't catch).
 """
@@ -14,13 +28,11 @@ import os
 import random
 import re
 import time
-import uuid
 from urllib.parse import unquote
 
 import boto3
 from botocore.exceptions import ClientError
 
-from markdown_review import parse_review_markdown
 from prompt import build_system_prompt, build_tool_schema
 
 # ModelErrorException in particular is a known non-deterministic Nova Lite
@@ -48,17 +60,21 @@ THROTTLE_BASE_DELAY_SECONDS = 3
 THROTTLE_MAX_DELAY_SECONDS = 20
 
 TABLE_NAME = os.environ["TABLE_NAME"]
-QUESTIONS_TABLE_NAME = os.environ["QUESTIONS_TABLE_NAME"]
+IMPORT_DRAFTS_TABLE_NAME = os.environ["IMPORT_DRAFTS_TABLE_NAME"]
 ASSETS_BUCKET_NAME = os.environ["ASSETS_BUCKET_NAME"]
 DEFAULT_MODEL_ID = os.environ["BEDROCK_EXTRACTION_MODEL_ID"]
-AGENT_RUNTIME_ARN = os.environ["AGENT_RUNTIME_ARN"]
+
+# Matches the import-drafts DynamoDB table's TTL window — see aws_dynamodb.tf
+# and the matching aws_s3_assets.tf `scratch/` lifecycle rule (a draft's
+# `chunk` field points at scratch/ keys; both must expire together or a
+# still-listed draft could point at an already-deleted chunk).
+IMPORT_DRAFT_TTL_SECONDS = 14 * 24 * 60 * 60
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(TABLE_NAME)
-questions_table = dynamodb.Table(QUESTIONS_TABLE_NAME)
+import_drafts_table = dynamodb.Table(IMPORT_DRAFTS_TABLE_NAME)
 s3 = boto3.client("s3")
 bedrock = boto3.client("bedrock-runtime")
-agentcore = boto3.client("bedrock-agentcore")
 
 IMG_PLACEHOLDER_RE = re.compile(r"\{\{IMG:(\d+)\}\}")
 MARKDOWN_IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
@@ -72,19 +88,67 @@ def handler(event, context):
     index = chunk["index"]
     question_id = f"{job_id}-{index:03d}"
     pk = f"USER#{sub}"
+    sk = f"DRAFT#{job_id}#{index:04d}"
     model_id = event.get("modelId") or DEFAULT_MODEL_ID
+    hint = event.get("hint")
+
+    # Re-reading the existing draft (if any) lets a re-extract — whole-job
+    # retry or a single-question re-extract — preserve `createdAt` and bump
+    # `reExtractCount` instead of looking like a brand-new row every time.
+    existing_item = import_drafts_table.get_item(Key={"pk": pk, "sk": sk}).get("Item")
+    existing_data = json.loads(existing_item["data"]) if existing_item else None
+    created_at = existing_data["createdAt"] if existing_data else int(time.time() * 1000)
+    re_extract_count = (existing_data.get("reExtractCount", 0) + 1) if existing_data else 0
 
     preview = _chunk_preview(chunk)
+    now = int(time.time() * 1000)
+    draft = {
+        "jobId": job_id,
+        "index": index,
+        "packId": pack_id,
+        "chunk": chunk,
+        "promoted": (existing_data or {}).get("promoted", False),
+        "reExtractCount": re_extract_count,
+        "lastHint": hint,
+        "createdAt": created_at,
+        "updatedAt": now,
+    }
     try:
-        question = _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id)
-        questions_table.put_item(
-            Item={"pk": pk, "sk": f"QUESTION#{question_id}", "data": json.dumps(question)}
-        )
-        _increment_job_counters(pk, job_id, failed=False)
-        return {"index": index, "status": "SUCCEEDED", "questionId": question_id}
+        extracted = _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id, hint)
+        draft.update({
+            "extractStatus": "SUCCEEDED",
+            "title": extracted["title"],
+            "domain": extracted["domain"],
+            "stem": extracted["stem"],
+            "alternatives": extracted["alternatives"],
+            "error": None,
+            "preview": preview,
+        })
+        result = {"index": index, "status": "SUCCEEDED", "questionId": question_id}
+        failed = False
     except Exception as e:  # noqa: BLE001 — any failure here must degrade to a per-item result
-        _increment_job_counters(pk, job_id, failed=True)
-        return {"index": index, "status": "FAILED", "error": str(e), "preview": preview}
+        draft.update({
+            "extractStatus": "FAILED",
+            "title": None,
+            "domain": None,
+            "stem": None,
+            "alternatives": [],
+            "error": str(e),
+            "preview": preview,
+        })
+        result = {"index": index, "status": "FAILED", "error": str(e), "preview": preview}
+        failed = True
+
+    import_drafts_table.put_item(
+        Item={
+            "pk": pk,
+            "sk": sk,
+            "ttl": int(time.time()) + IMPORT_DRAFT_TTL_SECONDS,
+            "data": json.dumps(draft),
+        }
+    )
+    _increment_job_counters(pk, job_id, failed=failed)
+    return result
 
 
 def _chunk_preview(chunk):
@@ -134,20 +198,6 @@ def _pack_domain_names(pack):
     return names
 
 
-def _pack_context(pack):
-    """The shape the review agent expects — see
-    agent/review_agent/app.py's _pack_context_block."""
-    return {
-        "name": pack.get("name", ""),
-        "description": pack.get("description", ""),
-        "domains": [
-            {"name": d.get("name", ""), "description": d.get("description", "")}
-            for d in (pack.get("domains") or [])
-            if isinstance(d, dict) and d.get("name")
-        ],
-    }
-
-
 def _resolve_domain(raw_domain, domain_names):
     """Bedrock tool-use `enum` constraints are a hint, not a hard guarantee
     — Nova Lite in particular still sometimes invents a domain outside the
@@ -194,44 +244,7 @@ def _converse_with_retry(**kwargs):
     raise last_error  # pragma: no cover — loop always returns or raises above
 
 
-def _generate_explanation(stem, alternatives, pack, output_language=""):
-    """Calls the AgentCore Runtime review agent (mode=explain_structured,
-    non-streaming) for the explanation content this Lambda used to write
-    itself with a much weaker prompt — see markdown_review.py and
-    agent/review_agent/app.py. Structure (stem/alternatives/correct letter)
-    is already known and passed through verbatim; the agent only writes."""
-    payload = {
-        "mode": "explain_structured",
-        "stream": False,
-        "pack": _pack_context(pack),
-        "outputLanguage": output_language,
-        "stem": stem,
-        "alternatives": [
-            {"letter": a["letter"], "text": a["text"], "isCorrect": a["isCorrect"]} for a in alternatives
-        ],
-    }
-    response = agentcore.invoke_agent_runtime(
-        agentRuntimeArn=AGENT_RUNTIME_ARN,
-        runtimeSessionId=uuid.uuid4().hex + uuid.uuid4().hex,
-        payload=json.dumps(payload).encode("utf-8"),
-    )
-    # The agent's HTTP contract is always SSE-framed ("data: {...}" lines),
-    # even for this logically non-streaming call — see review_agent/app.py's
-    # module docstring on why (its entrypoint is always an async generator).
-    result = None
-    for line in response["response"].iter_lines(chunk_size=1):
-        if not line:
-            continue
-        text = line.decode("utf-8")
-        if text.startswith("data: "):
-            text = text[len("data: "):]
-        result = json.loads(text)
-    if not result or "error" in result:
-        raise ValueError(f"Review agent failed: {(result or {}).get('error', 'empty response')}")
-    return result
-
-
-def _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id):
+def _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id, hint=None):
     image_blocks, image_keys = _load_images(chunk)
     pack = _load_pack(pk, pack_id)
     domain_names = _pack_domain_names(pack)
@@ -239,6 +252,17 @@ def _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id):
     user_text = _build_user_text(chunk)
     if domain_names:
         user_text += "\n\nReminder — the \"domain\" field must be exactly one of: " + ", ".join(domain_names)
+    if hint:
+        # User-supplied correction from the review screen's re-extract
+        # action — e.g. "the correct answer is C, not B" or "the stem
+        # continues after 'the following diagram'". Authoritative: it comes
+        # from a human who already looked at this specific question and the
+        # first extraction attempt, not a guess.
+        user_text += (
+            "\n\nA human reviewer already looked at a previous extraction "
+            "attempt for this exact question and left this correction — "
+            "treat it as authoritative and apply it:\n" + hint
+        )
 
     response = _converse_with_retry(
         modelId=model_id,
@@ -285,37 +309,18 @@ def _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id):
         alt["text"] = _rewrite_images(alt.get("text", ""), kind, image_keys, sub, job_id, question_id)
 
     # Explanation content (comment/generalComment/topics/relatedServices) is
-    # written by the review agent, not this vision call — see
-    # _generate_explanation's docstring. The agent receives only text (no
-    # images), so its output never contains {{IMG:n}} placeholders to rewrite.
-    explanation = _generate_explanation(stem, alternatives, pack)
-    parsed = parse_review_markdown(explanation.get("reviewMarkdown", ""))
-    comments_by_letter = parsed["comments"]
-    for alt in alternatives:
-        alt["comment"] = comments_by_letter.get(alt["letter"].upper(), "")
-
-    general_comment = parsed["generalComment"]
-    topics = parsed["topics"]
-    related_services = explanation.get("relatedServices")
-    now = int(time.time() * 1000)
-    result = {
-        "id": question_id,
-        "packId": pack_id,
+    # written by Phase 2 (lambda/import_explain), after human review — this
+    # call only ever produces structure. `alternatives` here deliberately
+    # has no `comment` key at all yet.
+    return {
         "title": question_input.get("title") or "Imported question",
         "domain": _resolve_domain(question_input.get("domain"), domain_names),
         "stem": stem,
-        "alternatives": alternatives,
-        "metadata": {
-            "topics": topics if isinstance(topics, list) else [],
-            "relatedServices": related_services if isinstance(related_services, list) else [],
-        },
-        "starred": False,
-        "createdAt": now,
-        "updatedAt": now,
+        "alternatives": [
+            {"letter": a["letter"], "text": a["text"], "isCorrect": bool(a.get("isCorrect"))}
+            for a in alternatives
+        ],
     }
-    if general_comment:
-        result["generalComment"] = general_comment
-    return result
 
 
 # Bedrock Converse's supported image formats, keyed by file extension.

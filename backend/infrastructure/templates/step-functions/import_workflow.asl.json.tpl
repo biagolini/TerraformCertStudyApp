@@ -1,5 +1,5 @@
 {
-  "Comment": "Bulk exam import: preprocess -> per-question Bedrock extraction fan-out -> finalize",
+  "Comment": "Bulk exam import Phase 1 (structure only): preprocess -> per-question Bedrock extraction fan-out -> finalize as AWAITING_REVIEW. See import_explain_workflow.asl.json.tpl for Phase 2 (explanation generation).",
   "StartAt": "Preprocess",
   "States": {
     "Preprocess": {
@@ -73,6 +73,12 @@
     "Finalize": {
       "Type": "Task",
       "Resource": "${finalize_lambda_arn}",
+      "Parameters": {
+        "phase": "extract",
+        "jobId.$": "$.jobId",
+        "sub.$": "$.sub",
+        "results.$": "$.results"
+      },
       "End": true
     }
   }

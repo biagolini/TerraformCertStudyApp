@@ -12,15 +12,23 @@ transcripts, untouched) with a Strands Agent that has:
     AgentCore Gateway's MCP endpoint (SigV4-authenticated, IAM authorizer).
 
 Two callers, one agent:
-  - the interactive "review" Lambda (streaming, mode=from_scratch/refine)
+  - the interactive "review" Lambda (streaming Markdown, free-form text —
+    mode=from_scratch/refine; kept as Markdown because live token-by-token
+    streaming and a forced-schema tool call don't mix, and the frontend's
+    existing positional-heading parser already handles this format)
   - the bulk-import "import_extract" Lambda (non-streaming,
     mode=explain_structured — structure was already extracted by that
-    Lambda's own vision call; this call supplies only the explanation).
+    Lambda's own vision call; this call supplies only the explanation, as
+    schema-validated structured output — see ReviewExplanation below. Free-
+    form Markdown here was observed skipping required sections/going empty
+    under real traffic; forced structured output can't omit a required
+    field the way free text can silently omit a heading).
 """
 
 import json
 import logging
 import os
+import uuid
 
 import boto3
 import httpx
@@ -28,6 +36,7 @@ from bedrock_agentcore import BedrockAgentCoreApp
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
 from mcp.client.streamable_http import streamable_http_client
+from pydantic import BaseModel, Field
 from strands import Agent, AgentSkills
 from strands.models.bedrock import BedrockModel
 from strands.tools.mcp.mcp_client import MCPClient
@@ -51,17 +60,25 @@ def _supports_reasoning(model_id: str) -> bool:
 
 
 def _build_model():
-    if not _supports_reasoning(BEDROCK_MODEL_ID):
-        return BEDROCK_MODEL_ID
-    # "low" effort suits this task's structured-writing-with-tool-lookups
-    # profile and keeps temperature usable (only "high" forbids it).
-    return BedrockModel(
-        model_id=BEDROCK_MODEL_ID,
-        region_name=AWS_REGION,
-        additional_request_fields={
-            "reasoningConfig": {"type": "enabled", "maxReasoningEffort": "low"}
-        },
-    )
+    # Explicit max_tokens, generous: reasoning content (when enabled) and
+    # tool-use round-trips (Gateway doc lookups) both count against the same
+    # per-call budget as the final answer text — observed directly: with
+    # 8192, a call that involved a real tool call came back with
+    # reviewMarkdown == "" (stop_reason likely max_tokens, cut off before
+    # the post-tool-result synthesis produced any text). Nova 2 models
+    # support up to 65536 output tokens; 24576 leaves real headroom for
+    # reasoning + one or two tool round-trips + the full review.
+    config = {"model_id": BEDROCK_MODEL_ID, "region_name": AWS_REGION, "max_tokens": 24576}
+    if _supports_reasoning(BEDROCK_MODEL_ID):
+        # "medium" effort: this task now explicitly requires working out a
+        # concrete "what would make this option correct" condition per
+        # incorrect alternative, not just a one-line label — worth the
+        # extra reasoning budget over "low". ("high" would forbid
+        # temperature, which we still want available.)
+        config["additional_request_fields"] = {
+            "reasoningConfig": {"type": "enabled", "maxReasoningEffort": "medium"}
+        }
+    return BedrockModel(**config)
 
 app = BedrockAgentCoreApp()
 
@@ -99,10 +116,25 @@ class SigV4HttpxAuth(httpx.Auth):
 
 
 def _make_mcp_tools():
-    """Best-effort: connect to the Gateway's MCP endpoint and return its
-    tools. Returns [] (not a raised error) if the Gateway isn't reachable —
-    a review that skips documentation grounding is far better than an agent
-    that can't start at all.
+    """Best-effort: connect to the Gateway's MCP endpoint and return
+    (tools, client). Returns ([], None) — not a raised error — if the
+    Gateway isn't reachable; a review that skips documentation grounding is
+    far better than an agent that can't start at all.
+
+    Called fresh on every `invoke()` (see `_build_agent()`), never cached
+    at module scope. MCPClient.start() spins up its own background thread
+    holding ONE stateful session — BedrockAgentCoreApp (bedrock_agentcore.
+    runtime.app) serves every request through a single shared asyncio event
+    loop, and the Step Functions Map driving bulk import runs up to 4
+    questions concurrently (see import_workflow.asl.json.tpl's
+    MaxConcurrency), so a single module-level client was being used by
+    several concurrent Agent runs at once. Confirmed as the cause of a real
+    75-question bulk import where 20 questions failed: 16 with
+    `agent.invoke_async(...).structured_output` silently coming back None
+    (the forced structured-output tool call landing on the wrong in-flight
+    session) and 4 with a bare `Read timeout on endpoint URL: "None"` (the
+    shared client's connection state corrupted mid-request). One MCP
+    handshake per call is a small latency cost against that.
 
     Passes `url=` (not a custom `transport_callable`) — Strands' MCPClient
     only accepts `auth`/`auth_provider`/`headers` alongside `url`; combining
@@ -111,18 +143,15 @@ def _make_mcp_tools():
     failed Gateway connection in AgentCore Runtime's CloudWatch logs)."""
     if not GATEWAY_URL:
         logger.warning("GATEWAY_URL not set — starting without MCP doc-lookup tools")
-        return []
+        return [], None
     try:
         auth = SigV4HttpxAuth(service="bedrock-agentcore", region=AWS_REGION)
         client = MCPClient(url=GATEWAY_URL, auth_provider=auth)
         client.start()
-        return client.list_tools_sync()
+        return client.list_tools_sync(), client
     except Exception:  # noqa: BLE001 — degrade gracefully, never block startup
         logger.exception("Failed to connect to AgentCore Gateway MCP endpoint")
-        return []
-
-
-MCP_TOOLS = _make_mcp_tools()
+        return [], None
 
 
 def _load_skill_body(skill_name: str) -> str:
@@ -151,6 +180,11 @@ AWS_DOC_GROUNDING_SKILL = _load_skill_body("aws-doc-grounding")
 
 
 def _build_agent():
+    """Returns (agent, mcp_client). mcp_client is None if the Gateway
+    wasn't reachable — the caller (`invoke()`) is responsible for calling
+    `mcp_client.stop(None, None, None)` once done with the agent (see
+    `_make_mcp_tools()` for why this can't be a shared module-level
+    singleton)."""
     # Both skills are inlined directly into the system prompt rather than
     # left to AgentSkills' tool-triggered progressive disclosure — that
     # mechanism needs the model to proactively decide to load each skill,
@@ -162,6 +196,7 @@ def _build_agent():
     # them behind discovery. AgentSkills stays registered anyway so the
     # SKILL.md files remain real Strands Skills, usable by a model that
     # follows the activation convention reliably.
+    mcp_tools, mcp_client = _make_mcp_tools()
     doc_tool_note = (
         (
             "\n\nYou have a documentation-lookup tool available "
@@ -169,12 +204,12 @@ def _build_agent():
             "above (aws-doc-grounding) require using it before drafting, "
             "not just when convenient."
         )
-        if MCP_TOOLS
+        if mcp_tools
         else ""
     )
-    return Agent(
+    agent = Agent(
         model=_build_model(),
-        tools=MCP_TOOLS,
+        tools=mcp_tools,
         plugins=[AgentSkills(skills=SKILLS_DIR)],
         callback_handler=None,
         system_prompt=(
@@ -187,6 +222,7 @@ def _build_agent():
             f"{doc_tool_note}"
         ),
     )
+    return agent, mcp_client
 
 
 def _pack_context_block(pack: dict, include_classification: bool = True) -> str:
@@ -256,6 +292,99 @@ def _language_block(output_language: str) -> str:
     )
 
 
+# --- Structured output schema for mode=explain_structured (bulk import) ---
+# Field descriptions double as the per-field instructions the model sees —
+# they mirror the cert-question-review skill's bullet structure exactly, so
+# the skill's pedagogical guidance (ground in docs, name the mechanism, work
+# out the "trap" condition) still applies even though delivery is schema-
+# validated tool output rather than free Markdown prose. Letters are the
+# only reference back to the input — text is never restated (see the
+# explain_structured prompt branch above) to eliminate the transcription-
+# error class of bug entirely for this path.
+
+
+class CorrectAnswerExplanation(BaseModel):
+    letter: str = Field(description="The option's letter, exactly as given in the input (e.g. 'B')")
+    why_correct: str = Field(
+        description=(
+            "The underlying mechanism, service behavior, or best practice that makes this "
+            "true — name the specific feature/setting/API involved and what it actually "
+            "does. Never just restate the option text."
+        )
+    )
+    how_it_satisfies_scenario: str = Field(
+        description=(
+            "Ties this option explicitly back to the concrete requirement(s) stated in "
+            "THIS question's stem — name the specific requirement it meets and how. "
+            "Never a generic 'it meets the requirements.'"
+        )
+    )
+    worth_knowing: str | None = Field(
+        default=None,
+        description="Optional — a cost trade-off, operational limit, or related feature worth knowing alongside this answer.",
+    )
+
+
+class IncorrectAnswerExplanation(BaseModel):
+    letter: str = Field(description="The option's letter, exactly as given in the input (e.g. 'A')")
+    why_incorrect: str = Field(
+        description=(
+            "The specific technical/conceptual error — name the mechanism that actually "
+            "fails or the requirement it actually misses, not a vague 'not the best fit.'"
+        )
+    )
+    additional_problem: str | None = Field(
+        default=None,
+        description="Optional operational risk, anti-pattern, cost, or production consequence of picking this option.",
+    )
+    trap: str = Field(
+        description=(
+            "The SPECIFIC change to this scenario — a different constraint, scale, or "
+            "requirement dropped/added — that would flip this option from wrong to "
+            "correct. If no realistic variation of this scenario would make it correct, "
+            "say so explicitly and explain why, rather than leaving this vague."
+        )
+    )
+
+
+class ReviewExplanation(BaseModel):
+    topics: list[str] = Field(description="3-6 core concepts/technologies tested by this question.")
+    correct_answers: list[CorrectAnswerExplanation] = Field(
+        description="One entry per option marked [CORRECT] in the input, in the same letters."
+    )
+    incorrect_answers: list[IncorrectAnswerExplanation] = Field(
+        description="One entry per option NOT marked [CORRECT] in the input, in the same letters."
+    )
+    general_comment: str | None = Field(
+        default=None,
+        description=(
+            "OPTIONAL overall insight applying to the question as a whole that doesn't "
+            "belong to any single option — a unifying concept or a trap spanning multiple "
+            "options. Null if there's nothing beyond the per-option explanations."
+        ),
+    )
+
+
+def _render_answer_bullets(item: "CorrectAnswerExplanation | IncorrectAnswerExplanation") -> str:
+    """Renders one structured-output entry into the same bulleted-text shape
+    the Markdown path produces, so review-viewer.component.ts (which
+    displays `alternative.comment` as-is) needs no changes regardless of
+    which path generated it."""
+    if isinstance(item, CorrectAnswerExplanation):
+        lines = [
+            f"- **Why it is correct**: {item.why_correct}",
+            f"- **How it satisfies this scenario**: {item.how_it_satisfies_scenario}",
+        ]
+        if item.worth_knowing:
+            lines.append(f"- **Worth knowing**: {item.worth_knowing}")
+    else:
+        lines = [f"- **Why it is incorrect**: {item.why_incorrect}"]
+        if item.additional_problem:
+            lines.append(f"- **Additional problem**: {item.additional_problem}")
+        lines.append(f"- **When it would be valid — the trap**: {item.trap}")
+    return "\n".join(lines)
+
+
 def _build_prompt(payload: dict) -> tuple[str, bool]:
     """Returns (prompt_text, wants_related_services)."""
     mode = payload.get("mode", "from_scratch")
@@ -283,8 +412,13 @@ def _build_prompt(payload: dict) -> tuple[str, bool]:
             f"{pack_block}{language_block}\n\n"
             "The structure below was already extracted correctly by another "
             "system — do not re-derive it, do not change which option(s) "
-            "are marked [CORRECT]. Write the review using exactly this "
-            "structure.\n\nQUESTION:\n{stem}\n\nALTERNATIVES:\n{alts}".format(
+            "are marked [CORRECT], and do not restate the stem or option "
+            "text anywhere in your output (the caller already has it "
+            "verbatim — retyping it only risks transcription errors). "
+            "Your response is captured through a structured output tool, "
+            "not free-form Markdown — populate its fields following the "
+            "same depth and 'trap' reasoning the skill above "
+            "describes.\n\nQUESTION:\n{stem}\n\nALTERNATIVES:\n{alts}".format(
                 stem=stem, alts=alt_lines
             )
         ), True
@@ -340,36 +474,140 @@ def _extract_related_services(stem: str, alternatives: list) -> list:
         return []
 
 
-@app.entrypoint
-async def invoke(payload: dict):
-    agent = _build_agent()
-    prompt, wants_related_services = _build_prompt(payload)
-    stream = bool(payload.get("stream", True))
+async def _explain_structured(agent, prompt: str, call_id: str, wants_related_services: bool, payload: dict) -> dict:
+    """Schema-validated structured output (Strands' structured_output_model
+    — forced tool-use under the hood, the same mechanism Nova models use for
+    "constrained decoding") instead of free-form Markdown for this path
+    specifically. Free text here was observed both skipping required
+    sections and, once, returning entirely empty after a tool-use
+    round-trip — a required Pydantic field can't be silently omitted the way
+    a Markdown heading can.
 
-    if not stream:
-        try:
-            result = await agent.invoke_async(prompt)
-            markdown = str(result)
-            response = {"reviewMarkdown": markdown}
+    Retries once, with an explicit nudge appended to the same conversation,
+    if `result.structured_output` comes back None despite the call itself
+    not raising — Strands' own forced-retry can still land on an
+    `end_turn` the model produced without ever calling the tool at all
+    (distinct from the concurrent-MCP-client corruption `_make_mcp_tools`
+    now avoids — that surfaced as this same symptom, but a single flaky
+    generation can too, independent of concurrency). Only one retry: this
+    already runs inside the per-question Step Functions Map's own retry
+    envelope, so a second local failure should surface, not loop silently.
+    """
+    for attempt in range(2):
+        result = await agent.invoke_async(prompt, structured_output_model=ReviewExplanation)
+        explanation: ReviewExplanation | None = result.structured_output
+        if explanation is not None:
+            response = {
+                "topics": explanation.topics,
+                "generalComment": explanation.general_comment,
+                "comments": {
+                    item.letter.upper(): _render_answer_bullets(item)
+                    for item in [*explanation.correct_answers, *explanation.incorrect_answers]
+                },
+            }
             if wants_related_services:
                 response["relatedServices"] = _extract_related_services(
                     payload.get("stem", ""), payload.get("alternatives") or []
                 )
-            yield response
-        except Exception as e:  # noqa: BLE001
-            logger.exception("Non-streaming review generation failed")
-            yield {"error": str(e)}
-        return
+            logger.info(json.dumps({
+                "event": "review_call_end", "callId": call_id, "ok": True,
+                "stopReason": result.stop_reason, "attempt": attempt,
+                "structuredOutput": explanation.model_dump(),
+                "relatedServices": response.get("relatedServices"),
+            }))
+            return response
+
+        logger.warning(json.dumps({
+            "event": "structured_output_empty", "callId": call_id,
+            "attempt": attempt, "stopReason": result.stop_reason,
+        }))
+        prompt = (
+            "Your previous response did not produce a valid ReviewExplanation "
+            "structured output — no tool call was captured. You MUST call the "
+            "structured output tool now, with complete, valid arguments for "
+            "every required field (topics, correct_answers, incorrect_answers), "
+            "covering the SAME question as above. Do not respond in plain text."
+        )
+
+    raise ValueError("Review agent failed to produce structured output after retry")
+
+
+@app.entrypoint
+async def invoke(payload: dict):
+    agent, mcp_client = _build_agent()
+    prompt, wants_related_services = _build_prompt(payload)
+    stream = bool(payload.get("stream", True))
+
+    # Every review call, logged in full (system prompt + the per-call user
+    # prompt below) to CloudWatch — the Runtime's own log group, retention
+    # managed by Terraform (see aws_agentcore.tf). Lets the actual prompt a
+    # given review was generated from be inspected after the fact, not just
+    # guessed at by reading the skill file in isolation.
+    call_id = uuid.uuid4().hex
+    logger.info(json.dumps({
+        "event": "review_call_start",
+        "callId": call_id,
+        "mode": payload.get("mode"),
+        "stream": stream,
+        "packName": (payload.get("pack") or {}).get("name"),
+        "outputLanguage": payload.get("outputLanguage"),
+        "systemPrompt": agent.system_prompt,
+        "userPrompt": prompt,
+    }))
 
     try:
-        async for event in agent.stream_async(prompt):
-            text = event.get("data") if isinstance(event, dict) else None
-            if text:
-                yield {"type": "TOKEN", "text": text}
-        yield {"type": "END"}
-    except Exception as e:  # noqa: BLE001
-        logger.exception("Streaming review generation failed")
-        yield {"type": "ERROR", "message": str(e)}
+        if not stream and payload.get("mode") == "explain_structured":
+            try:
+                response = await _explain_structured(agent, prompt, call_id, wants_related_services, payload)
+                yield response
+            except Exception as e:  # noqa: BLE001
+                logger.exception("Structured review generation failed")
+                logger.info(json.dumps({"event": "review_call_end", "callId": call_id, "ok": False, "error": str(e)}))
+                yield {"error": str(e)}
+            return
+
+        if not stream:
+            try:
+                result = await agent.invoke_async(prompt)
+                markdown = str(result)
+                response = {"reviewMarkdown": markdown}
+                if wants_related_services:
+                    response["relatedServices"] = _extract_related_services(
+                        payload.get("stem", ""), payload.get("alternatives") or []
+                    )
+                logger.info(json.dumps({
+                    "event": "review_call_end", "callId": call_id, "ok": True,
+                    "stopReason": result.stop_reason, "reviewMarkdown": markdown,
+                    "relatedServices": response.get("relatedServices"),
+                }))
+                yield response
+            except Exception as e:  # noqa: BLE001
+                logger.exception("Non-streaming review generation failed")
+                logger.info(json.dumps({"event": "review_call_end", "callId": call_id, "ok": False, "error": str(e)}))
+                yield {"error": str(e)}
+            return
+
+        accumulated = ""
+        try:
+            async for event in agent.stream_async(prompt):
+                text = event.get("data") if isinstance(event, dict) else None
+                if text:
+                    accumulated += text
+                    yield {"type": "TOKEN", "text": text}
+            logger.info(json.dumps({
+                "event": "review_call_end", "callId": call_id, "ok": True, "reviewMarkdown": accumulated,
+            }))
+            yield {"type": "END"}
+        except Exception as e:  # noqa: BLE001
+            logger.exception("Streaming review generation failed")
+            logger.info(json.dumps({"event": "review_call_end", "callId": call_id, "ok": False, "error": str(e)}))
+            yield {"type": "ERROR", "message": str(e)}
+    finally:
+        if mcp_client:
+            try:
+                mcp_client.stop(None, None, None)
+            except Exception:  # noqa: BLE001 — best-effort cleanup, never mask the real result
+                logger.exception("Failed to stop MCP client")
 
 
 if __name__ == "__main__":

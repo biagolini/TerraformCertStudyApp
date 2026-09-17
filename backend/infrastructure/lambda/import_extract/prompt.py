@@ -18,6 +18,7 @@ BASE_SYSTEM_PROMPT = """You are extracting ONE structured multiple-choice certif
 
 Rules:
 - Extract exactly ONE question: its stem, its alternatives, and which one(s) are correct.
+- The stem is EVERYTHING from the start of the question up to (but not including) the first answer option — copy it COMPLETE AND VERBATIM, including every scenario paragraph before the final question sentence. A real exam stem is very often 2-4 paragraphs (company/context, constraints, what's already been tried, THEN the question itself) — do not treat the earlier paragraphs as optional framing to drop or compress. Keeping only the last sentence/paragraph and discarding the scenario before it is a critical extraction failure, not an acceptable summary — the scenario details are frequently required to pick the correct answer.
 - IGNORE any past-test-taker status labels near the question (e.g. "Incorreto", "Correto", "Ignorado", "Ignored", or a lone "Correct"/"Incorrect" placeholder line sitting next to an option with no other content) — these describe what some OTHER person answered before on this exam attempt, NOT the true correct answer.
 - The true correct answer is identified ONLY by: (a) explicit prose such as "Hence, the correct answer is: ..." / "Correct option: ..." / "Resposta correta e explicação geral", or (b) a visually distinguished box/label such as "Resposta correta" / "Correct answer" with a different border color from the other options.
 - If the question requires selecting more than one option (e.g. "Select TWO"), mark ALL of the truly correct alternatives with isCorrect: true.
@@ -76,7 +77,9 @@ def build_tool_schema(domain_names):
                         "stem": {
                             "type": "string",
                             "description": (
-                                "The full question text (scenario + question). Only include a "
+                                "The COMPLETE question text, copied verbatim — every scenario "
+                                "paragraph plus the final question sentence, not just the last "
+                                "paragraph. Never summarize or shorten it. Only include a "
                                 "supplied image's {{IMG:n}} placeholder here if examining that "
                                 "image is MANDATORY to answer the question (the stem explicitly "
                                 "depends on it, e.g. 'as shown below')."

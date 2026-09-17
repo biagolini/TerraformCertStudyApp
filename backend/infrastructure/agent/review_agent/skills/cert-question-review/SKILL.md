@@ -85,21 +85,42 @@ and status markers.]
 
 #### Correct answer and explanation:
 [For EACH correct option, ascending letter order, restate letter + exact
-text, then explain in 1-2 short paragraphs (max 5-6 sentences): the
-validated concept, the applicable best practice, and the technical
-reasoning — grounded in what you verified via documentation lookup, not
-just a restatement of the option text.]
+text, then give this same three-bullet structure the incorrect section
+below uses — a correct answer with only a one-line justification is
+exactly the shallow, generic explanation this skill exists to avoid:]
 *[Letter]. [Exact alternative text]*
 
-[explanation]
+- **Why it is correct**: [The underlying mechanism, service behavior, or
+  best practice that makes this true — not a restatement of the option
+  text. Name the specific feature/setting/API involved and what it
+  actually does, grounded in what you verified via documentation lookup.]
+- **How it satisfies this scenario**: [Tie it explicitly back to the
+  concrete requirements/constraints stated in THIS question's stem —
+  which specific requirement does this option meet, and how. Never skip
+  this bullet with something generic like "it meets the requirements" —
+  name the requirement.]
+- **Worth knowing**: [OPTIONAL — a cost trade-off, operational limit,
+  scaling consideration, or related feature the student should know
+  alongside this answer.]
 
 #### Incorrect answers and justifications:
 [For EACH incorrect option, ascending letter order:]
 *[Letter]. [Exact alternative text]*
 
-- **Why it is incorrect**: [the main technical/conceptual error, 1-2 sentences]
-- **Additional problem**: [operational risk, anti-pattern, or consequence — optional]
-- **When it would be valid**: [a context where this approach would actually make sense — optional]
+- **Why it is incorrect**: [The specific technical/conceptual error —
+  name the mechanism that actually fails or the requirement it actually
+  misses, not a vague "this isn't the best fit."]
+- **Additional problem**: [Operational risk, anti-pattern, cost, or
+  consequence of picking this in production — optional, but include it
+  whenever there is a real one; don't skip it just to be brief.]
+- **When it would be valid — the trap**: [This is the bullet that turns a
+  shallow review into a real one: describe the SPECIFIC change to this
+  scenario — a different constraint, a different scale, a different
+  requirement dropped or added — that would flip this option from wrong
+  to correct. If you can't articulate a concrete condition where it would
+  become the right answer, say explicitly that it's wrong under any
+  realistic variation of this scenario and why, rather than leaving this
+  bullet vague or generic.]
 
 #### General comment:
 [OPTIONAL. Only for an overall insight or piece of context that applies to
@@ -122,12 +143,20 @@ explanations here.]
 - Never use heading levels other than `####` inside the review.
 - Keep narrative language — fluid, suitable for reading aloud.
 - Use **bold** for important terms and key concepts.
-- Be concise, but never at the expense of the theoretical grounding — a
-  correct answer's explanation must say *why*, not just restate *what*.
+- Depth over brevity: this review is the primary study material, not a
+  summary of one — every correct AND incorrect option gets the full
+  bullet structure above, every time, not just the correct answer. A
+  student reading only this review (never the source material) should
+  come away able to explain the underlying mechanism, not just recall
+  which letter was right.
 - When there is ambiguity between alternatives, explain the elimination
-  reasoning explicitly.
+  reasoning explicitly, and always answer "what would have to change for
+  this option to become the right one?" for every incorrect alternative —
+  that question is what actually tests understanding, not memorization.
 - Base every explanation on official vendor documentation and production
-  best practices — use the doc-lookup tool rather than guessing when unsure.
+  best practices — use the doc-lookup tool rather than guessing when
+  unsure, and prefer naming the specific mechanism (an API behavior, a
+  default setting, a service limit) over a generic architectural label.
 
 ## Refining an existing review
 

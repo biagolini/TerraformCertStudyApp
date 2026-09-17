@@ -1,0 +1,190 @@
+"""Bulk exam import — Phase 2, Step Functions Task (one Map iteration per
+approved draft).
+
+Reads one human-reviewed draft (structure only — stem/alternatives/domain/
+title, written by lambda/import_extract's Phase 1) and calls the AgentCore
+Runtime review agent for the explanation content, then writes the final
+Question item and flips the draft's `promoted` flag. This is the second
+half of what used to be one combined call inside import_extract — split
+out so a bad extraction can be caught and fixed on the review screen
+before this (slower, AgentCore-backed) step ever runs on it.
+
+Never raises — any failure here is caught internally and returned as a
+normal {"status": "FAILED"} result, mirroring import_extract's own
+fault-isolation philosophy, so one bad question never fails the whole Map.
+"""
+
+import json
+import os
+import time
+import uuid
+
+import boto3
+from botocore.config import Config
+
+TABLE_NAME = os.environ["TABLE_NAME"]
+IMPORT_DRAFTS_TABLE_NAME = os.environ["IMPORT_DRAFTS_TABLE_NAME"]
+QUESTIONS_TABLE_NAME = os.environ["QUESTIONS_TABLE_NAME"]
+AGENT_RUNTIME_ARN = os.environ["AGENT_RUNTIME_ARN"]
+
+dynamodb = boto3.resource("dynamodb")
+table = dynamodb.Table(TABLE_NAME)
+import_drafts_table = dynamodb.Table(IMPORT_DRAFTS_TABLE_NAME)
+questions_table = dynamodb.Table(QUESTIONS_TABLE_NAME)
+# boto3's default read_timeout (60s) is too short for this call — observed
+# directly: a real explain call that took 71s (reasoning + an extra MCP
+# doc-lookup round-trip) succeeded on the agent side ("ok": true in its own
+# CloudWatch logs) but this client gave up first and reported it as a
+# "Read timeout" failure. That failure was previously misattributed
+# entirely to the shared-MCP-client concurrency bug (see review_agent/
+# app.py's _make_mcp_tools) — this is a second, independent cause of the
+# same symptom. retries disabled: retrying a slow-but-working call would
+# only double the cost of something that just needs more time to wait for.
+agentcore = boto3.client(
+    "bedrock-agentcore",
+    config=Config(read_timeout=170, connect_timeout=10, retries={"max_attempts": 0}),
+)
+
+
+def handler(event, context):
+    job_id = event["jobId"]
+    sub = event["sub"]
+    pack_id = event["packId"]
+    draft_index = event["draftIndex"]
+    pk = f"USER#{sub}"
+    sk = f"DRAFT#{job_id}#{draft_index:04d}"
+
+    try:
+        draft_item = import_drafts_table.get_item(Key={"pk": pk, "sk": sk}).get("Item")
+        if not draft_item:
+            raise ValueError(f"Draft not found: {sk}")
+        draft = json.loads(draft_item["data"])
+        if draft.get("extractStatus") != "SUCCEEDED":
+            raise ValueError("Draft did not extract successfully — cannot generate an explanation for it")
+
+        pack = _load_pack(pk, pack_id)
+        explanation = _generate_explanation(draft["stem"], draft["alternatives"], pack)
+        comments_by_letter = explanation.get("comments") or {}
+        alternatives = [
+            {**alt, "comment": comments_by_letter.get(alt["letter"].upper(), "")}
+            for alt in draft["alternatives"]
+        ]
+
+        question_id = f"{job_id}-{draft_index:03d}"
+        now = int(time.time() * 1000)
+        topics = explanation.get("topics")
+        related_services = explanation.get("relatedServices")
+        question = {
+            "id": question_id,
+            "packId": pack_id,
+            "title": draft.get("title") or "Imported question",
+            "domain": draft.get("domain") or "General",
+            "stem": draft["stem"],
+            "alternatives": alternatives,
+            "metadata": {
+                "topics": topics if isinstance(topics, list) else [],
+                "relatedServices": related_services if isinstance(related_services, list) else [],
+            },
+            "starred": False,
+            "createdAt": now,
+            "updatedAt": now,
+        }
+        general_comment = explanation.get("generalComment")
+        if general_comment:
+            question["generalComment"] = general_comment
+
+        questions_table.put_item(
+            Item={"pk": pk, "sk": f"QUESTION#{question_id}", "data": json.dumps(question)}
+        )
+
+        # Flip promoted rather than delete — lets the review screen show
+        # "already generated" rows instead of a draft just vanishing.
+        # TTL (see aws_dynamodb_table.import_drafts) is the real cleanup.
+        draft["promoted"] = True
+        draft["updatedAt"] = now
+        import_drafts_table.update_item(
+            Key={"pk": pk, "sk": sk},
+            UpdateExpression="SET #d = :d",
+            ExpressionAttributeNames={"#d": "data"},
+            ExpressionAttributeValues={":d": json.dumps(draft)},
+        )
+
+        _increment_job_counters(pk, job_id, failed=False)
+        return {"index": draft_index, "status": "SUCCEEDED", "questionId": question_id}
+    except Exception as e:  # noqa: BLE001 — any failure here must degrade to a per-item result
+        _increment_job_counters(pk, job_id, failed=True)
+        return {"index": draft_index, "status": "FAILED", "error": str(e)}
+
+
+def _increment_job_counters(pk, job_id, failed):
+    """Same atomic native-attribute increment lambda/import_extract uses —
+    safe under the Map's concurrent iterations. The `data` Lambda's
+    generate-explanations route resets both counters to 0 before starting
+    this phase, so they always reflect only this phase's own run."""
+    table.update_item(
+        Key={"pk": pk, "sk": f"IMPORTJOB#{job_id}"},
+        UpdateExpression="ADD processedCount :one, failedCount :failed",
+        ExpressionAttributeValues={":one": 1, ":failed": 1 if failed else 0},
+    )
+
+
+def _load_pack(pk, pack_id):
+    item = table.get_item(Key={"pk": pk, "sk": f"PACK#{pack_id}"}).get("Item")
+    if not item:
+        return {}
+    return json.loads(item["data"]) if isinstance(item.get("data"), str) else item.get("data", {})
+
+
+def _pack_context(pack):
+    """The shape the review agent expects — see
+    agent/review_agent/app.py's _pack_context_block."""
+    return {
+        "name": pack.get("name", ""),
+        "description": pack.get("description", ""),
+        "domains": [
+            {"name": d.get("name", ""), "description": d.get("description", "")}
+            for d in (pack.get("domains") or [])
+            if isinstance(d, dict) and d.get("name")
+        ],
+    }
+
+
+def _generate_explanation(stem, alternatives, pack, output_language=""):
+    """Calls the AgentCore Runtime review agent (mode=explain_structured,
+    non-streaming) for the explanation content — moved verbatim from
+    lambda/import_extract/app.py, which used to make this same call itself
+    right after its own structure extraction. Structure (stem/alternatives/
+    correct letter) is already known and passed through verbatim; the
+    agent only writes. The agent returns schema-validated structured
+    output for this mode, pre-rendered into the same {"topics",
+    "generalComment", "comments", "relatedServices"} shape consumed
+    directly by this function's caller — no parsing."""
+    payload = {
+        "mode": "explain_structured",
+        "stream": False,
+        "pack": _pack_context(pack),
+        "outputLanguage": output_language,
+        "stem": stem,
+        "alternatives": [
+            {"letter": a["letter"], "text": a["text"], "isCorrect": a["isCorrect"]} for a in alternatives
+        ],
+    }
+    response = agentcore.invoke_agent_runtime(
+        agentRuntimeArn=AGENT_RUNTIME_ARN,
+        runtimeSessionId=uuid.uuid4().hex + uuid.uuid4().hex,
+        payload=json.dumps(payload).encode("utf-8"),
+    )
+    # The agent's HTTP contract is always SSE-framed ("data: {...}" lines),
+    # even for this logically non-streaming call — see review_agent/app.py's
+    # module docstring on why (its entrypoint is always an async generator).
+    result = None
+    for line in response["response"].iter_lines(chunk_size=1):
+        if not line:
+            continue
+        text = line.decode("utf-8")
+        if text.startswith("data: "):
+            text = text[len("data: "):]
+        result = json.loads(text)
+    if not result or "error" in result:
+        raise ValueError(f"Review agent failed: {(result or {}).get('error', 'empty response')}")
+    return result

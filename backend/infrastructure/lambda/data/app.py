@@ -15,12 +15,17 @@ from flask import Flask, Response, request
 TABLE_NAME = os.environ.get("TABLE_NAME", "cert-stud-data")
 QUESTIONS_TABLE_NAME = os.environ.get("QUESTIONS_TABLE_NAME", "cert-stud-questions")
 QUIZ_ATTEMPTS_TABLE_NAME = os.environ.get("QUIZ_ATTEMPTS_TABLE_NAME", "cert-stud-quiz-attempts")
+IMPORT_DRAFTS_TABLE_NAME = os.environ.get("IMPORT_DRAFTS_TABLE_NAME", "cert-stud-import-drafts")
 ASSETS_BUCKET_NAME = os.environ.get("ASSETS_BUCKET_NAME", "cert-stud-assets")
 IMPORT_STATE_MACHINE_ARN = os.environ.get("IMPORT_STATE_MACHINE_ARN", "")
+IMPORT_EXPLAIN_STATE_MACHINE_ARN = os.environ.get("IMPORT_EXPLAIN_STATE_MACHINE_ARN", "")
+IMPORT_EXTRACT_LAMBDA_ARN = os.environ.get("IMPORT_EXTRACT_LAMBDA_ARN", "")
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(TABLE_NAME)  # settings, packs, scripts, chats, import jobs
 questions_table = dynamodb.Table(QUESTIONS_TABLE_NAME)
 quiz_attempts_table = dynamodb.Table(QUIZ_ATTEMPTS_TABLE_NAME)
+import_drafts_table = dynamodb.Table(IMPORT_DRAFTS_TABLE_NAME)
+lambda_client = boto3.client("lambda", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 # Boto3 defaults us-east-1 S3 presigned URLs to legacy SigV2 (which AWS has
 # been shutting off — it now 403s), unless SigV4 is forced explicitly.
 s3 = boto3.client(
@@ -413,6 +418,12 @@ def create_import():
     if not filename:
         return _error("filename must end in .pdf, .md, or .zip", 400)
 
+    # Soft hint only — shown back as a mismatch warning on the review
+    # screen, never validated/enforced here or anywhere in the pipeline.
+    expected_questions = body.get("expectedQuestions")
+    if not isinstance(expected_questions, int) or expected_questions <= 0:
+        expected_questions = None
+
     job_id = str(uuid.uuid4())
     job = {
         "id": job_id,
@@ -420,6 +431,7 @@ def create_import():
         "filename": filename,
         "status": "AWAITING_UPLOAD",
         "totalQuestions": None,
+        "expectedQuestions": expected_questions,
         "createdAt": int(time.time() * 1000),
         "completedAt": None,
         "error": None,
@@ -480,15 +492,15 @@ def process_import(item_id):
     if not item:
         return _error("Not found", 404)
     data = json.loads(item["data"]) if isinstance(item.get("data"), str) else item.get("data", {})
-    if data.get("status") == "PROCESSING":
-        return _error("Already processing", 409)
+    if data.get("status") == "EXTRACTING":
+        return _error("Already extracting", 409)
 
     body = request.get_json(silent=True) or {}
     model_id = (body.get("modelId") or "").strip()
 
-    # Allow retrying a previously FAILED/PARTIAL job — reset the counters so
-    # a retry doesn't inherit a stale processedCount/failedCount from before.
-    data["status"] = "PROCESSING"
+    # Allow retrying a previously FAILED job — reset the counters so a retry
+    # doesn't inherit a stale processedCount/failedCount from before.
+    data["status"] = "EXTRACTING"
     data["totalQuestions"] = None
     data["completedAt"] = None
     data["error"] = None
@@ -536,15 +548,29 @@ def get_import(item_id):
 
 @app.route("/data/imports/<item_id>", methods=["DELETE"])
 def delete_import(item_id):
-    """Removes a job's history entry only — never touches the questions it
-    already produced (those live independently in study-questions once
-    extracted) or the permanent images/ prefix. uploads/ and scratch/ for
-    the job expire on their own via the bucket's lifecycle rule."""
+    """Removes a job's history entry and its draft rows — never touches the
+    questions it already produced (those live independently in
+    study-questions once explained) or the permanent images/ prefix.
+    uploads/ and scratch/ for the job expire on their own via the bucket's
+    lifecycle rule, and any remaining draft rows would too (TTL) — the
+    explicit batch-delete here is just defense in depth so a deleted job's
+    review screen isn't reachable via a stale bookmark in the meantime."""
     pk = _user_pk()
     if not pk:
         return _error("Unauthorized", 401)
     table.delete_item(Key={"pk": pk, "sk": f"IMPORTJOB#{item_id}"})
+    _delete_job_drafts(pk, item_id)
     return _json({"ok": True})
+
+
+def _delete_job_drafts(pk, job_id):
+    resp = import_drafts_table.query(
+        KeyConditionExpression=Key("pk").eq(pk) & Key("sk").begins_with(f"DRAFT#{job_id}#"),
+        ProjectionExpression="sk",
+    )
+    with import_drafts_table.batch_writer() as batch:
+        for item in resp.get("Items", []):
+            batch.delete_item(Key={"pk": pk, "sk": item["sk"]})
 
 
 @app.route("/data/imports", methods=["GET"])
@@ -558,6 +584,155 @@ def list_imports():
     jobs = [_job_from_item(item) for item in resp.get("Items", [])]
     jobs.sort(key=lambda j: j.get("createdAt", 0), reverse=True)
     return _json({"jobs": jobs})
+
+
+@app.route("/data/imports/<item_id>/drafts", methods=["GET"])
+def list_import_drafts(item_id):
+    """Structure-only extraction results for one job, awaiting human review
+    before Phase 2 (explanation generation) — see lambda/import_extract and
+    lambda/import_explain."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    resp = import_drafts_table.query(
+        KeyConditionExpression=Key("pk").eq(pk) & Key("sk").begins_with(f"DRAFT#{item_id}#"),
+    )
+    drafts = [json.loads(item["data"]) for item in resp.get("Items", [])]
+    drafts.sort(key=lambda d: d.get("index", 0))
+    return _json({"drafts": drafts})
+
+
+@app.route("/data/imports/<item_id>/drafts/<int:index>/re-extract", methods=["POST"])
+def re_extract_draft(item_id, index):
+    """Re-runs structure extraction for exactly one question, synchronously,
+    reusing the Phase 1 Lambda directly rather than a one-off Step
+    Functions execution — that Lambda is already a complete, self-contained
+    single-chunk unit of work (see its own module docstring), so wrapping
+    one invocation in a throwaway state machine execution would only add a
+    second orchestration layer for no benefit. An optional `hint` (what the
+    reviewer noticed was wrong) is threaded straight into the re-extraction
+    prompt as an authoritative correction.
+
+    Known accepted risk: API Gateway's REST integration timeout is a hard
+    29s cap, and import-extract's own throttling backoff can in the worst
+    case approach that under heavy concurrent load. A lone re-extract call
+    has nothing to compete with, so this is unlikely in practice — flagged
+    here rather than silently ignored."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    sub = pk.removeprefix("USER#")
+    if not IMPORT_EXTRACT_LAMBDA_ARN:
+        return _error("Import pipeline is not configured", 500)
+
+    job_item = table.get_item(Key={"pk": pk, "sk": f"IMPORTJOB#{item_id}"}).get("Item")
+    if not job_item:
+        return _error("Job not found", 404)
+    job_data = json.loads(job_item["data"]) if isinstance(job_item.get("data"), str) else job_item.get("data", {})
+
+    sk = f"DRAFT#{item_id}#{index:04d}"
+    draft_item = import_drafts_table.get_item(Key={"pk": pk, "sk": sk}).get("Item")
+    if not draft_item:
+        return _error("Draft not found", 404)
+    draft_data = json.loads(draft_item["data"])
+
+    body = request.get_json(silent=True) or {}
+    hint = (body.get("hint") or "").strip() or None
+
+    payload = {
+        "chunk": draft_data["chunk"],
+        "jobId": item_id,
+        "sub": sub,
+        "packId": job_data.get("packId"),
+        "modelId": job_data.get("modelId"),
+        "hint": hint,
+    }
+    response = lambda_client.invoke(
+        FunctionName=IMPORT_EXTRACT_LAMBDA_ARN,
+        InvocationType="RequestResponse",
+        Payload=json.dumps(payload).encode("utf-8"),
+    )
+    if response.get("FunctionError"):
+        return _error("Re-extract failed unexpectedly — see import-extract Lambda logs", 500)
+
+    # import-extract writes the draft itself (success or failure) — re-read
+    # rather than trust the invoke response, which is just {index, status}.
+    updated_item = import_drafts_table.get_item(Key={"pk": pk, "sk": sk}).get("Item")
+    if not updated_item:
+        return _error("Re-extract did not produce a draft", 500)
+    return _json({"draft": json.loads(updated_item["data"])})
+
+
+@app.route("/data/imports/<item_id>/generate-explanations", methods=["POST"])
+def generate_explanations(item_id):
+    """Starts Phase 2 (explanation generation) for a set of approved
+    drafts. Never triggered automatically — the user decides which
+    reviewed questions to send, exactly like `process_import` starting
+    Phase 1. `draftIndices` omitted means "all of them": the frontend's
+    "select all" + "process selected" and a literal "process all" collapse
+    to the same call either way, since the server-side default is already
+    every successfully-extracted, not-yet-promoted draft for this job."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    sub = pk.removeprefix("USER#")
+    if not IMPORT_EXPLAIN_STATE_MACHINE_ARN:
+        return _error("Import pipeline is not configured", 500)
+
+    job_item = table.get_item(Key={"pk": pk, "sk": f"IMPORTJOB#{item_id}"}).get("Item")
+    if not job_item:
+        return _error("Job not found", 404)
+    job_data = json.loads(job_item["data"]) if isinstance(job_item.get("data"), str) else job_item.get("data", {})
+    if job_data.get("status") == "GENERATING":
+        return _error("Already generating", 409)
+
+    resp = import_drafts_table.query(
+        KeyConditionExpression=Key("pk").eq(pk) & Key("sk").begins_with(f"DRAFT#{item_id}#"),
+    )
+    drafts_by_index = {}
+    for item in resp.get("Items", []):
+        d = json.loads(item["data"])
+        drafts_by_index[d["index"]] = d
+
+    body = request.get_json(silent=True) or {}
+    requested = body.get("draftIndices")
+    if requested is None:
+        # Default: every successfully-extracted, not-yet-promoted draft.
+        indices = [i for i, d in drafts_by_index.items() if d.get("extractStatus") == "SUCCEEDED" and not d.get("promoted")]
+    else:
+        # Defensive filter — never queue an index that doesn't belong to
+        # this job or didn't extract successfully, regardless of what the
+        # client sent.
+        indices = [
+            i for i in requested
+            if i in drafts_by_index and drafts_by_index[i].get("extractStatus") == "SUCCEEDED"
+        ]
+    if not indices:
+        return _error("No approved questions to process", 400)
+    indices.sort()
+
+    job_data["status"] = "GENERATING"
+    job_data["explainTotal"] = len(indices)
+    job_data["completedAt"] = None
+    job_data["error"] = None
+    table.put_item(Item={
+        "pk": pk,
+        "sk": f"IMPORTJOB#{item_id}",
+        "data": json.dumps(job_data),
+        "processedCount": 0,
+        "failedCount": 0,
+    })
+
+    sfn.start_execution(
+        stateMachineArn=IMPORT_EXPLAIN_STATE_MACHINE_ARN,
+        input=json.dumps({
+            "jobId": item_id,
+            "sub": sub,
+            "packId": job_data.get("packId"),
+            "draftIndices": indices,
+        }),
+    )
+    return _json({"ok": True, "queued": len(indices)})
 
 
 @app.route("/data/assets/presign", methods=["GET"])

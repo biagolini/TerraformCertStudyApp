@@ -65,3 +65,39 @@ resource "aws_dynamodb_table" "quiz_attempts" {
     type = "S"
   }
 }
+
+# ============================================================================
+# DynamoDB — Import drafts table
+# ============================================================================
+# Structure-extraction results awaiting human review before explanation
+# generation (see the bulk-import pipeline's Phase 1/Phase 2 split). Kept
+# out of both the `data` table (which gets a full-partition Query on every
+# login — see lambda/data/app.py's get_all) and the `questions` table
+# (whose items the frontend's full-dataset PUT/GET /data sync payload
+# assumes always carry a `comment`/`generalComment`, which a draft doesn't
+# have yet) — a dedicated table lets these transient, job-scoped rows churn
+# freely without touching either synced-state path. TTL doubles as the
+# "review isn't urgent" cleanup mechanism, matched to the `scratch/` S3
+# lifecycle rule's own 14-day window (see aws_s3_assets.tf).
+
+resource "aws_dynamodb_table" "import_drafts" {
+  name         = "${var.project_prefix}-import-drafts"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "pk"
+  range_key    = "sk"
+
+  attribute {
+    name = "pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
+}

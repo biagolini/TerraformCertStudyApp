@@ -1,10 +1,10 @@
 # DynamoDB schema
 
-Three single-table-design tables, all partitioned per Cognito user (`pk = USER#{sub}`). Every item stores its payload as a single JSON string under a `data` attribute — the Lambda (`lambda/data/app.py`) never inspects or validates that JSON, it only routes by `sk` prefix (this is why adding a new field to a persisted shape is a frontend-only change: it just flows through unchanged). The frontend owns the `data` shape; this doc is the source of truth for it.
+Four single-table-design tables, all partitioned per Cognito user (`pk = USER#{sub}`). Every item stores its payload as a single JSON string under a `data` attribute — the Lambda (`lambda/data/app.py`) never inspects or validates that JSON, it only routes by `sk` prefix (this is why adding a new field to a persisted shape is a frontend-only change: it just flows through unchanged). The frontend owns the `data` shape; this doc is the source of truth for it.
 
-## Why three tables
+## Why four tables
 
-Questions are the largest, most structured, and most actively-evolving entity (they carry the app's entire quiz/study content and may need independent scaling or GSIs later, e.g. querying by topic). Packs, scripts, chats, and settings are small, low-churn configuration that changes together and has no reason to scale independently. Quiz attempts are write-heavy in a different way (a single in-progress attempt can be overwritten many times per session, see below) and grow unboundedly over a user's lifetime, unlike config. Splitting all three keeps the config table simple and lets each of the others evolve/scale independently.
+Questions are the largest, most structured, and most actively-evolving entity (they carry the app's entire quiz/study content and may need independent scaling or GSIs later, e.g. querying by topic). Packs, scripts, chats, and settings are small, low-churn configuration that changes together and has no reason to scale independently. Quiz attempts are write-heavy in a different way (a single in-progress attempt can be overwritten many times per session, see below) and grow unboundedly over a user's lifetime, unlike config. Import drafts (below) are transient, job-scoped rows that need to churn freely (re-extract overwrites, TTL-expire) without touching either synced-state table — putting them in `data` would inflate that table's full-partition `Query` on every login, and putting them in `questions` would pollute the main question list and the app's full-dataset sync payload with items missing fields (`comment`, `generalComment`) a real `Question` always has. Splitting all four keeps each one simple and lets them evolve/scale independently.
 
 ## Table: `${project_prefix}-data` (general/config)
 
@@ -20,7 +20,7 @@ Billing: `PAY_PER_REQUEST`. Keys: `pk` (S, hash), `sk` (S, range).
 
 ### `IMPORTJOB#{id}` shape
 
-Tracks a [bulk exam import](./question-import-pipeline.md) from upload through Step Functions completion. Unlike every other item in this table, **`processedCount`/`failedCount` are native top-level DynamoDB attributes, not fields inside the `data` JSON blob** — the extraction Lambda's concurrent Map iterations increment them with a genuinely atomic `UpdateItem ADD`, which isn't possible on a value trapped inside an opaque JSON string. `GET /data/imports*` merges them back into a flat object before returning it to the frontend.
+Tracks a [bulk exam import](./question-import-pipeline.md) across both pipeline phases — Phase 1 (structure extraction) through human review to Phase 2 (explanation generation). Unlike every other item in this table, **`processedCount`/`failedCount` are native top-level DynamoDB attributes, not fields inside the `data` JSON blob** — the extraction/explain Lambdas' concurrent Map iterations increment them with a genuinely atomic `UpdateItem ADD`, which isn't possible on a value trapped inside an opaque JSON string. `GET /data/imports*` merges them back into a flat object before returning it to the frontend. Both counters are reset to 0 each time a phase starts, so they always reflect only that phase's own run.
 
 ```ts
 // `data` blob:
@@ -28,26 +28,70 @@ Tracks a [bulk exam import](./question-import-pipeline.md) from upload through S
   id: string;
   packId: string;
   filename: string;
-  status: 'AWAITING_UPLOAD' | 'UPLOADED' | 'PROCESSING' | 'SUCCEEDED' | 'PARTIAL' | 'FAILED';
-  totalQuestions: number | null;   // null until import-preprocess finishes chunking
+  status: 'AWAITING_UPLOAD' | 'UPLOADED' | 'EXTRACTING' | 'AWAITING_REVIEW'
+        | 'GENERATING' | 'SUCCEEDED' | 'PARTIAL' | 'FAILED';
+  totalQuestions: number | null;    // null until import-preprocess finishes chunking (Phase 1)
+  expectedQuestions?: number | null; // optional user-supplied hint from the upload form —
+                        // shown back as a mismatch warning on the review screen if it
+                        // differs from totalQuestions, never validated or enforced
+  explainTotal?: number | null; // set when Phase 2 starts — how many drafts were
+                        // approved for explanation generation (usually <= totalQuestions,
+                        // since not every drafted question gets approved in one pass)
   createdAt: number;
   completedAt: number | null;
   error: string | null;
-  modelId?: string;    // Bedrock model used for extraction — set on "Process",
+  modelId?: string;    // Bedrock model used for Phase 1 extraction — set on "Process",
                         // from the frontend's "Exam import model" setting
                         // (default us.amazon.nova-pro-v1:0); import-extract
                         // falls back to its own env var default if absent
   failures?: Array<{ index: number | null; error: string; preview: string | null }>;
-                        // set by import-finalize — one entry per failed chunk,
-                        // `preview` is a short snippet of the source text so the
-                        // user can locate the question in their original file
+                        // set by import-finalize — one entry per failed chunk/draft in
+                        // the most recent phase run, `preview` is a short snippet of the
+                        // source text so the user can locate the question in their
+                        // original file (Phase 1 failures only — Phase 2 failures have no preview)
 }
 // native top-level attributes (sibling to pk/sk/data):
-processedCount: number; // atomic ADD from import-extract
-failedCount: number;    // atomic ADD from import-extract
+processedCount: number; // atomic ADD from import-extract or import-explain
+failedCount: number;    // atomic ADD from import-extract or import-explain
 ```
 
-`UPLOADED` sits between `AWAITING_UPLOAD` and `PROCESSING`: set by `POST /data/imports/{id}/confirm-upload` once the browser's presigned PUT resolves, and left alone until the user explicitly picks the file to process — see the [import pipeline doc](./question-import-pipeline.md)'s "Upload and processing are two separate, explicit steps".
+`UPLOADED` sits between `AWAITING_UPLOAD` and `EXTRACTING`: set by `POST /data/imports/{id}/confirm-upload` once the browser's presigned PUT resolves, and left alone until the user explicitly picks the file to process — see the [import pipeline doc](./question-import-pipeline.md)'s "Upload and processing are two separate, explicit steps".
+
+**`AWAITING_REVIEW` is not purely a "Phase 1 just finished" marker.** `import-finalize` (shared by both phases, parameterized by `event["phase"]`) sets it whenever ANY successfully-extracted draft for the job is still unpromoted — including after a Phase 2 run where the user deliberately submitted fewer than every approved draft ("Process selected" instead of "Process all"), or where an explanation call failed. Both cases leave a draft with `extractStatus: 'SUCCEEDED'`/`promoted: false`, and the job stays revisitable via the review screen rather than being mislabeled `SUCCEEDED`/`PARTIAL` while work is still outstanding. `SUCCEEDED` only happens once no such draft remains.
+
+## Table: `${project_prefix}-import-drafts`
+
+| pk | sk | `data` payload |
+|----|----|-----------------|
+| `USER#{sub}` | `DRAFT#{jobId}#{index:04d}` | `ImportDraftQuestion` (below) |
+
+Billing: `PAY_PER_REQUEST`. Keys: `pk` (S, hash), `sk` (S, range), zero-padded `index` so a job's drafts sort lexicographically with no GSI needed. `ttl` (14 days from creation) is enabled as the table's TTL attribute — matched to the `scratch/` S3 lifecycle rule's own 14-day window (see `aws_s3_assets.tf`), since a draft's `chunk` field points at those scratch keys for re-extraction and both must expire together.
+
+One row per chunk, written by `lambda/import_extract` (Phase 1) — structure only, no explanation content yet:
+
+```ts
+interface ImportDraftQuestion {
+  jobId: string;
+  index: number;                 // chunk order — {jobId}-{index:03d} is the eventual Question id
+  packId: string;
+  extractStatus: 'SUCCEEDED' | 'FAILED';
+  title: string | null;
+  domain: string | null;
+  stem: string | null;
+  alternatives: { letter: string; text: string; isCorrect: boolean }[]; // no `comment` yet
+  error: string | null;          // set when extractStatus is FAILED
+  preview: string | null;        // short source snippet, same idea as IMPORTJOB#'s failures[].preview
+  chunk: object;                 // the original import-preprocess chunk dict, verbatim — lets a
+                                  // re-extract skip re-running import-preprocess entirely
+  promoted: boolean;              // true once Phase 2 (import-explain) has written the final Question
+  reExtractCount: number;
+  lastHint: string | null;       // most recent user-supplied re-extraction correction, if any
+  createdAt: number;
+  updatedAt: number;
+}
+```
+
+`lambda/import_explain` (Phase 2) reads an approved draft, calls the AgentCore review agent, **copies** the result into a brand-new `Question` item using the same deterministic id (never updates a `Question` in place from a draft), then flips `promoted: true` on the draft via `UpdateItem` — the draft itself is not deleted (lets the review screen show "already generated" rows), TTL is the real cleanup. `DELETE /data/imports/{id}` additionally batch-deletes a job's `DRAFT#` rows as defense in depth on top of TTL.
 
 ## Table: `${project_prefix}-questions`
 

@@ -1,20 +1,19 @@
 # ============================================================================
-# Lambda — Bulk Import: Extract (Step Functions Task #2, one Map iteration)
+# Lambda — Bulk Import: Extract (Phase 1, Step Functions Task #2, one Map
+# iteration — also invoked directly, once per call, by the `data` Lambda's
+# per-question re-extract route)
 # ============================================================================
-# Plain Python handler, not Flask/LWA — invoked only by the Step Functions
-# Map state. Two calls per chunk: a Bedrock Converse vision/tool-use call for
-# structure (stem/alternatives/correct/images, unchanged), then an AgentCore
-# Runtime call to the review agent for the explanation content — see
-# markdown_review.py and app.py's _generate_explanation. Timeout raised from
-# the original 180s to give headroom for that second, slower call; quality
-# over speed is the explicit priority for this pipeline.
+# Plain Python handler, not Flask/LWA. A single Bedrock Converse vision/
+# tool-use call for structure only (stem/alternatives/correct/images) —
+# writes a draft row to the import-drafts table for human review, no longer
+# calls the AI explanation agent or writes to the `questions` table at all
+# (see aws_lambda_import_explain.tf's Phase 2 Lambda for that).
 
 resource "null_resource" "lambda_import_extract_build" {
   triggers = {
     code_hash = sha256(join("", [
       filesha256("${local.lambda_src_dir}/import_extract/app.py"),
       filesha256("${local.lambda_src_dir}/import_extract/prompt.py"),
-      filesha256("${local.lambda_src_dir}/import_extract/markdown_review.py"),
       filesha256("${local.lambda_src_dir}/import_extract/requirements.txt"),
     ]))
   }
@@ -29,7 +28,6 @@ resource "null_resource" "lambda_import_extract_build" {
         --only-binary=:all: -r "${local.lambda_src_dir}/import_extract/requirements.txt" --quiet
       cp "${local.lambda_src_dir}/import_extract/app.py" "$BUILD/"
       cp "${local.lambda_src_dir}/import_extract/prompt.py" "$BUILD/"
-      cp "${local.lambda_src_dir}/import_extract/markdown_review.py" "$BUILD/"
       find "$BUILD" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
       find "$BUILD" -name "*.pyc" -delete 2>/dev/null || true
       cd "$BUILD" && zip -qr "${local.lambda_build_dir}/import_extract.zip" .
@@ -39,28 +37,29 @@ resource "null_resource" "lambda_import_extract_build" {
 
 resource "aws_lambda_function" "import_extract" {
   function_name = "${var.project_prefix}-import-extract"
-  description   = "Bulk exam import: vision structure extraction + AgentCore review agent explanation, per question chunk"
+  description   = "Bulk exam import: vision structure extraction, per question chunk — writes a draft for review"
   role          = aws_iam_role.lambda_import_extract.arn
   handler       = "app.handler"
   runtime       = "python3.13"
   architectures = ["arm64"]
-  timeout       = 600
-  memory_size   = 1024
-  filename      = "${local.lambda_build_dir}/import_extract.zip"
+  # Shorter than before (600s): the AgentCore review-agent call that
+  # justified that headroom no longer happens in this Lambda.
+  timeout     = 180
+  memory_size = 512
+  filename    = "${local.lambda_build_dir}/import_extract.zip"
 
   source_code_hash = null_resource.lambda_import_extract_build.triggers.code_hash
 
   environment {
     variables = {
       TABLE_NAME                  = aws_dynamodb_table.data.name
-      QUESTIONS_TABLE_NAME        = aws_dynamodb_table.questions.name
+      IMPORT_DRAFTS_TABLE_NAME    = aws_dynamodb_table.import_drafts.name
       ASSETS_BUCKET_NAME          = aws_s3_bucket.assets.id
       BEDROCK_EXTRACTION_MODEL_ID = var.bedrock_extraction_model_id
-      AGENT_RUNTIME_ARN           = data.external.runtime.result.runtime_arn
     }
   }
 
-  depends_on = [null_resource.lambda_import_extract_build, data.external.runtime]
+  depends_on = [null_resource.lambda_import_extract_build]
 }
 
 resource "aws_iam_role" "lambda_import_extract" {
@@ -105,21 +104,13 @@ resource "aws_iam_role_policy" "lambda_import_extract_access" {
       },
       {
         Effect   = "Allow"
-        Action   = "dynamodb:PutItem"
-        Resource = aws_dynamodb_table.questions.arn
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem"]
+        Resource = aws_dynamodb_table.import_drafts.arn
       },
       {
         Effect   = "Allow"
         Action   = "bedrock:InvokeModel"
         Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = "bedrock-agentcore:InvokeAgentRuntime"
-        # InvokeAgentRuntime authorizes against the endpoint-qualified ARN
-        # (".../runtime/<id>/runtime-endpoint/DEFAULT"), not the bare
-        # runtime ARN — the wildcard covers both.
-        Resource = "${data.external.runtime.result.runtime_arn}*"
       },
     ]
   })

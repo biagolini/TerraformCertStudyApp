@@ -43,6 +43,11 @@ resource "aws_lambda_function" "mcp_aws_docs" {
   depends_on = [null_resource.lambda_mcp_aws_docs_build]
 }
 
+resource "aws_cloudwatch_log_group" "lambda_mcp_aws_docs" {
+  name              = "/aws/lambda/${aws_lambda_function.mcp_aws_docs.function_name}"
+  retention_in_days = 14
+}
+
 resource "aws_iam_role" "lambda_mcp_aws_docs" {
   name = "${var.project_prefix}-lambda-mcp-aws-docs-role"
 

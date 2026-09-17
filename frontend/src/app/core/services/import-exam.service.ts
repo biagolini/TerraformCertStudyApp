@@ -54,14 +54,20 @@ export class ImportExamService {
   }
 
   /** Creates the job, uploads the file with live progress, then confirms
-   * the upload — three explicit steps, none of them start processing. */
-  async uploadFile(packId: string, file: File): Promise<{ jobId: string } | { error: string }> {
+   * the upload — three explicit steps, none of them start processing.
+   * `expectedQuestions` is a soft hint only — shown back as a mismatch
+   * warning on the review screen, never validated or enforced. */
+  async uploadFile(
+    packId: string,
+    file: File,
+    expectedQuestions?: number,
+  ): Promise<{ jobId: string } | { error: string }> {
     try {
       const token = await this.auth.getValidToken();
       const createRes = await fetch(`${this.apiUrl}/data/imports`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ packId, filename: file.name }),
+        body: JSON.stringify({ packId, filename: file.name, expectedQuestions: expectedQuestions ?? null }),
       });
       if (!createRes.ok) {
         const body = await createRes.json().catch(() => ({}) as { error?: string });

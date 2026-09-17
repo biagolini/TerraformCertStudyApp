@@ -37,6 +37,14 @@ export const routes: Routes = [
             loadComponent: () =>
               import('./features/questions/questions-page.component').then((m) => m.QuestionsPageComponent),
           },
+          {
+            path: ':packId/import/:jobId',
+            resolve: { packId: packIdResolver },
+            loadComponent: () =>
+              import('./features/import-review/import-review-page.component').then(
+                (m) => m.ImportReviewPageComponent,
+              ),
+          },
         ],
       },
       {

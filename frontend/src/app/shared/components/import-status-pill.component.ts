@@ -1,12 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ImportExamService } from '../../core/services/import-exam.service';
+import { ImportJob, isImportJobRunning } from '../../core/models/import-job.model';
 
 /** Keeps any in-progress bulk exam import visible in the header while its
  * Step Functions pipeline runs in the background, so progress isn't lost
  * just because the user navigated to another tab. Mirrors SyncStatusComponent's
  * icon-toggle + dropdown-panel pattern. Only appears while at least one job
- * is actually PROCESSING — uploaded-but-not-yet-processed files don't need
- * a persistent header indicator, they're visible in the import panel itself. */
+ * is actually running (either pipeline phase — see isImportJobRunning) —
+ * uploaded-but-not-yet-processed and awaiting-review files don't need a
+ * persistent header indicator, they're visible in the import panel itself. */
 @Component({
   selector: 'app-import-status-pill',
   standalone: true,
@@ -33,7 +35,7 @@ import { ImportExamService } from '../../core/services/import-exam.service';
               <div class="job-line">
                 <p class="panel-title">{{ job.filename }}</p>
                 <p class="panel-body">
-                  {{ job.totalQuestions ? job.processedCount + ' of ' + job.totalQuestions + ' processed' : 'Detecting questions…' }}
+                  {{ progressTotal(job) ? job.processedCount + ' of ' + progressTotal(job) + ' processed' : 'Detecting questions…' }}
                 </p>
               </div>
             }
@@ -75,12 +77,16 @@ export class ImportStatusPillComponent {
   private readonly importService = inject(ImportExamService);
 
   protected readonly panelOpen = signal(false);
-  readonly processingJobs = computed(() => this.importService.jobs().filter((j) => j.status === 'PROCESSING'));
+  readonly processingJobs = computed(() => this.importService.jobs().filter((j) => isImportJobRunning(j)));
 
   readonly ariaLabel = computed(() => {
     const n = this.processingJobs().length;
     return `Exam import: processing ${n} file${n === 1 ? '' : 's'}`;
   });
+
+  progressTotal(job: Pick<ImportJob, 'status' | 'totalQuestions' | 'explainTotal'>): number | null {
+    return job.status === 'GENERATING' ? (job.explainTotal ?? null) : job.totalQuestions;
+  }
 
   constructor() {
     if (typeof document !== 'undefined') {

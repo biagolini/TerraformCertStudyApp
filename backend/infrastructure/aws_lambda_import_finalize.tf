@@ -43,7 +43,8 @@ resource "aws_lambda_function" "import_finalize" {
 
   environment {
     variables = {
-      TABLE_NAME = aws_dynamodb_table.data.name
+      TABLE_NAME               = aws_dynamodb_table.data.name
+      IMPORT_DRAFTS_TABLE_NAME = aws_dynamodb_table.import_drafts.name
     }
   }
 
@@ -74,13 +75,20 @@ resource "aws_iam_role_policy" "lambda_import_finalize_access" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "dynamodb:GetItem",
-        "dynamodb:PutItem",
-      ]
-      Resource = aws_dynamodb_table.data.arn
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+        ]
+        Resource = aws_dynamodb_table.data.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = "dynamodb:Query"
+        Resource = aws_dynamodb_table.import_drafts.arn
+      },
+    ]
   })
 }

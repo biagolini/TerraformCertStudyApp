@@ -64,6 +64,11 @@ resource "aws_lambda_function_url" "review" {
   invoke_mode        = "RESPONSE_STREAM"
 }
 
+resource "aws_cloudwatch_log_group" "lambda_review" {
+  name              = "/aws/lambda/${aws_lambda_function.review.function_name}"
+  retention_in_days = 14
+}
+
 resource "aws_iam_role" "lambda_review" {
   name        = "${var.project_prefix}-lambda-review-role"
   description = "Execution role for the review Lambda (invokes AgentCore Runtime)"

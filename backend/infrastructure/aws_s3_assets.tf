@@ -73,13 +73,19 @@ resource "aws_s3_bucket_lifecycle_configuration" "assets" {
   }
 
   rule {
+    # 14 days, not 2 — matches the import-drafts DynamoDB table's own TTL
+    # window (see aws_dynamodb.tf). A draft's `chunk` field points at these
+    # scratch/ keys for re-extraction; the human review step this table
+    # supports is explicitly not time-pressured ("no rush"), so scratch/
+    # must outlive a leisurely review, not just the few minutes Phase 1
+    # itself takes to run.
     id     = "expire-scratch"
     status = "Enabled"
     filter {
       prefix = "scratch/"
     }
     expiration {
-      days = 2
+      days = 14
     }
   }
 }

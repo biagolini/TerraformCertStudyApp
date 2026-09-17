@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { ImportExamService } from '../../core/services/import-exam.service';
 import { PacksService } from '../../core/services/packs.service';
 import { ImportJob, isImportJobTerminal } from '../../core/models/import-job.model';
@@ -46,6 +47,19 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
         />
       </label>
 
+      <label class="field">
+        <span class="field-label">Expected number of questions (optional)</span>
+        <input
+          type="number"
+          class="select-input"
+          min="1"
+          placeholder="e.g. 75"
+          [ngModel]="expectedQuestions()"
+          (ngModelChange)="expectedQuestions.set($event)"
+          aria-label="Expected number of questions — shown back as a mismatch warning, never enforced"
+        />
+      </label>
+
       @if (uploadProgress(); as up) {
         <div class="upload-progress">
           <p class="progress-line">Uploading {{ up.filename }}… {{ up.pct }}%</p>
@@ -89,14 +103,32 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
             <div class="job-status processing">
               <div class="job-status-header">
                 <span class="job-filename">{{ job.filename }}</span>
-                <span class="job-badge">Processing</span>
+                <span class="job-badge">{{ job.status === 'GENERATING' ? 'Generating explanations' : 'Extracting' }}</span>
               </div>
-              @if (job.totalQuestions) {
+              @if (progressTotal(job)) {
                 <div class="progress-track"><div class="progress-fill" [style.width.%]="progressPct(job)"></div></div>
-                <p class="progress-line">{{ job.processedCount }} of {{ job.totalQuestions }} processed</p>
+                <p class="progress-line">{{ job.processedCount }} of {{ progressTotal(job) }} processed</p>
               } @else {
                 <p class="progress-line">Starting — detecting questions…</p>
               }
+            </div>
+          }
+        </div>
+      }
+
+      @if (awaitingReviewJobs().length > 0) {
+        <div class="job-section">
+          <h3>Ready to review</h3>
+          @for (job of awaitingReviewJobs(); track job.id) {
+            <div class="job-status">
+              <div class="job-status-header">
+                <span class="job-filename">{{ job.filename }}</span>
+                <span class="job-badge">{{ job.totalQuestions }} extracted</span>
+              </div>
+              @if (job.failedCount > 0) {
+                <p class="warn-line">{{ job.failedCount }} question(s) need attention — see the review screen.</p>
+              }
+              <button type="button" class="btn-ghost-sm" (click)="onReview(job)">Review {{ job.totalQuestions }} question(s)</button>
             </div>
           }
         </div>
@@ -115,13 +147,15 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
                 <span class="job-badge">{{ statusLabel(job.status) }}</span>
               </div>
               @if (job.failedCount > 0) {
-                <p class="warn-line">{{ job.failedCount }} question(s) failed to extract.</p>
+                <p class="warn-line">{{ job.failedCount }} question(s) failed to generate an explanation for.</p>
               }
               @if (job.error) {
                 <p class="error-line">{{ job.error }}</p>
               }
               <div class="job-actions">
-                @if (job.status !== 'SUCCEEDED') {
+                @if (canReview(job)) {
+                  <button type="button" class="btn-ghost-sm" (click)="onReview(job)">Review questions</button>
+                } @else if (job.status === 'FAILED') {
                   <button type="button" class="btn-ghost-sm" (click)="onRetry(job.id)">Retry</button>
                 }
                 @if (job.failures && job.failures.length > 0) {
@@ -196,6 +230,7 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
 export class ImportExamComponent {
   private readonly importService = inject(ImportExamService);
   private readonly packsService = inject(PacksService);
+  private readonly router = inject(Router);
 
   readonly packId = input.required<string>();
 
@@ -209,6 +244,7 @@ export class ImportExamComponent {
   protected readonly selectedPackId = linkedSignal(() => this.packId());
 
   protected readonly selectedFile = signal<File | null>(null);
+  protected readonly expectedQuestions = signal<number | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly checkedJobIds = signal<ReadonlySet<string>>(new Set());
 
@@ -218,7 +254,12 @@ export class ImportExamComponent {
     this.importService.jobs().filter((j) => j.packId === this.selectedPackId()),
   );
   protected readonly readyJobs = computed(() => this.jobsForPack().filter((j) => j.status === 'UPLOADED'));
-  protected readonly activeJobs = computed(() => this.jobsForPack().filter((j) => j.status === 'PROCESSING'));
+  protected readonly activeJobs = computed(() =>
+    this.jobsForPack().filter((j) => j.status === 'EXTRACTING' || j.status === 'GENERATING'),
+  );
+  protected readonly awaitingReviewJobs = computed(() =>
+    this.jobsForPack().filter((j) => j.status === 'AWAITING_REVIEW'),
+  );
   protected readonly doneJobs = computed(() =>
     this.jobsForPack()
       .filter((j) => isImportJobTerminal(j))
@@ -242,11 +283,12 @@ export class ImportExamComponent {
     const packId = this.selectedPackId();
     if (!file || !packId) return;
     this.error.set(null);
-    const result = await this.importService.uploadFile(packId, file);
+    const result = await this.importService.uploadFile(packId, file, this.expectedQuestions() ?? undefined);
     if ('error' in result) {
       this.error.set(result.error);
     } else {
       this.selectedFile.set(null);
+      this.expectedQuestions.set(null);
       fileInput.value = '';
     }
   }
@@ -273,6 +315,20 @@ export class ImportExamComponent {
     await this.importService.processJobs([jobId]);
   }
 
+  onReview(job: ImportJob): void {
+    this.router.navigate(['/questions', job.packId, 'import', job.id]);
+  }
+
+  /** A job whose Phase 1 got far enough to produce draft rows (totalQuestions
+   * set) always has a review screen worth visiting, whether it's PARTIAL/
+   * FAILED from Phase 1 itself (some chunks failed to extract — fix them
+   * there) or from Phase 2 (some approved drafts failed to explain — resubmit
+   * them there). A FAILED job with no drafts at all (Phase 1 failed before
+   * producing any chunks) has nothing to review — plain Retry restarts it. */
+  canReview(job: ImportJob): boolean {
+    return job.status !== 'SUCCEEDED' && job.totalQuestions != null;
+  }
+
   async onClearHistory(): Promise<void> {
     await this.importService.clearHistory(this.doneJobs().map((j) => j.id));
   }
@@ -281,7 +337,7 @@ export class ImportExamComponent {
     const lines = [
       `Import report — ${job.filename}`,
       `Status: ${this.statusLabel(job.status)}`,
-      `${job.processedCount} of ${job.totalQuestions ?? job.processedCount} processed, ${job.failedCount} failed`,
+      `${job.processedCount} of ${job.explainTotal ?? job.totalQuestions ?? job.processedCount} processed, ${job.failedCount} failed`,
       '',
       'Failed questions:',
       ...(job.failures ?? []).map((f) => {
@@ -301,9 +357,17 @@ export class ImportExamComponent {
     URL.revokeObjectURL(url);
   }
 
-  progressPct(job: Pick<ImportJob, 'processedCount' | 'totalQuestions'>): number {
-    if (!job.totalQuestions) return 0;
-    return Math.min(100, (job.processedCount / job.totalQuestions) * 100);
+  /** GENERATING's progress is against explainTotal (how many drafts were
+   * approved for Phase 2), not totalQuestions (Phase 1's own count, which
+   * is usually larger — not every drafted question gets approved). */
+  progressTotal(job: Pick<ImportJob, 'status' | 'totalQuestions' | 'explainTotal'>): number | null {
+    return job.status === 'GENERATING' ? (job.explainTotal ?? null) : job.totalQuestions;
+  }
+
+  progressPct(job: Pick<ImportJob, 'status' | 'processedCount' | 'totalQuestions' | 'explainTotal'>): number {
+    const total = this.progressTotal(job);
+    if (!total) return 0;
+    return Math.min(100, (job.processedCount / total) * 100);
   }
 
   statusLabel(status: string): string {
