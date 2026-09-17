@@ -138,7 +138,10 @@ import { QuizAnnotatedTextComponent } from './quiz-annotated-text.component';
 
       .hist-note { padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); background: var(--bg-elevated); border-left: 2px solid var(--color-purple); font-size: var(--font-size-sm); color: var(--text-secondary); }
 
-      :host ::ng-deep mark { background: #fde68a; color: inherit; border-radius: 2px; }
+      /* Fixed light-yellow background regardless of theme, so the text color must
+       * be fixed too — inheriting the theme's text color left dark-theme's light
+       * text unreadable against this background. */
+      :host ::ng-deep mark { background: #fde68a; color: #1a1a1a; border-radius: 2px; }
       :host ::ng-deep s { text-decoration-color: var(--color-red); }
 
       .btn { min-height: var(--touch-min); padding: 0 var(--space-md); border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-base); border: none; font-family: var(--font-family); cursor: pointer; white-space: nowrap; }

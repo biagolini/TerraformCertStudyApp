@@ -32,11 +32,23 @@ import { QuestionsService } from '../../core/services/questions.service';
         </header>
 
         <div class="annotate-toolbar">
-          <button type="button" class="tool-btn" (click)="onHighlightClick()">
+          <button
+            type="button"
+            class="tool-btn"
+            (mousedown)="$event.preventDefault()"
+            (touchstart)="$event.preventDefault()"
+            (click)="onHighlightClick()"
+          >
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9 11l6-6 4 4-6 6m-4-4l-3 7 7-3m-4-4l4 4"/></svg>
             <span>Highlight</span>
           </button>
-          <button type="button" class="tool-btn" (click)="onStrikethroughClick()">
+          <button
+            type="button"
+            class="tool-btn"
+            (mousedown)="$event.preventDefault()"
+            (touchstart)="$event.preventDefault()"
+            (click)="onStrikethroughClick()"
+          >
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 12h16M8 12c0-2 1.5-4 4-4s4 1 4 2M8 12c0 2 1.5 5 4 5 2.5 0 3.5-1.3 4-2.5"/></svg>
             <span>Strikethrough</span>
           </button>
@@ -231,7 +243,10 @@ import { QuestionsService } from '../../core/services/questions.service';
       .tool-btn.active { background: var(--bg-elevated); border-color: var(--color-purple); color: var(--color-purple); }
       .note-textarea { width: 100%; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary); font-family: var(--font-family); font-size: var(--font-size-sm); line-height: 1.5; resize: vertical; box-sizing: border-box; }
       .note-textarea:focus-visible { outline: none; border-color: var(--color-purple); }
-      :host ::ng-deep mark { background: #fde68a; color: inherit; border-radius: 2px; }
+      /* Fixed light-yellow background regardless of theme, so the text color must
+       * be fixed too — inheriting the theme's text color left dark-theme's light
+       * text unreadable against this background. */
+      :host ::ng-deep mark { background: #fde68a; color: #1a1a1a; border-radius: 2px; }
       :host ::ng-deep s { text-decoration-color: var(--color-red); }
 
       .time-up-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-md); border-radius: var(--radius-md); background: rgba(214, 48, 49, 0.1); border: 1px solid var(--color-red); }
