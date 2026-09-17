@@ -78,6 +78,26 @@ def _error(msg, status=400):
     return _json({"error": msg}, status)
 
 
+def _query_all_items(dynamo_table, pk):
+    """A DynamoDB Query only returns up to ~1MB per call — a single
+    unpaginated query here silently truncated results once a user's total
+    item size (packs/questions, each with full Markdown review text) grew
+    past that, dropping whichever items sorted past the cutoff by sort key
+    (observed directly: a freshly bulk-imported pack's 75 questions missing
+    from GET /data while earlier-sorting packs were fine). Must loop on
+    LastEvaluatedKey until the whole partition is read.
+    """
+    items = []
+    kwargs = {"KeyConditionExpression": Key("pk").eq(pk)}
+    while True:
+        resp = dynamo_table.query(**kwargs)
+        items.extend(resp.get("Items", []))
+        last_key = resp.get("LastEvaluatedKey")
+        if not last_key:
+            return items
+        kwargs["ExclusiveStartKey"] = last_key
+
+
 @app.route("/data", methods=["GET"])
 def get_all():
     """Return all user data grouped by entity type."""
@@ -85,8 +105,7 @@ def get_all():
     if not pk:
         return _error("Unauthorized", 401)
 
-    resp = table.query(KeyConditionExpression=Key("pk").eq(pk))
-    items = resp.get("Items", [])
+    items = _query_all_items(table, pk)
 
     result = {"packs": [], "questions": [], "scripts": [], "chats": [], "settings": None}
     for item in items:
@@ -101,8 +120,7 @@ def get_all():
         elif sk.startswith("CHAT#"):
             result["chats"].append(data)
 
-    q_resp = questions_table.query(KeyConditionExpression=Key("pk").eq(pk))
-    for item in q_resp.get("Items", []):
+    for item in _query_all_items(questions_table, pk):
         data = json.loads(item["data"]) if isinstance(item.get("data"), str) else item.get("data", {})
         result["questions"].append(data)
 

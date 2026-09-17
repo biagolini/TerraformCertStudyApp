@@ -189,7 +189,7 @@ def _build_agent():
     )
 
 
-def _pack_context_block(pack: dict) -> str:
+def _pack_context_block(pack: dict, include_classification: bool = True) -> str:
     name = (pack or {}).get("name") or ""
     description = (pack or {}).get("description") or ""
     domains = (pack or {}).get("domains") or []
@@ -200,6 +200,13 @@ def _pack_context_block(pack: dict) -> str:
         else "The user is studying for an IT certification exam."
     )
     desc_block = f"\nCertification overview:\n{description}" if description else ""
+
+    if not include_classification:
+        # explain_structured callers (import_extract) already know the
+        # domain from their own vision extraction — asking for it again
+        # here would just leak an unused INFERRED_TITLE/INFERRED_DOMAIN
+        # trailer into the visible "General comment" section.
+        return f"{cert_line}{desc_block}"
 
     if domains:
         domain_lines = "\n".join(
@@ -252,7 +259,7 @@ def _language_block(output_language: str) -> str:
 def _build_prompt(payload: dict) -> tuple[str, bool]:
     """Returns (prompt_text, wants_related_services)."""
     mode = payload.get("mode", "from_scratch")
-    pack_block = _pack_context_block(payload.get("pack"))
+    pack_block = _pack_context_block(payload.get("pack"), include_classification=mode != "explain_structured")
     language_block = _language_block(payload.get("outputLanguage", ""))
 
     if mode == "refine":
