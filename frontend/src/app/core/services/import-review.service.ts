@@ -56,6 +56,28 @@ export class ImportReviewService {
     return {};
   }
 
+  /** Directly overwrites one draft's title/domain/stem/alternatives with
+   * what the reviewer typed — no AI call, for a quick correction. */
+  async updateDraft(
+    jobId: string,
+    index: number,
+    edits: Pick<ImportDraftQuestion, 'title' | 'domain' | 'stem' | 'alternatives'>,
+  ): Promise<{ error?: string }> {
+    const token = await this.auth.getValidToken();
+    const res = await fetch(`${this.apiUrl}/data/imports/${jobId}/drafts/${index}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(edits),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}) as { error?: string });
+      return { error: body.error || 'Failed to save edits.' };
+    }
+    const body = (await res.json()) as { draft: ImportDraftQuestion };
+    this.draftsState.update((drafts) => drafts.map((d) => (d.index === index ? body.draft : d)));
+    return {};
+  }
+
   /** Starts Phase 2 (explanation generation) for the given approved draft
    * indices. The caller navigates away afterward — ImportExamService's
    * existing poller picks up GENERATING progress on its next tick, no

@@ -3,7 +3,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ImageAssetService } from '../../core/services/image-asset.service';
 
 type InlineSegment =
-  | { kind: 'text' | 'bold' | 'italic'; value: string }
+  | { kind: 'text' | 'bold' | 'italic' | 'code'; value: string }
   | { kind: 'img'; alt: string; ref: string };
 
 type Block =
@@ -24,6 +24,8 @@ type Block =
           <strong>{{ seg.value }}</strong>
         } @else if (seg.kind === 'italic') {
           <em>{{ seg.value }}</em>
+        } @else if (seg.kind === 'code') {
+          <code>{{ seg.value }}</code>
         } @else if (seg.kind === 'img') {
           @if (imageAssets.resolve(seg.ref)(); as state) {
             @if (state === 'error') {
@@ -152,6 +154,13 @@ type Block =
       em {
         font-style: italic;
       }
+      code {
+        background: var(--bg-elevated);
+        padding: 1px 5px;
+        border-radius: var(--radius-sm);
+        font-family: monospace;
+        font-size: 0.9em;
+      }
     `,
   ],
 })
@@ -276,6 +285,15 @@ function parseInline(text: string): InlineSegment[] {
           i = refEnd + 1;
           continue;
         }
+      }
+    }
+    if (text[i] === '`') {
+      const end = text.indexOf('`', i + 1);
+      if (end !== -1) {
+        flushText();
+        segments.push({ kind: 'code', value: text.slice(i + 1, end) });
+        i = end + 1;
+        continue;
       }
     }
     if (text.startsWith('**', i)) {

@@ -546,21 +546,76 @@ def get_import(item_id):
     return _json(_job_from_item(item))
 
 
-@app.route("/data/imports/<item_id>", methods=["DELETE"])
-def delete_import(item_id):
-    """Removes a job's history entry and its draft rows — never touches the
-    questions it already produced (those live independently in
-    study-questions once explained) or the permanent images/ prefix.
-    uploads/ and scratch/ for the job expire on their own via the bucket's
-    lifecycle rule, and any remaining draft rows would too (TTL) — the
-    explicit batch-delete here is just defense in depth so a deleted job's
-    review screen isn't reachable via a stale bookmark in the meantime."""
+@app.route("/data/imports/<item_id>", methods=["PUT"])
+def update_import(item_id):
+    """Edits a job's soft metadata before Phase 1 has run — currently just
+    `expectedQuestions` (the user forgot to set it at upload time, or wants
+    to correct it). Restricted to AWAITING_UPLOAD/UPLOADED: once extraction
+    has started, totalQuestions already reflects the real chunk count and
+    this hint's only job (a mismatch warning on the review screen) has
+    already been served by whatever value was set before "Process"."""
     pk = _user_pk()
     if not pk:
         return _error("Unauthorized", 401)
+    item = table.get_item(Key={"pk": pk, "sk": f"IMPORTJOB#{item_id}"}).get("Item")
+    if not item:
+        return _error("Not found", 404)
+    data = json.loads(item["data"]) if isinstance(item.get("data"), str) else item.get("data", {})
+    if data.get("status") not in ("AWAITING_UPLOAD", "UPLOADED"):
+        return _error("Can only edit a job before it's processed", 409)
+
+    body = request.get_json(force=True) or {}
+    if "expectedQuestions" in body:
+        expected = body.get("expectedQuestions")
+        data["expectedQuestions"] = expected if isinstance(expected, int) and expected > 0 else None
+
+    table.put_item(Item={
+        "pk": pk,
+        "sk": f"IMPORTJOB#{item_id}",
+        "data": json.dumps(data),
+        "processedCount": item.get("processedCount", 0),
+        "failedCount": item.get("failedCount", 0),
+    })
+    return _json(_job_from_item({**item, "data": json.dumps(data)}))
+
+
+@app.route("/data/imports/<item_id>", methods=["DELETE"])
+def delete_import(item_id):
+    """Removes a job's history entry, its draft rows, and its S3 scratch
+    space — never touches the questions it already produced (those live
+    independently in study-questions once explained) or the permanent
+    images/ prefix those questions reference. uploads/ and scratch/ would
+    eventually expire on their own via the bucket's lifecycle rule (14
+    days — long enough for an unhurried review), and any remaining draft
+    rows would too (TTL), but a user explicitly deleting a job wants that
+    storage back immediately, not in two weeks — so this deletes both
+    prefixes synchronously rather than waiting on lifecycle expiry."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    sub = pk.removeprefix("USER#")
     table.delete_item(Key={"pk": pk, "sk": f"IMPORTJOB#{item_id}"})
     _delete_job_drafts(pk, item_id)
+    _delete_s3_prefix(f"uploads/{sub}/{item_id}/")
+    _delete_s3_prefix(f"scratch/{item_id}/")
     return _json({"ok": True})
+
+
+def _delete_s3_prefix(prefix):
+    """Deletes every object under an S3 prefix, paginating both the list
+    and the delete (delete_objects caps at 1000 keys per call)."""
+    continuation = None
+    while True:
+        kwargs = {"Bucket": ASSETS_BUCKET_NAME, "Prefix": prefix}
+        if continuation:
+            kwargs["ContinuationToken"] = continuation
+        resp = s3.list_objects_v2(**kwargs)
+        keys = [{"Key": obj["Key"]} for obj in resp.get("Contents", [])]
+        if keys:
+            s3.delete_objects(Bucket=ASSETS_BUCKET_NAME, Delete={"Objects": keys})
+        if not resp.get("IsTruncated"):
+            return
+        continuation = resp.get("NextContinuationToken")
 
 
 def _delete_job_drafts(pk, job_id):
@@ -600,6 +655,71 @@ def list_import_drafts(item_id):
     drafts = [json.loads(item["data"]) for item in resp.get("Items", [])]
     drafts.sort(key=lambda d: d.get("index", 0))
     return _json({"drafts": drafts})
+
+
+@app.route("/data/imports/<item_id>/drafts/<int:index>", methods=["PUT"])
+def update_draft(item_id, index):
+    """Directly overwrites one draft's content with what the reviewer typed
+    — no AI call, for a quick correction (fix a typo, adjust an
+    alternative's wording, flip which one is correct) that doesn't need a
+    full re-extraction. Same validation the extraction Lambda itself
+    applies (non-empty stem, >=2 alternatives, >=1 marked correct) — a
+    manual edit shouldn't be able to produce a draft the review screen
+    would otherwise never let through. A previously-FAILED draft that now
+    passes becomes SUCCEEDED and selectable, same as a successful
+    re-extract."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    sk = f"DRAFT#{item_id}#{index:04d}"
+    draft_item = import_drafts_table.get_item(Key={"pk": pk, "sk": sk}).get("Item")
+    if not draft_item:
+        return _error("Draft not found", 404)
+    draft = json.loads(draft_item["data"])
+
+    # sourceComment/sourceGeneralComment are raw material captured from the
+    # source exam during extraction (see import_extract/prompt.py) — a
+    # quick manual edit here only ever touches title/domain/stem/
+    # alternative text/correctness, so any existing sourceComment per
+    # letter is carried over rather than silently dropped just because the
+    # edit form that called this route didn't round-trip it.
+    old_comments_by_letter = {a.get("letter"): a.get("sourceComment") for a in (draft.get("alternatives") or [])}
+
+    body = request.get_json(force=True) or {}
+    stem = (body.get("stem") or "").strip()
+    alternatives = [
+        {
+            "letter": a.get("letter"),
+            "text": (a.get("text") or "").strip(),
+            "isCorrect": bool(a.get("isCorrect")),
+            "sourceComment": a.get("sourceComment", old_comments_by_letter.get(a.get("letter"))),
+        }
+        for a in (body.get("alternatives") or [])
+        if isinstance(a, dict) and a.get("letter") and (a.get("text") or "").strip()
+    ]
+    if not stem:
+        return _error("Stem cannot be empty", 400)
+    if len(alternatives) < 2:
+        return _error("Need at least 2 alternatives", 400)
+    if not any(a["isCorrect"] for a in alternatives):
+        return _error("Mark at least one alternative as correct", 400)
+
+    draft.update({
+        "extractStatus": "SUCCEEDED",
+        "title": (body.get("title") or "").strip() or draft.get("title") or "Imported question",
+        "domain": (body.get("domain") or "").strip() or draft.get("domain"),
+        "stem": stem,
+        "alternatives": alternatives,
+        "error": None,
+        "updatedAt": int(time.time() * 1000),
+    })
+    import_drafts_table.put_item(Item={
+        "pk": pk,
+        "sk": sk,
+        "ttl": draft_item.get("ttl"),
+        "data": json.dumps(draft),
+    })
+    return _json({"draft": draft})
 
 
 @app.route("/data/imports/<item_id>/drafts/<int:index>/re-extract", methods=["POST"])

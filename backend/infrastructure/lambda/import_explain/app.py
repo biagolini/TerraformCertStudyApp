@@ -63,7 +63,9 @@ def handler(event, context):
             raise ValueError("Draft did not extract successfully — cannot generate an explanation for it")
 
         pack = _load_pack(pk, pack_id)
-        explanation = _generate_explanation(draft["stem"], draft["alternatives"], pack)
+        explanation = _generate_explanation(
+            draft["stem"], draft["alternatives"], pack, source_general_comment=draft.get("sourceGeneralComment")
+        )
         comments_by_letter = explanation.get("comments") or {}
         alternatives = [
             {**alt, "comment": comments_by_letter.get(alt["letter"].upper(), "")}
@@ -149,7 +151,7 @@ def _pack_context(pack):
     }
 
 
-def _generate_explanation(stem, alternatives, pack, output_language=""):
+def _generate_explanation(stem, alternatives, pack, output_language="", source_general_comment=None):
     """Calls the AgentCore Runtime review agent (mode=explain_structured,
     non-streaming) for the explanation content — moved verbatim from
     lambda/import_extract/app.py, which used to make this same call itself
@@ -158,7 +160,15 @@ def _generate_explanation(stem, alternatives, pack, output_language=""):
     agent only writes. The agent returns schema-validated structured
     output for this mode, pre-rendered into the same {"topics",
     "generalComment", "comments", "relatedServices"} shape consumed
-    directly by this function's caller — no parsing."""
+    directly by this function's caller — no parsing.
+
+    `sourceComment`/`source_general_comment` are raw explanation text the
+    ORIGINAL exam material already provided (captured during Phase 1
+    extraction, see import_extract/prompt.py) — passed through as reference
+    material the agent can ground itself in, ground-truth-check, and rewrite
+    for depth, never relay uncritically (the agent's own skill/system
+    prompt is what tells it to treat this as unverified input, not this
+    Lambda)."""
     payload = {
         "mode": "explain_structured",
         "stream": False,
@@ -166,8 +176,15 @@ def _generate_explanation(stem, alternatives, pack, output_language=""):
         "outputLanguage": output_language,
         "stem": stem,
         "alternatives": [
-            {"letter": a["letter"], "text": a["text"], "isCorrect": a["isCorrect"]} for a in alternatives
+            {
+                "letter": a["letter"],
+                "text": a["text"],
+                "isCorrect": a["isCorrect"],
+                "sourceComment": a.get("sourceComment"),
+            }
+            for a in alternatives
         ],
+        "sourceGeneralComment": source_general_comment,
     }
     response = agentcore.invoke_agent_runtime(
         agentRuntimeArn=AGENT_RUNTIME_ARN,

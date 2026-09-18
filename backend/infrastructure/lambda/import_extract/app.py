@@ -121,6 +121,8 @@ def handler(event, context):
             "domain": extracted["domain"],
             "stem": extracted["stem"],
             "alternatives": extracted["alternatives"],
+            "sourceGeneralComment": extracted["sourceGeneralComment"],
+            "referenceImages": extracted["referenceImages"],
             "error": None,
             "preview": preview,
         })
@@ -133,6 +135,8 @@ def handler(event, context):
             "domain": None,
             "stem": None,
             "alternatives": [],
+            "sourceGeneralComment": None,
+            "referenceImages": [],
             "error": str(e),
             "preview": preview,
         })
@@ -304,22 +308,55 @@ def _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id, hi
         raise ValueError("Extracted question failed validation: no alternative marked correct")
 
     kind = chunk["kind"]
-    stem = _rewrite_images(stem, kind, image_keys, sub, job_id, question_id)
+    used_indices = set()
+    stem = _rewrite_images(stem, kind, image_keys, sub, job_id, question_id, used_indices)
     for alt in alternatives:
-        alt["text"] = _rewrite_images(alt.get("text", ""), kind, image_keys, sub, job_id, question_id)
+        alt["text"] = _rewrite_images(alt.get("text", ""), kind, image_keys, sub, job_id, question_id, used_indices)
+        source_comment = (alt.get("sourceComment") or "").strip() or None
+        if source_comment:
+            source_comment = _rewrite_images(source_comment, kind, image_keys, sub, job_id, question_id, used_indices)
+        alt["sourceComment"] = source_comment
 
-    # Explanation content (comment/generalComment/topics/relatedServices) is
-    # written by Phase 2 (lambda/import_explain), after human review — this
-    # call only ever produces structure. `alternatives` here deliberately
-    # has no `comment` key at all yet.
+    source_general_comment = (question_input.get("generalComment") or "").strip() or None
+    if source_general_comment:
+        source_general_comment = _rewrite_images(
+            source_general_comment, kind, image_keys, sub, job_id, question_id, used_indices
+        )
+
+    # Every image supplied to the model gets promoted, not just the ones it
+    # chose to reference inline — a genuinely decorative image (e.g. a
+    # repeated page header) still has nowhere sensible to go. Surfacing
+    # every leftover as `referenceImages` keeps it visible on the review
+    # screen even though it never flows into the final explanation.
+    reference_images = []
+    for i, key in enumerate(image_keys):
+        if i in used_indices:
+            continue
+        filename = os.path.basename(key)
+        _promote_image(key, sub, job_id, question_id, filename)
+        reference_images.append(f"{job_id}/{question_id}/{filename}")
+
+    # `sourceComment`/`sourceGeneralComment` are raw material the source exam
+    # already provided — NOT the final `comment`/`generalComment` a Question
+    # ships with (Phase 2/lambda/import_explain still generates those fresh
+    # via the review agent, which uses this as grounding rather than
+    # relaying it uncritically — the "source" prefix keeps the two from
+    # ever being confused for each other). See prompt.py's module docstring.
     return {
         "title": question_input.get("title") or "Imported question",
         "domain": _resolve_domain(question_input.get("domain"), domain_names),
         "stem": stem,
         "alternatives": [
-            {"letter": a["letter"], "text": a["text"], "isCorrect": bool(a.get("isCorrect"))}
+            {
+                "letter": a["letter"],
+                "text": a["text"],
+                "isCorrect": bool(a.get("isCorrect")),
+                "sourceComment": a["sourceComment"],
+            }
             for a in alternatives
         ],
+        "sourceGeneralComment": source_general_comment,
+        "referenceImages": reference_images,
     }
 
 
@@ -388,11 +425,13 @@ def _extract_tool_input(response):
     raise ValueError("Model did not call the emit_question tool")
 
 
-def _rewrite_images(text, chunk_kind, image_keys, sub, job_id, question_id):
-    """Resolves image references to permanent, presign-able S3 keys,
-    promoting only the images actually referenced in the surviving output —
-    not every candidate image sent to the model. Two passes, because the
-    model doesn't reliably follow just one convention:
+def _rewrite_images(text, chunk_kind, image_keys, sub, job_id, question_id, used_indices):
+    """Resolves image references to permanent, presign-able S3 keys, and
+    records which `image_keys` indices were actually used inline (via
+    `used_indices`, mutated in place) so the caller can separately promote
+    and surface any leftover images the model didn't reference — see
+    `_extract_question`'s `referenceImages`. Two passes, because the model
+    doesn't reliably follow just one convention:
     1. The intended path — `{{IMG:n}}` placeholders the model was told to use.
     2. A safety net for markdown/ZIP sources — despite being told not to,
        the model sometimes copies the source's own `![alt](ref)` syntax
@@ -407,6 +446,7 @@ def _rewrite_images(text, chunk_kind, image_keys, sub, job_id, question_id):
         n = int(m.group(1))
         if n < 0 or n >= len(image_keys):
             return ""
+        used_indices.add(n)
         filename = os.path.basename(image_keys[n])
         _promote_image(image_keys[n], sub, job_id, question_id, filename)
         return f"![diagram]({job_id}/{question_id}/{filename})"
@@ -420,6 +460,7 @@ def _rewrite_images(text, chunk_kind, image_keys, sub, job_id, question_id):
             scratch_key = next((k for k in image_keys if k.endswith(f"/{basename}")), None)
             if not scratch_key:
                 return ""  # points nowhere resolvable — drop rather than leave a broken reference
+            used_indices.add(image_keys.index(scratch_key))
             _promote_image(scratch_key, sub, job_id, question_id, basename)
             return f"![{alt}]({job_id}/{question_id}/{basename})"
 

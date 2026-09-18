@@ -1,21 +1,26 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ImportDraftQuestion } from '../../core/models/import-draft.model';
+import { ImportDraftAlternative, ImportDraftQuestion } from '../../core/models/import-draft.model';
 import { DomainBadgeComponent } from '../../shared/components/domain-badge.component';
 import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
+import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.component';
 
 /** One row in the review screen's list — a sibling to
  * question-list/question-item.component.ts, not a reuse of it: the data
- * shape here is smaller and has no starred/comment fields, and this row
- * needs FAILED-state rendering and a re-extract action that
- * question-item.component.ts has no reason to carry. Copies that
- * component's proven visual patterns (checkbox markup, icon-button with
- * stopPropagation, domain-badge, truncate pipe) rather than reinventing
- * them. */
+ * shape here is smaller (no starred/comment fields) and this row needs
+ * FAILED-state rendering and a re-extract action that
+ * question-item.component.ts has no reason to carry. Shows the FULL stem
+ * and FULL alternative text (via the same MarkdownRendererComponent
+ * review-viewer.component.ts uses, so `![alt](key)` images resolve
+ * identically) rather than a truncated preview — the entire point of this
+ * screen is verifying the extraction actually got it right, which isn't
+ * possible from a 200-character snippet and an alternative count. The
+ * correct-alternative highlight mirrors review-viewer's `.option-card`
+ * pattern, minus the comment block (drafts have none yet). */
 @Component({
   selector: 'app-import-draft-item',
   standalone: true,
-  imports: [DomainBadgeComponent, TruncatePipe, FormsModule],
+  imports: [DomainBadgeComponent, TruncatePipe, FormsModule, MarkdownRendererComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="row" [class.failed]="isFailed()">
@@ -31,45 +36,133 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
 
       <div class="content">
         <div class="title-row">
-          @if (isFailed()) {
+          @if (isFailed() && !editing()) {
             <span class="title failed-title">Extraction failed — question {{ draft().index + 1 }}</span>
-          } @else {
+          } @else if (!editing()) {
             <span class="title">{{ draft().title | truncate: 120 }}</span>
+          } @else {
+            <input type="text" class="title-input" [(ngModel)]="editTitle" placeholder="Title" />
           }
-          <button
-            type="button"
-            class="reextract-btn"
-            [class.active]="hintOpen()"
-            [disabled]="busy()"
-            (click)="$event.stopPropagation(); toggleHint()"
-            [attr.aria-label]="'Re-extract question ' + (draft().index + 1)"
-            [attr.aria-pressed]="hintOpen()"
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-              <path
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M3 12a9 9 0 1 1 3 6.7M3 12v5h5"
-              />
-            </svg>
-          </button>
+          @if (!editing()) {
+            <button
+              type="button"
+              class="reextract-btn"
+              (click)="$event.stopPropagation(); startEdit()"
+              [attr.aria-label]="'Edit question ' + (draft().index + 1)"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z" />
+                <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M13.5 6.5l4 4" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="reextract-btn"
+              [class.active]="hintOpen()"
+              [disabled]="busy()"
+              (click)="$event.stopPropagation(); toggleHint()"
+              [attr.aria-label]="'Re-extract question ' + (draft().index + 1)"
+              [attr.aria-pressed]="hintOpen()"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M3 12a9 9 0 1 1 3 6.7M3 12v5h5"
+                />
+              </svg>
+            </button>
+          }
         </div>
 
-        @if (isFailed()) {
+        @if (editing()) {
+          <div class="edit-form" (click)="$event.stopPropagation()">
+            <label class="edit-label">
+              <span>Domain</span>
+              <input type="text" class="edit-domain-input" [(ngModel)]="editDomain" placeholder="Domain" />
+            </label>
+            <label class="edit-label">
+              <span>Question stem</span>
+              <textarea class="edit-textarea" rows="5" [(ngModel)]="editStem"></textarea>
+            </label>
+            @for (alt of editAlternatives(); track alt.letter) {
+              <div class="edit-alt-row">
+                <label class="edit-correct-check">
+                  <input type="checkbox" [checked]="alt.isCorrect" (change)="toggleEditCorrect(alt.letter)" />
+                  <span>{{ alt.letter }}</span>
+                </label>
+                <textarea
+                  class="edit-textarea"
+                  rows="2"
+                  [ngModel]="alt.text"
+                  (ngModelChange)="setEditAltText(alt.letter, $event)"
+                ></textarea>
+              </div>
+            }
+            <div class="edit-actions">
+              <button type="button" class="hint-submit" [disabled]="busy()" (click)="saveEdit()">
+                {{ busy() ? 'Saving…' : 'Save' }}
+              </button>
+              <button type="button" class="btn-cancel" [disabled]="busy()" (click)="cancelEdit()">Cancel</button>
+            </div>
+          </div>
+        } @else if (isFailed()) {
           <p class="error-line">{{ draft().error }}</p>
           @if (draft().preview) {
             <p class="preview-line">{{ draft().preview }}</p>
           }
         } @else {
-          <p class="stem-preview">{{ draft().stem | truncate: 200 }}</p>
+          <div class="stem"><app-markdown-renderer [source]="draft().stem ?? ''" /></div>
+
+          <div class="alternatives">
+            @for (alt of draft().alternatives; track alt.letter) {
+              <div class="option-card" [class.correct]="alt.isCorrect">
+                <span class="option-letter">{{ alt.letter }}</span>
+                <div class="option-body">
+                  <div class="option-text"><app-markdown-renderer [source]="alt.text" /></div>
+                  @if (alt.sourceComment) {
+                    <div class="source-comment">
+                      <p class="source-label">Source explanation (unverified):</p>
+                      <app-markdown-renderer [source]="alt.sourceComment" />
+                    </div>
+                  }
+                </div>
+                @if (alt.isCorrect) {
+                  <span class="option-status" aria-label="Correct">
+                    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                      <path fill="none" stroke="var(--color-green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7" />
+                    </svg>
+                  </span>
+                }
+              </div>
+            }
+          </div>
+
+          @if (draft().sourceGeneralComment) {
+            <div class="source-comment">
+              <p class="source-label">Overall source explanation (unverified):</p>
+              <app-markdown-renderer [source]="draft().sourceGeneralComment!" />
+            </div>
+          }
+
+          @if ((draft().referenceImages ?? []).length > 0) {
+            <div class="reference-images">
+              <p class="reference-label">Other image(s) from this question (not placed in the text):</p>
+              <div class="reference-grid">
+                @for (key of draft().referenceImages; track key) {
+                  <app-markdown-renderer [source]="'![reference image](' + key + ')'" />
+                }
+              </div>
+            </div>
+          }
+
           <div class="domain-row">
             @if (draft().domain) {
               <app-domain-badge [domain]="draft().domain!" />
             }
-            <span class="alt-count">{{ draft().alternatives.length }} alternatives</span>
             @if (draft().reExtractCount > 0) {
               <span class="reextract-count">re-extracted {{ draft().reExtractCount }}×</span>
             }
@@ -103,7 +196,7 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
         grid-template-columns: auto 1fr;
         align-items: start;
         gap: var(--space-sm);
-        padding: var(--space-sm) var(--space-md);
+        padding: var(--space-md);
         background: var(--bg-surface);
         border-radius: var(--radius-md);
         border: 1px solid transparent;
@@ -116,7 +209,7 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
         min-width: 0;
         display: flex;
         flex-direction: column;
-        gap: var(--space-xs);
+        gap: var(--space-sm);
         padding: var(--space-xs) 0;
       }
       .check {
@@ -174,7 +267,7 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
         flex: 1;
         min-width: 0;
         font-size: var(--font-size-base);
-        font-weight: 500;
+        font-weight: 600;
         line-height: 1.35;
         word-break: break-word;
       }
@@ -198,10 +291,10 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
       .reextract-btn.active {
         color: var(--color-blue);
       }
-      .stem-preview {
-        font-size: var(--font-size-sm);
-        color: var(--text-secondary);
-        line-height: 1.4;
+      .stem {
+        font-size: var(--font-size-base);
+        color: var(--text-primary);
+        line-height: 1.5;
         word-break: break-word;
       }
       .error-line {
@@ -213,13 +306,90 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
         color: var(--text-faint);
         font-style: italic;
       }
+      .alternatives {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-sm);
+      }
+      .option-card {
+        display: flex;
+        gap: var(--space-sm);
+        align-items: flex-start;
+        padding: var(--space-sm) var(--space-md);
+        border-radius: var(--radius-md);
+        border: 1.5px solid var(--bg-border);
+        background: var(--bg-input);
+      }
+      .option-card.correct {
+        border-color: var(--color-green);
+        background: rgba(0, 184, 148, 0.08);
+      }
+      .option-letter {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: var(--font-size-sm);
+        background: var(--bg-elevated);
+        color: var(--text-secondary);
+        flex-shrink: 0;
+      }
+      .option-card.correct .option-letter {
+        background: var(--color-green);
+        color: #ffffff;
+      }
+      .option-body {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xs);
+      }
+      .option-text {
+        font-size: var(--font-size-sm);
+      }
+      .option-status {
+        flex-shrink: 0;
+        display: inline-flex;
+      }
+      .source-comment {
+        padding: var(--space-sm);
+        border-radius: var(--radius-md);
+        background: var(--bg-elevated);
+        border: 1px dashed var(--bg-border);
+        font-size: var(--font-size-sm);
+      }
+      .source-label {
+        margin: 0 0 4px;
+        font-size: var(--font-size-xs);
+        color: var(--text-faint);
+        font-style: italic;
+      }
+      .reference-images {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xs);
+      }
+      .reference-label {
+        font-size: var(--font-size-xs);
+        color: var(--text-faint);
+        font-style: italic;
+        margin: 0;
+      }
+      .reference-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-sm);
+      }
       .domain-row {
         display: flex;
         align-items: center;
         gap: var(--space-sm);
         flex-wrap: wrap;
       }
-      .alt-count,
       .reextract-count {
         font-size: var(--font-size-xs);
         color: var(--text-faint);
@@ -255,6 +425,93 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
         opacity: 0.6;
         cursor: not-allowed;
       }
+      .title-input {
+        flex: 1;
+        min-width: 0;
+        height: 32px;
+        padding: 0 var(--space-sm);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--bg-border);
+        background: var(--bg-input);
+        color: var(--text-primary);
+        font-size: var(--font-size-base);
+        font-weight: 600;
+      }
+      .edit-form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-sm);
+      }
+      .edit-label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: var(--font-size-xs);
+        color: var(--text-muted);
+      }
+      .edit-domain-input {
+        height: 32px;
+        max-width: 260px;
+        padding: 0 var(--space-sm);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--bg-border);
+        background: var(--bg-input);
+        color: var(--text-primary);
+        font-size: var(--font-size-sm);
+      }
+      .edit-textarea {
+        width: 100%;
+        padding: var(--space-sm);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--bg-border);
+        background: var(--bg-input);
+        color: var(--text-primary);
+        font-size: var(--font-size-sm);
+        font-family: var(--font-family);
+        resize: vertical;
+      }
+      .edit-alt-row {
+        display: flex;
+        gap: var(--space-sm);
+        align-items: flex-start;
+      }
+      .edit-correct-check {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        font-size: var(--font-size-xs);
+        color: var(--text-muted);
+        padding-top: var(--space-xs);
+      }
+      .edit-correct-check input {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+      }
+      .edit-alt-row .edit-textarea {
+        flex: 1;
+      }
+      .edit-actions {
+        display: flex;
+        gap: var(--space-sm);
+        margin-top: var(--space-xs);
+      }
+      .btn-cancel {
+        flex-shrink: 0;
+        height: 32px;
+        padding: 0 var(--space-md);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--bg-border);
+        background: transparent;
+        color: var(--text-secondary);
+        font-size: var(--font-size-sm);
+      }
+      .btn-cancel:hover {
+        border-color: var(--color-purple);
+        color: var(--text-primary);
+      }
     `,
   ],
 })
@@ -265,9 +522,16 @@ export class ImportDraftItemComponent {
 
   readonly selectionToggled = output<void>();
   readonly reExtractRequested = output<string | undefined>();
+  readonly editSaved = output<Pick<ImportDraftQuestion, 'title' | 'domain' | 'stem' | 'alternatives'>>();
 
   protected readonly hintOpen = signal(false);
   protected hintText = '';
+
+  protected readonly editing = signal(false);
+  protected editTitle = '';
+  protected editDomain = '';
+  protected editStem = '';
+  protected readonly editAlternatives = signal<ImportDraftAlternative[]>([]);
 
   readonly isFailed = computed(() => this.draft().extractStatus === 'FAILED');
 
@@ -284,5 +548,48 @@ export class ImportDraftItemComponent {
     this.reExtractRequested.emit(hint || undefined);
     this.hintOpen.set(false);
     this.hintText = '';
+  }
+
+  startEdit(): void {
+    const d = this.draft();
+    this.editTitle = d.title ?? '';
+    this.editDomain = d.domain ?? '';
+    this.editStem = d.stem ?? '';
+    this.editAlternatives.set(
+      d.alternatives.length > 0
+        ? d.alternatives.map((a) => ({ ...a }))
+        : [
+            { letter: 'A', text: '', isCorrect: false },
+            { letter: 'B', text: '', isCorrect: false },
+          ],
+    );
+    this.hintOpen.set(false);
+    this.editing.set(true);
+  }
+
+  cancelEdit(): void {
+    this.editing.set(false);
+  }
+
+  toggleEditCorrect(letter: string): void {
+    this.editAlternatives.update((alts) => alts.map((a) => (a.letter === letter ? { ...a, isCorrect: !a.isCorrect } : a)));
+  }
+
+  setEditAltText(letter: string, text: string): void {
+    this.editAlternatives.update((alts) => alts.map((a) => (a.letter === letter ? { ...a, text } : a)));
+  }
+
+  saveEdit(): void {
+    this.editSaved.emit({
+      title: this.editTitle.trim() || null,
+      domain: this.editDomain.trim() || null,
+      stem: this.editStem.trim() || null,
+      alternatives: this.editAlternatives(),
+    });
+    // Optimistic close — the parent's save is async and this component has
+    // no callback path to know when it resolves; a failure surfaces via the
+    // page's shared error banner (same pattern re-extract already uses),
+    // and the user can just click edit again to retry.
+    this.editing.set(false);
   }
 }

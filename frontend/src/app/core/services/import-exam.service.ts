@@ -116,6 +116,25 @@ export class ImportExamService {
     await this.refreshJobs();
   }
 
+  /** Edits the expected-question-count hint on a job that hasn't been
+   * processed yet — lets the user set it (or fix a typo) after upload,
+   * since it's easy to forget before picking the file. Rejected by the
+   * backend once the job has moved past UPLOADED. */
+  async updateExpectedQuestions(jobId: string, expectedQuestions: number | null): Promise<{ error?: string }> {
+    const token = await this.auth.getValidToken();
+    const res = await fetch(`${this.apiUrl}/data/imports/${jobId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ expectedQuestions }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}) as { error?: string });
+      return { error: body.error || 'Failed to update.' };
+    }
+    await this.refreshJobs();
+    return {};
+  }
+
   /** Removes job history entries only — never touches questions already
    * extracted from them (those live independently once saved) or their
    * images. Used by "Clear history" for terminal (done) jobs. */

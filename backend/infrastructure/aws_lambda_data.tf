@@ -144,6 +144,32 @@ resource "aws_iam_role_policy" "lambda_data_s3_assets" {
         Action   = "s3:PutObject"
         Resource = "${aws_s3_bucket.assets.arn}/images/*"
       },
+      {
+        # Immediate cleanup of a deleted job's temporary storage (see
+        # lambda/data/app.py's delete_import/_delete_s3_prefix) — without
+        # this, uploads/scratch only disappear after the bucket's 14-day
+        # lifecycle rule, not when the user actually deletes the job.
+        Effect   = "Allow"
+        Action   = "s3:DeleteObject"
+        Resource = [
+          "${aws_s3_bucket.assets.arn}/uploads/*",
+          "${aws_s3_bucket.assets.arn}/scratch/*",
+        ]
+      },
+      {
+        # list_objects_v2 needs bucket-level ListBucket, not object-level —
+        # scoped by a prefix condition so this role can only ever list
+        # under uploads/ or scratch/, never the whole bucket (e.g. images/
+        # or another user's keys, though pk already isolates that logically).
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = aws_s3_bucket.assets.arn
+        Condition = {
+          StringLike = {
+            "s3:prefix" = ["uploads/*", "scratch/*"]
+          }
+        }
+      },
     ]
   })
 }

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { BedrockService } from '../../core/services/bedrock.service';
 import { ModelsService } from '../../core/services/models.service';
@@ -17,12 +17,11 @@ import { parseQuestionReview } from '../../core/utils/question-parse.util';
 import { parseReadyMadePaste } from '../../core/utils/ready-made-parse.util';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
 import { ImageUploadHelperComponent } from '../../shared/components/image-upload-helper.component';
-import { ImportExamComponent } from '../import-exam/import-exam.component';
 
 @Component({
   selector: 'app-question-input',
   standalone: true,
-  imports: [FormsModule, AiDisclaimerComponent, ImportExamComponent, ImageUploadHelperComponent],
+  imports: [FormsModule, AiDisclaimerComponent, ImageUploadHelperComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="input-card">
@@ -31,10 +30,8 @@ import { ImportExamComponent } from '../import-exam/import-exam.component';
         <p class="subtitle">
           @if (activeView() === 'generate') {
             Paste the full exam question with all alternatives.
-          } @else if (activeView() === 'manual') {
-            Paste a ready-made review (e.g. from Claude App) and save it.
           } @else {
-            Upload a whole exam file and let AI extract every question in it.
+            Paste a ready-made review (e.g. from Claude App) and save it.
           }
         </p>
       </header>
@@ -58,15 +55,6 @@ import { ImportExamComponent } from '../import-exam/import-exam.component';
           role="tab"
           [attr.aria-selected]="activeView() === 'manual'"
         >Add ready-made</button>
-        <button
-          type="button"
-          class="mode-btn"
-          [class.active]="activeView() === 'import'"
-          (click)="onShowImport()"
-          [disabled]="streaming() || savingManual()"
-          role="tab"
-          [attr.aria-selected]="activeView() === 'import'"
-        >Import exam file</button>
       </div>
 
       @if (activeView() === 'generate') {
@@ -90,24 +78,22 @@ import { ImportExamComponent } from '../import-exam/import-exam.component';
         }
       }
 
-      @if (activeView() !== 'import') {
-        <div class="options-row">
-          <label class="model-row">
-            <span class="model-label">Model</span>
-            <select
-              class="model-select"
-              [ngModel]="selectedModel()"
-              (ngModelChange)="onSelectModel($event)"
-              [disabled]="streaming() || finalizing() || savingManual() || generatingTitle()"
-              aria-label="Model for this generation"
-            >
-              @for (model of availableModels(); track model.id) {
-                <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (reasoning)' : '' }} — {{ model.tier }}</option>
-              }
-            </select>
-          </label>
-        </div>
-      }
+      <div class="options-row">
+        <label class="model-row">
+          <span class="model-label">Model</span>
+          <select
+            class="model-select"
+            [ngModel]="selectedModel()"
+            (ngModelChange)="onSelectModel($event)"
+            [disabled]="streaming() || finalizing() || savingManual() || generatingTitle()"
+            aria-label="Model for this generation"
+          >
+            @for (model of availableModels(); track model.id) {
+              <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (reasoning)' : '' }} — {{ model.tier }}</option>
+            }
+          </select>
+        </label>
+      </div>
 
       @if (activeView() === 'generate') {
         @if (streaming()) {
@@ -125,7 +111,7 @@ import { ImportExamComponent } from '../import-exam/import-exam.component';
             <span>{{ finalizing() ? 'Processing…' : 'Generate Review' }}</span>
           </button>
         }
-      } @else if (activeView() === 'manual') {
+      } @else {
         <label class="field">
           <span class="field-label">Domain</span>
           <select
@@ -192,8 +178,6 @@ import { ImportExamComponent } from '../import-exam/import-exam.component';
         >
           <span>{{ savingManual() ? 'Saving…' : 'Save review' }}</span>
         </button>
-      } @else {
-        <app-import-exam [packId]="packId()" />
       }
 
       @if (activeView() === 'generate' && outputLanguage()) {
@@ -204,11 +188,9 @@ import { ImportExamComponent } from '../import-exam/import-exam.component';
         <p class="error" role="alert">{{ error() }}</p>
       }
 
-      @if (activeView() !== 'import') {
-        <app-ai-disclaimer
-          message="Generated reviews are produced by AI and can contain mistakes or hallucinations. Always verify against the official certification material."
-        />
-      }
+      <app-ai-disclaimer
+        message="Generated reviews are produced by AI and can contain mistakes or hallucinations. Always verify against the official certification material."
+      />
     </section>
   `,
   styles: [
@@ -493,8 +475,6 @@ export class QuestionInputComponent {
   private readonly packs = inject(PacksService);
   private readonly enrichment = inject(QuestionEnrichmentService);
 
-  readonly packId = input.required<string>();
-
   protected readonly outputLanguage = this.settings.outputLanguage;
   protected readonly outputLanguageName = computed(() => outputLanguageLabel(this.outputLanguage()));
   protected readonly streaming = signal(false);
@@ -507,14 +487,7 @@ export class QuestionInputComponent {
 
   private readonly modeOverride = signal<ReviewMode | null>(null);
   readonly mode = computed(() => this.modeOverride() ?? this.settings.defaultReviewMode());
-
-  /** "Import exam file" is an occasional bulk action, not a sticky
-   * preference like generate/manual — it's local UI state, never persisted
-   * via settings.defaultReviewMode(). */
-  private readonly importViewActive = signal(false);
-  readonly activeView = computed<ReviewMode | 'import'>(() =>
-    this.importViewActive() ? 'import' : this.mode(),
-  );
+  readonly activeView = this.mode;
 
   protected readonly generatingTitle = signal(false);
   protected readonly savingManual = signal(false);
@@ -544,12 +517,6 @@ export class QuestionInputComponent {
 
   onSetMode(mode: ReviewMode): void {
     this.modeOverride.set(mode);
-    this.importViewActive.set(false);
-    this.error.set(null);
-  }
-
-  onShowImport(): void {
-    this.importViewActive.set(true);
     this.error.set(null);
   }
 

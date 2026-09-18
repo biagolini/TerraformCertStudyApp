@@ -75,6 +75,12 @@ import { ImportStatusPillComponent } from './shared/components/import-status-pil
           </svg>
           <span>Questions</span>
         </a>
+        <a routerLink="/import" routerLinkActive="active" class="tab">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
+          </svg>
+          <span>Import</span>
+        </a>
         <a routerLink="/quiz" routerLinkActive="active" class="tab">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
             <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9 11l2.5 2.5L16 8M5 4h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/>

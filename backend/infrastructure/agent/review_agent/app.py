@@ -385,6 +385,36 @@ def _render_answer_bullets(item: "CorrectAnswerExplanation | IncorrectAnswerExpl
     return "\n".join(lines)
 
 
+def _source_material_block(alternatives: list, source_general_comment: str | None) -> str:
+    """Renders whatever explanation the ORIGINAL exam source already
+    provided (captured during Phase 1 extraction — see
+    lambda/import_extract/prompt.py) as a clearly-labeled, explicitly
+    untrusted reference block appended to the explain_structured prompt.
+    Empty string (no block at all) when the source had no explanation to
+    offer — most questions won't, and that's normal, not a gap to flag."""
+    per_alt = [
+        f"{a.get('letter')}: {a['sourceComment']}"
+        for a in alternatives
+        if a.get("sourceComment")
+    ]
+    if not per_alt and not source_general_comment:
+        return ""
+    lines = [
+        "\n\nSOURCE MATERIAL (reference only, NOT verified — the original "
+        "exam file already included this explanation text for this "
+        "question). Use it as a starting point and cross-check it, exactly "
+        "like any other unverified claim per the skill above — the source "
+        "can be incomplete, superficial, or simply wrong. Do not copy it "
+        "verbatim; your own explanation must still meet the skill's depth "
+        "and grounding bar on its own.",
+    ]
+    if per_alt:
+        lines.append("Per-option source explanation:\n" + "\n".join(per_alt))
+    if source_general_comment:
+        lines.append(f"Overall source explanation:\n{source_general_comment}")
+    return "\n\n".join(lines)
+
+
 def _build_prompt(payload: dict) -> tuple[str, bool]:
     """Returns (prompt_text, wants_related_services)."""
     mode = payload.get("mode", "from_scratch")
@@ -408,6 +438,7 @@ def _build_prompt(payload: dict) -> tuple[str, bool]:
             f"{a.get('letter')}. {'[CORRECT] ' if a.get('isCorrect') else ''}{a.get('text', '')}"
             for a in alternatives
         )
+        source_material = _source_material_block(alternatives, payload.get("sourceGeneralComment"))
         return (
             f"{pack_block}{language_block}\n\n"
             "The structure below was already extracted correctly by another "
@@ -418,8 +449,8 @@ def _build_prompt(payload: dict) -> tuple[str, bool]:
             "Your response is captured through a structured output tool, "
             "not free-form Markdown — populate its fields following the "
             "same depth and 'trap' reasoning the skill above "
-            "describes.\n\nQUESTION:\n{stem}\n\nALTERNATIVES:\n{alts}".format(
-                stem=stem, alts=alt_lines
+            "describes.\n\nQUESTION:\n{stem}\n\nALTERNATIVES:\n{alts}{source}".format(
+                stem=stem, alts=alt_lines, source=source_material
             )
         ), True
 

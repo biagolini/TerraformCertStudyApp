@@ -22,7 +22,7 @@ import { ReviewViewerComponent } from '../review-viewer/review-viewer.component'
       <section class="column column-left">
         <div class="stack">
           @if (showInputForm()) {
-            <app-question-input [packId]="packId()" (generated)="onGenerated($event)" />
+            <app-question-input (generated)="onGenerated($event)" />
           }
           @if (showListPanel()) {
             <app-question-list [activeId]="questionId()" (opened)="onOpenQuestion($event)" />
