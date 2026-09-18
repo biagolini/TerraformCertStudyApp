@@ -11,6 +11,7 @@ import { ChatSession } from '../models/chat.model';
 import { QuizAttempt } from '../models/quiz-attempt.model';
 import { AppSettings, DEFAULT_SETTINGS, isReviewMode } from '../models/settings.model';
 import { isStudyMethod } from '../models/method.model';
+import { NAV_ITEMS, NavTabId } from '../models/nav-item.model';
 import { environment } from '../../../environments/environment';
 
 function deserializeDomain(raw: unknown): PackDomain | null {
@@ -569,6 +570,9 @@ export class StorageService {
           typeof parsed.defaultUseAccommodation === 'boolean'
             ? parsed.defaultUseAccommodation
             : DEFAULT_SETTINGS.defaultUseAccommodation,
+        hiddenNavTabs: Array.isArray(parsed.hiddenNavTabs)
+          ? parsed.hiddenNavTabs.filter((id): id is NavTabId => NAV_ITEMS.some((item) => item.id === id))
+          : DEFAULT_SETTINGS.hiddenNavTabs,
       };
     } catch { return { ...DEFAULT_SETTINGS }; }
   }

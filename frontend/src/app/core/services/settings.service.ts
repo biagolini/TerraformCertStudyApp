@@ -1,5 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { StudyMethod } from '../models/method.model';
+import { NAV_ITEMS, NavTabId } from '../models/nav-item.model';
 import { AppSettings, DEFAULT_SETTINGS, ReviewMode, ThemeMode } from '../models/settings.model';
 import { StorageService } from './storage.service';
 
@@ -20,6 +21,7 @@ export class SettingsService {
   readonly showCorrectInReview = computed(() => this.state().showCorrectInReview);
   readonly defaultTrackTime = computed(() => this.state().defaultTrackTime);
   readonly defaultUseAccommodation = computed(() => this.state().defaultUseAccommodation);
+  readonly hiddenNavTabs = computed(() => this.state().hiddenNavTabs);
 
   constructor() {
     effect(() => {
@@ -77,6 +79,16 @@ export class SettingsService {
   setDefaultUseAccommodation(value: boolean): void {
     if (value === this.state().defaultUseAccommodation) return;
     this.update((s) => ({ ...s, defaultUseAccommodation: value }));
+  }
+
+  toggleNavTab(id: NavTabId): void {
+    const current = this.state().hiddenNavTabs;
+    const hidden = current.includes(id);
+    // Never allow hiding the last visible tab — an empty tabbar has no way
+    // back to Settings to undo it.
+    if (!hidden && current.length >= NAV_ITEMS.length - 1) return;
+    const next = hidden ? current.filter((t) => t !== id) : [...current, id];
+    this.update((s) => ({ ...s, hiddenNavTabs: next }));
   }
 
   private update(updater: (current: AppSettings) => AppSettings): void {

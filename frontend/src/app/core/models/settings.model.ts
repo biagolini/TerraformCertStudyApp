@@ -1,6 +1,7 @@
 export type ThemeMode = 'light' | 'dark';
 
 import { StudyMethod } from './method.model';
+import { NavTabId } from './nav-item.model';
 
 export type ReviewMode = 'generate' | 'manual';
 
@@ -15,6 +16,9 @@ export interface AppSettings {
   showCorrectInReview: boolean;
   defaultTrackTime: boolean;
   defaultUseAccommodation: boolean;
+  /** Bottom-nav tabs the user has chosen to hide — see NAV_ITEMS. Default
+   * empty (all visible); an id with no matching NAV_ITEMS entry is ignored. */
+  hiddenNavTabs: NavTabId[];
 }
 
 export const DEFAULT_MODEL = 'amazon.nova-lite-v1:0';
@@ -36,6 +40,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showCorrectInReview: true,
   defaultTrackTime: false,
   defaultUseAccommodation: false,
+  hiddenNavTabs: [],
 };
 
 export function isReviewMode(value: string): value is ReviewMode {

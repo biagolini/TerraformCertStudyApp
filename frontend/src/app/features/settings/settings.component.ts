@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { NAV_ITEMS, NavTabId } from '../../core/models/nav-item.model';
 import { OUTPUT_LANGUAGES } from '../../core/models/settings.model';
 import { ModelsService } from '../../core/services/models.service';
 import { QuestionsService } from '../../core/services/questions.service';
@@ -191,6 +192,30 @@ import { StorageService } from '../../core/services/storage.service';
             ><span class="thumb"></span></button>
             <span>Use accommodation by default</span>
           </label>
+        </section>
+
+        <section class="block">
+          <header class="section-header">
+            <h3>Bottom navigation</h3>
+            <p class="helper">
+              Choose which tabs appear in the bottom navigation bar. At least one must stay visible.
+            </p>
+          </header>
+          @for (item of navItems; track item.id) {
+            <label class="switch-row">
+              <button
+                type="button"
+                class="switch"
+                [class.on]="!hiddenNavTabs().includes(item.id)"
+                [disabled]="isLastVisibleNavTab(item.id)"
+                (click)="onToggleNavTab(item.id)"
+                role="switch"
+                [attr.aria-checked]="!hiddenNavTabs().includes(item.id)"
+                [attr.aria-label]="'Show ' + item.label + ' in bottom navigation'"
+              ><span class="thumb"></span></button>
+              <span>{{ item.label }}</span>
+            </label>
+          }
         </section>
 
         <section class="block danger">
@@ -440,6 +465,7 @@ export class SettingsComponent {
   protected readonly clearing = signal(false);
   protected readonly clearResult = signal<{ deleted: number; failed: number } | null>(null);
   protected readonly outputLanguages = OUTPUT_LANGUAGES;
+  protected readonly navItems = NAV_ITEMS;
 
   readonly closed = output<void>();
 
@@ -452,6 +478,7 @@ export class SettingsComponent {
   readonly showCorrectInReview = this.settings.showCorrectInReview;
   readonly defaultTrackTime = this.settings.defaultTrackTime;
   readonly defaultUseAccommodation = this.settings.defaultUseAccommodation;
+  readonly hiddenNavTabs = this.settings.hiddenNavTabs;
 
   readonly syncStatus = this.storage.syncStatus;
   readonly syncError = this.storage.lastError;
@@ -514,6 +541,15 @@ export class SettingsComponent {
 
   onToggleDefaultUseAccommodation(): void {
     this.settings.setDefaultUseAccommodation(!this.defaultUseAccommodation());
+  }
+
+  onToggleNavTab(id: NavTabId): void {
+    this.settings.toggleNavTab(id);
+  }
+
+  isLastVisibleNavTab(id: NavTabId): boolean {
+    const hidden = this.hiddenNavTabs();
+    return !hidden.includes(id) && hidden.length >= this.navItems.length - 1;
   }
 
   availableHas(id: string): boolean {

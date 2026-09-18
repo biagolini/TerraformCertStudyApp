@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NAV_ITEMS } from './core/models/nav-item.model';
 import { PacksService } from './core/services/packs.service';
 import { QuestionsService } from './core/services/questions.service';
 import { AuthService } from './core/services/auth.service';
+import { SettingsService } from './core/services/settings.service';
 import { ThemeService } from './core/services/theme.service';
 import { PacksDrawerComponent } from './features/packs/packs-drawer.component';
 import { SettingsComponent } from './features/settings/settings.component';
@@ -69,45 +71,22 @@ import { ImportStatusPillComponent } from './shared/components/import-status-pil
       </main>
 
       <nav class="tabbar" aria-label="Primary">
-        <a routerLink="/questions" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }" class="tab">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
-          </svg>
-          <span>Questions</span>
-        </a>
-        <a routerLink="/import" routerLinkActive="active" class="tab">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
-          </svg>
-          <span>Import</span>
-        </a>
-        <a routerLink="/quiz" routerLinkActive="active" class="tab">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9 11l2.5 2.5L16 8M5 4h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/>
-          </svg>
-          <span>Quiz</span>
-        </a>
-        <a routerLink="/transcripts" routerLinkActive="active" class="tab">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M7 4h7l5 5v11a1 1 0 01-1 1H7a1 1 0 01-1-1V5a1 1 0 011-1zM14 4v5h5M9 13h6M9 17h6"/>
-          </svg>
-          <span>Transcripts</span>
-        </a>
-        <a routerLink="/chat" routerLinkActive="active" class="tab">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 4h16v12H8l-4 4z"/>
-          </svg>
-          <span>Chat</span>
-        </a>
-        <a routerLink="/export" routerLinkActive="active" class="tab">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 4v12M7 11l5 5 5-5M4 20h16"/>
-          </svg>
-          <span>Export</span>
-          @if (selectedCount() > 0) {
-            <span class="badge">{{ selectedCount() }}</span>
-          }
-        </a>
+        @for (item of visibleNavItems(); track item.id) {
+          <a
+            [routerLink]="item.path"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{ exact: false }"
+            class="tab"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" [attr.d]="item.icon"/>
+            </svg>
+            <span>{{ item.label }}</span>
+            @if (item.id === 'export' && selectedCount() > 0) {
+              <span class="badge">{{ selectedCount() }}</span>
+            }
+          </a>
+        }
       </nav>
 
       @if (packsOpen()) {
@@ -130,10 +109,16 @@ export class AppComponent {
   private readonly packs = inject(PacksService);
   private readonly questionsService = inject(QuestionsService);
   private readonly auth = inject(AuthService);
+  private readonly settingsService = inject(SettingsService);
   protected readonly themeService = inject(ThemeService);
 
   protected readonly settingsOpen = signal(false);
   protected readonly packsOpen = signal(false);
+
+  readonly visibleNavItems = computed(() => {
+    const hidden = this.settingsService.hiddenNavTabs();
+    return NAV_ITEMS.filter((item) => !hidden.includes(item.id));
+  });
 
   readonly activePackName = computed(() => this.packs.activePack().name);
   readonly activePackVersion = computed(() => this.packs.activePack().version);

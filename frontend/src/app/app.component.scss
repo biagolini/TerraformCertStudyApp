@@ -157,8 +157,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  display: flex;
   background: var(--bg-surface);
   border-top: 1px solid var(--bg-border);
   padding-bottom: env(safe-area-inset-bottom);
@@ -167,6 +166,8 @@
 
 .tab {
   position: relative;
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -177,7 +178,15 @@
   font-size: var(--font-size-xs);
   font-weight: 500;
   text-decoration: none;
+  text-align: center;
   transition: color var(--transition-fast);
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
 }
 
 .tab.active {
@@ -257,7 +266,6 @@
   }
 
   .tabbar {
-    grid-template-columns: repeat(5, max-content);
     justify-content: center;
     border-top: 1px solid var(--bg-border);
     background: var(--bg-base);
@@ -266,6 +274,7 @@
   }
 
   .tab {
+    flex: 0 0 auto;
     flex-direction: row;
     padding: 0 var(--space-lg);
     min-height: 44px;
