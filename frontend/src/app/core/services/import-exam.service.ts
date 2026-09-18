@@ -28,6 +28,15 @@ export class ImportExamService {
   private readonly jobsState = signal<ImportJob[]>([]);
   readonly jobs = this.jobsState.asReadonly();
 
+  /** True until the very first `refreshJobs()` completes, then false
+   * forever — never flips back true on later polls. Without this, opening
+   * /import fresh (this service is root-provided and its jobsState starts
+   * empty) rendered every job section as if there were simply nothing
+   * there, with no indication a fetch was even in flight, until that first
+   * fetch resolved. */
+  private readonly loadingState = signal(true);
+  readonly loading = this.loadingState.asReadonly();
+
   private readonly uploadProgressState = signal<UploadProgress | null>(null);
   readonly uploadProgress = this.uploadProgressState.asReadonly();
 
@@ -51,6 +60,7 @@ export class ImportExamService {
     const jobs = await this.fetchJobs();
     this.jobsState.set(jobs);
     this.syncPolling(jobs);
+    this.loadingState.set(false);
   }
 
   /** Creates the job, uploads the file with live progress, then confirms

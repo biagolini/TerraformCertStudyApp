@@ -49,8 +49,20 @@ export const routes: Routes = [
       },
       {
         path: 'import',
-        loadComponent: () =>
-          import('./features/import-exam/import-exam-page.component').then((m) => m.ImportExamPageComponent),
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            redirectTo: () => resolveActivePackIdForRedirect(inject(PacksService)).then((id) => `/import/${id}`),
+          },
+          {
+            path: ':packId',
+            resolve: { packId: packIdResolver },
+            data: { packRedirectPrefix: '/import' },
+            loadComponent: () =>
+              import('./features/import-exam/import-exam-page.component').then((m) => m.ImportExamPageComponent),
+          },
+        ],
       },
       {
         path: 'quiz',

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal, viewChild } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { ImportDraftQuestion } from '../../core/models/import-draft.model';
 import { ImportReviewService } from '../../core/services/import-review.service';
@@ -31,18 +31,15 @@ import { I18nService } from '../../core/i18n/i18n.service';
 @Component({
   selector: 'app-import-review-page',
   standalone: true,
-  imports: [ImportDraftItemComponent, AiDisclaimerComponent],
+  imports: [ImportDraftItemComponent, AiDisclaimerComponent, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (loading()) {
       <p class="status-line">{{ i18n.t('common.loading') }}</p>
-    } @else if (pendingDrafts().length === 0) {
+    } @else if (allDrafts().length === 0) {
       <section class="runner empty-runner">
         <div class="empty">
           <p class="empty-title">{{ i18n.t('importReview.nothingLeftToReview') }}</p>
-          @if (promotedCount() > 0) {
-            <p class="empty-body">{{ i18n.t('importReview.alreadyHaveExplanations', { count: promotedCount() }) }}</p>
-          }
           <button type="button" class="btn-ghost-sm" (click)="onBack()">{{ i18n.t('importReview.backToQuestions') }}</button>
         </div>
       </section>
@@ -55,7 +52,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             </svg>
           </button>
           <div class="progress-track"><div class="progress-fill" [style.width.%]="progressPct()"></div></div>
-          <span class="progress-text">{{ i18n.t('importReview.questionOf', { current: cursor() + 1, total: pendingDrafts().length }) }}</span>
+          <span class="progress-text">{{ i18n.t('importReview.questionOf', { current: cursor() + 1, total: allDrafts().length }) }}</span>
         </header>
 
         @if (mismatchWarning(); as warning) {
@@ -64,15 +61,24 @@ import { I18nService } from '../../core/i18n/i18n.service';
 
         <div class="runner-body">
           <div class="question-main">
-            <app-import-draft-item
-              #draftItem
-              [draft]="draft"
-              [jobId]="jobId()"
-              [busy]="isBusy(draft.index)"
-              (deleteRequested)="onDeleteDraft(draft)"
-              (reExtractRequested)="onReExtract(draft.index, $event)"
-              (editSaved)="onEditSaved(draft.index, $event)"
-            />
+            @if (draft.promoted) {
+              <div class="promoted-card">
+                <p class="promoted-title">{{ draft.title || i18n.t('importReview.questionNumber', { number: draft.index + 1 }) }}</p>
+                <p class="status-line">{{ i18n.t('importReview.promotedHint') }}</p>
+                <a class="btn-ghost-sm" [routerLink]="['/questions', packId(), jobId() + '-' + padIndex(draft.index)]">{{ i18n.t('importReview.viewQuestion') }}</a>
+              </div>
+            } @else {
+              <app-import-draft-item
+                #draftItem
+                [draft]="draft"
+                [jobId]="jobId()"
+                [busy]="isBusy(draft.index)"
+                [explainError]="explainErrorsByIndex().get(draft.index) ?? null"
+                (deleteRequested)="onDeleteDraft(draft)"
+                (reExtractRequested)="onReExtract(draft.index, $event)"
+                (editSaved)="onEditSaved(draft.index, $event)"
+              />
+            }
 
             <div class="nav-buttons">
               <button type="button" class="btn-ghost-sm" [disabled]="cursor() === 0" (click)="prev()">{{ i18n.t('importReview.previous') }}</button>
@@ -87,35 +93,38 @@ import { I18nService } from '../../core/i18n/i18n.service';
               <p class="error-line" role="alert">{{ error() }}</p>
             }
 
-            <div class="actions">
-              <button
-                type="button"
-                class="generate-btn secondary"
-                [disabled]="approvableCount() === 0 || submitting()"
-                (click)="onSaveAsIs()"
-              >{{ submitting() ? i18n.t('importReview.saving') : i18n.t('importReview.saveAsIs', { count: approvableCount() }) }}</button>
-              <button
-                type="button"
-                class="generate-btn"
-                [disabled]="approvableCount() === 0 || submitting()"
-                (click)="onRefineWithAI()"
-              >{{ submitting() ? i18n.t('importReview.starting') : i18n.t('importReview.refineWithAiCount', { count: approvableCount() }) }}</button>
-            </div>
-            <p class="status-line">{{ i18n.t('importReview.saveAsIsExplain') }}</p>
+            @if (approvableCount() > 0) {
+              <div class="actions">
+                <button
+                  type="button"
+                  class="generate-btn secondary"
+                  [disabled]="submitting()"
+                  (click)="onSaveAsIs()"
+                >{{ submitting() ? i18n.t('importReview.saving') : i18n.t('importReview.saveAsIs', { count: approvableCount() }) }}</button>
+                <button
+                  type="button"
+                  class="generate-btn"
+                  [disabled]="submitting()"
+                  (click)="onRefineWithAI()"
+                >{{ submitting() ? i18n.t('importReview.starting') : i18n.t('importReview.refineWithAiCount', { count: approvableCount() }) }}</button>
+              </div>
+              <p class="status-line">{{ i18n.t('importReview.saveAsIsExplain') }}</p>
+            }
           </div>
 
           <aside class="palette">
             <h4>{{ i18n.t('importReview.itemNavigator') }}</h4>
             <div class="palette-grid">
-              @for (d of pendingDrafts(); track d.index; let i = $index) {
+              @for (d of allDrafts(); track d.index; let i = $index) {
                 <button
                   type="button"
                   class="palette-dot"
                   [class.current]="i === cursor()"
+                  [class.promoted]="d.promoted"
                   (click)="goTo(i)"
                 >
                   {{ d.index + 1 }}
-                  @if (d.extractStatus === 'FAILED') { <span class="flag-dot" aria-hidden="true"></span> }
+                  @if (isDraftFailed(d)) { <span class="flag-dot" aria-hidden="true"></span> }
                 </button>
               }
             </div>
@@ -124,6 +133,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             </button>
             <div class="palette-legend">
               <div class="legend-row"><span class="legend-swatch current"></span> {{ i18n.t('importReview.currentItem') }}</div>
+              <div class="legend-row"><span class="legend-swatch promoted"></span> {{ i18n.t('importReview.doneItem') }}</div>
               <div class="legend-row"><span class="legend-swatch outline"><span class="flag-dot" aria-hidden="true"></span></span> {{ i18n.t('importReview.extractionFailed') }}</div>
             </div>
             <p class="palette-summary">{{ i18n.t('importReview.pendingReview', { count: pendingDrafts().length }) }}</p>
@@ -186,6 +196,13 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .empty-title { font-weight: 600; color: var(--text-primary); margin: 0; }
       .empty-body { color: var(--text-muted); font-size: var(--font-size-sm); margin: 0; }
 
+      .promoted-card {
+        display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-sm);
+        padding: var(--space-lg); border-radius: var(--radius-md); background: var(--bg-elevated);
+        border: 1px solid var(--color-green);
+      }
+      .promoted-title { font-weight: 600; color: var(--text-primary); margin: 0; }
+
       .actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
       .generate-btn {
         flex: 1; min-width: 200px; display: inline-flex; align-items: center; justify-content: center;
@@ -209,6 +226,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .palette-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
       .palette-dot { position: relative; width: 28px; height: 28px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: var(--font-size-xs); font-weight: 600; background: var(--bg-input); border: 1.5px solid var(--bg-border); color: var(--text-muted); cursor: pointer; font-family: var(--font-family); }
       .palette-dot.current { box-shadow: 0 0 0 2px var(--color-blue) inset; }
+      .palette-dot.promoted { background: var(--color-green); border-color: var(--color-green); color: #fff; }
       .palette-dot .flag-dot { position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--color-red); }
       .add-question-btn {
         margin-top: var(--space-sm);
@@ -227,6 +245,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .legend-swatch { position: relative; width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
       .legend-swatch.outline { background: var(--bg-input); border: 1.5px solid var(--bg-border); }
       .legend-swatch.current { background: transparent; border: 2px solid var(--color-blue); }
+      .legend-swatch.promoted { background: var(--color-green); }
       .legend-swatch .flag-dot { position: absolute; top: -4px; right: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--color-red); }
       .palette-summary { margin: var(--space-sm) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }
 
@@ -259,17 +278,50 @@ export class ImportReviewPageComponent implements OnInit {
 
   protected readonly job = computed(() => this.importExamService.jobs().find((j) => j.id === this.jobId()));
 
+  /** Every draft this job produced, in index order — the Item Navigator's
+   * source of truth. Previously it only ever showed unpromoted drafts, so
+   * finishing (or partially finishing) a job made items disappear from the
+   * navigator one by one, and clearing the last one left nothing to browse
+   * at all — this keeps the full picture (e.g. "85 questions") browsable
+   * for as long as the job's drafts exist (their own TTL), not just while
+   * something's still unresolved. */
+  protected readonly allDrafts = this.drafts;
   protected readonly pendingDrafts = computed(() => this.drafts().filter((d) => !d.promoted));
   protected readonly promotedCount = computed(() => this.drafts().filter((d) => d.promoted).length);
   protected readonly approvableCount = computed(
     () => this.pendingDrafts().filter((d) => d.extractStatus === 'SUCCEEDED').length,
   );
-  protected readonly currentDraft = computed(() => this.pendingDrafts()[this.cursor()] ?? null);
-  protected readonly isLast = computed(() => this.cursor() >= this.pendingDrafts().length - 1);
+  protected readonly currentDraft = computed(() => this.allDrafts()[this.cursor()] ?? null);
+  protected readonly isLast = computed(() => this.cursor() >= this.allDrafts().length - 1);
   protected readonly progressPct = computed(() => {
-    const total = this.pendingDrafts().length;
+    const total = this.allDrafts().length;
     return total === 0 ? 0 : ((this.cursor() + 1) / total) * 100;
   });
+
+  /** `{index: error}` for drafts that made it through Phase 1 fine but
+   * failed Phase 2 (explanation generation) — that failure is recorded only
+   * on the JOB record's `failures` list (see import_finalize/app.py), never
+   * on the draft itself, so without this cross-reference a Phase-2-failed
+   * draft looked completely indistinguishable from one that simply hadn't
+   * been submitted yet. */
+  protected readonly explainErrorsByIndex = computed(() => {
+    const map = new Map<number, string>();
+    for (const f of this.job()?.failures ?? []) {
+      if (f.index !== null && f.index !== undefined) map.set(f.index, f.error);
+    }
+    return map;
+  });
+
+  isDraftFailed(d: ImportDraftQuestion): boolean {
+    return d.extractStatus === 'FAILED' || this.explainErrorsByIndex().has(d.index);
+  }
+
+  /** Matches the deterministic `{jobId}-{index:03d}` id import_explain/
+   * save_drafts_as_is give the final Question — lets a promoted draft's
+   * "View question" link deep-link straight to it. */
+  padIndex(index: number): string {
+    return String(index).padStart(3, '0');
+  }
 
   protected readonly mismatchWarning = computed(() => {
     const j = this.job();
@@ -292,7 +344,7 @@ export class ImportReviewPageComponent implements OnInit {
   }
 
   next(): void {
-    this.tryNavigate(() => this.cursor.update((pos) => Math.min(pos + 1, this.pendingDrafts().length - 1)));
+    this.tryNavigate(() => this.cursor.update((pos) => Math.min(pos + 1, this.allDrafts().length - 1)));
   }
 
   prev(): void {
@@ -400,7 +452,7 @@ export class ImportReviewPageComponent implements OnInit {
         this.error.set(delResult.error);
         return;
       }
-      this.cursor.update((pos) => Math.min(pos, Math.max(0, this.pendingDrafts().length - 1)));
+      this.cursor.update((pos) => Math.min(pos, Math.max(0, this.allDrafts().length - 1)));
     });
   }
 
@@ -416,13 +468,19 @@ export class ImportReviewPageComponent implements OnInit {
         this.error.set(result.error);
         return;
       }
-      this.tryNavigate(() => this.cursor.set(Math.max(0, this.pendingDrafts().length - 1)));
+      this.tryNavigate(() => this.cursor.set(Math.max(0, this.allDrafts().length - 1)));
     } finally {
       this.addingQuestion.set(false);
     }
   }
 
   onBack(): void {
-    this.router.navigate(['/questions', this.packId()]);
+    // Import-scoped, not Questions — this is how the user gets back to
+    // watching this job's progress (see import-exam.component.ts's
+    // "Processing"/"Ready to review" sections), including right after
+    // starting Phase 2, which used to dump them onto /questions instead
+    // with no way to see whether the (still-running) explanation generation
+    // succeeded without navigating back here by hand.
+    this.router.navigate(['/import', this.packId()]);
   }
 }

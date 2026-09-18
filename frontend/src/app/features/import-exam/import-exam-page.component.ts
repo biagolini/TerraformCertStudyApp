@@ -1,15 +1,13 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { PacksService } from '../../core/services/packs.service';
+import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
 import { ImportExamComponent } from './import-exam.component';
 import { I18nService } from '../../core/i18n/i18n.service';
 
-/** Routed at /import — its own top-level nav item (alongside Questions,
- * Quiz, Transcripts, Chat, Export), not a tab buried inside "New Question"
- * anymore. `ImportExamComponent` itself is unchanged: it already has its
- * own target-pack `<select>` (a "simulado" upload can target any pack, not
- * necessarily the one currently active) and only needed an initial pack id
- * to default that selector to — the currently active pack, same default
- * the old routed-tab version used. */
+/** Routed at /import/:packId — same pack-scoped pattern as
+ * questions-page.component.ts (packId comes from the route via
+ * packIdResolver, not from PacksService.activePack() directly), so each
+ * pack keeps its own persistent import job history reachable by a
+ * bookmarkable/shareable URL instead of a single global /import page whose
+ * "current pack" lived only in an in-page dropdown. */
 @Component({
   selector: 'app-import-exam-page',
   standalone: true,
@@ -21,7 +19,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
         <h2>{{ i18n.t('importExam.pageTitle') }}</h2>
         <p class="subtitle">{{ i18n.t('importExam.pageSubtitle') }}</p>
       </header>
-      <app-import-exam [packId]="packs.activePack().id" />
+      <app-import-exam [packId]="packId()" />
     </section>
   `,
   styles: [
@@ -61,6 +59,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
   ],
 })
 export class ImportExamPageComponent {
-  protected readonly packs = inject(PacksService);
   protected readonly i18n = inject(I18nService);
+  readonly packId = input.required<string>();
 }

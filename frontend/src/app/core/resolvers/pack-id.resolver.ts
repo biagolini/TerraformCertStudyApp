@@ -38,6 +38,12 @@ export const packIdResolver: ResolveFn<string> = async (route) => {
   const router = inject(Router);
 
   const requestedId = route.paramMap.get('packId')!;
+  // Which section to fall back into on an unknown packId — defaults to
+  // '/questions' (the original, only caller); routes nested under a
+  // different section (e.g. '/import') set `data: { packRedirectPrefix }`
+  // so the fallback stays within that section instead of yanking the user
+  // into Questions.
+  const redirectPrefix = (route.data['packRedirectPrefix'] as string | undefined) ?? '/questions';
   const { timedOut } = await waitForPacksReady(packs);
   // If packs genuinely never loaded, PacksService.activePack() would return
   // its internal placeholder pack (id "__placeholder__") — redirecting
@@ -51,7 +57,7 @@ export const packIdResolver: ResolveFn<string> = async (route) => {
     settings.setActivePackId(requestedId);
     return requestedId;
   }
-  return new RedirectCommand(router.createUrlTree(['/questions', packs.activePack().id]));
+  return new RedirectCommand(router.createUrlTree([redirectPrefix, packs.activePack().id]));
 };
 
 /** Same wait, for the bare `/questions` index redirect (see app.routes.ts)

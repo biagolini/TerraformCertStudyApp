@@ -57,7 +57,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
   imports: [DomainBadgeComponent, TruncatePipe, FormsModule, MarkdownRendererComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="row" [class.failed]="isFailed()">
+    <div class="row" [class.failed]="isFailed() || !!explainError()">
       <div class="content">
         <div class="title-row">
           @if (isFailed() && !draft().title && !editing()) {
@@ -224,6 +224,8 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
         } @else {
           @if (isFailed()) {
             <p class="error-line">{{ draft().error }}</p>
+          } @else if (explainError()) {
+            <p class="error-line">{{ i18n.t('importDraft.explanationFailed', { error: explainError() }) }}</p>
           }
           @if (draft().stem) {
             <div class="stem">
@@ -702,6 +704,12 @@ export class ImportDraftItemComponent {
   readonly draft = input.required<ImportDraftQuestion>();
   readonly jobId = input.required<string>();
   readonly busy = input<boolean>(false);
+  /** Set by the parent when this draft's index appears in the job's
+   * `failures` list from a Phase 2 (explanation generation) run — Phase 1
+   * already succeeded for it (extractStatus stays SUCCEEDED, `draft().error`
+   * stays null), so without this there was no visible difference at all
+   * between "never submitted to Phase 2 yet" and "submitted and failed." */
+  readonly explainError = input<string | null>(null);
 
   readonly deleteRequested = output<void>();
   readonly reExtractRequested = output<string | undefined>();

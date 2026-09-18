@@ -349,7 +349,10 @@ export const EN: Record<string, string> = {
   // Import review page
   'importReview.nothingLeftToReview': 'Nothing left to review.',
   'importReview.alreadyHaveExplanations': '{{count}} question(s) from this job already have explanations.',
-  'importReview.backToQuestions': 'Back to questions',
+  'importReview.backToQuestions': 'Back to import',
+  'importReview.promotedHint': 'This question was already generated and added to the pack.',
+  'importReview.viewQuestion': 'View question',
+  'importReview.doneItem': 'Done',
   'importReview.questionOf': 'Question {{current}} of {{total}}',
   'importReview.previous': 'Previous',
   'importReview.next': 'Next',
@@ -394,11 +397,13 @@ export const EN: Record<string, string> = {
   'importDraft.hintPlaceholder': "What's wrong? (optional) e.g. 'the correct answer is C, not B'",
   'importDraft.reExtracting': 'Re-extracting…',
   'importDraft.reExtract': 'Re-extract',
+  'importDraft.explanationFailed': 'Explanation generation failed: {{error}}',
 
   // Import exam
   'importExam.pageTitle': 'Import Exam',
   'importExam.pageSubtitle': 'Upload a whole exam file and let AI extract every question in it.',
   'importExam.subtitle': 'Upload one or more exam files (PDF, Markdown, or a ZIP with a Markdown file + an img/ folder). Nothing is extracted until you pick which uploaded files to process.',
+  'importExam.newPackForImport': '+ New pack',
   'importExam.targetPack': 'Target pack',
   'importExam.newPackName': 'New pack name',
   'importExam.create': 'Create',

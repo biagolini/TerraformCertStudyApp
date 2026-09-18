@@ -1,56 +1,36 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { ImportExamService } from '../../core/services/import-exam.service';
-import { PacksService } from '../../core/services/packs.service';
-import { DEFAULT_PACK_COLOR, Pack, packDisplayLabel } from '../../core/models/pack.model';
+import { Pack } from '../../core/models/pack.model';
 import { ImportJob, isImportJobTerminal } from '../../core/models/import-job.model';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
 import { ConfirmDeleteDialogComponent } from '../../shared/components/confirm-delete-dialog.component';
+import { PackEditorComponent } from '../packs/pack-editor.component';
 import { I18nService } from '../../core/i18n/i18n.service';
 
 const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
-const CREATE_NEW_PACK = '__create_new_pack__';
 
 @Component({
   selector: 'app-import-exam',
   standalone: true,
-  imports: [FormsModule, AiDisclaimerComponent],
+  imports: [FormsModule, AiDisclaimerComponent, PackEditorComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="import-card">
       <p class="subtitle">{{ i18n.t('importExam.subtitle') }}</p>
 
-      <label class="field">
-        <span class="field-label">{{ i18n.t('importExam.targetPack') }}</span>
-        @if (creatingPack()) {
-          <div class="pack-create-row">
-            <input
-              type="text"
-              class="select-input"
-              [(ngModel)]="newPackName"
-              [placeholder]="i18n.t('importExam.newPackName')"
-              [attr.aria-label]="i18n.t('importExam.newPackName')"
-              (keydown.enter)="onCreatePack()"
-            />
-            <button type="button" class="btn-ghost-sm" [disabled]="!newPackName.trim()" (click)="onCreatePack()">{{ i18n.t('importExam.create') }}</button>
-            <button type="button" class="btn-ghost-sm" (click)="creatingPack.set(false)">{{ i18n.t('common.cancel') }}</button>
-          </div>
-        } @else {
-          <select
-            class="select-input"
-            [ngModel]="selectedPackId()"
-            (ngModelChange)="onSelectPack($event)"
-            [attr.aria-label]="i18n.t('importExam.targetPackForImported')"
-          >
-            @for (pack of packs(); track pack.id) {
-              <option [value]="pack.id">{{ packLabel(pack) }}</option>
-            }
-            <option [value]="CREATE_NEW_PACK">{{ i18n.t('importExam.createNewPack') }}</option>
-          </select>
-        }
-      </label>
+      @if (importService.loading()) {
+        <p class="status-line">{{ i18n.t('common.loading') }}</p>
+      }
+
+      <button type="button" class="new-pack-btn" (click)="packEditorOpen.set(true)">
+        {{ i18n.t('importExam.newPackForImport') }}
+      </button>
+      @if (packEditorOpen()) {
+        <app-pack-editor [pack]="null" (cancelled)="packEditorOpen.set(false)" (saved)="onPackCreated($event)" />
+      }
 
       <label class="field">
         <span class="field-label">{{ i18n.t('importExam.addExamFile') }}</span>
@@ -87,7 +67,7 @@ const CREATE_NEW_PACK = '__create_new_pack__';
           type="button"
           class="generate-btn"
           (click)="onUpload(fileInput)"
-          [disabled]="!selectedFile() || !selectedPackId()"
+          [disabled]="!selectedFile()"
         >{{ i18n.t('importExam.uploadFile') }}</button>
       }
 
@@ -234,10 +214,6 @@ const CREATE_NEW_PACK = '__create_new_pack__';
       }
       .file-input::file-selector-button:hover { border-color: var(--color-purple); }
 
-      .pack-create-row { display: flex; gap: var(--space-sm); }
-      .pack-create-row .select-input { flex: 1; min-width: 0; }
-      .pack-create-row .btn-ghost-sm { flex-shrink: 0; align-self: center; }
-
       .generate-btn {
         display: inline-flex; align-items: center; justify-content: center; width: 100%;
         min-height: 48px; padding: 0 var(--space-lg); border-radius: var(--radius-md);
@@ -248,6 +224,14 @@ const CREATE_NEW_PACK = '__create_new_pack__';
 
       .error-line { color: var(--color-red); font-size: var(--font-size-sm); }
       .warn-line { color: var(--color-amber); font-size: var(--font-size-sm); }
+      .status-line { color: var(--text-muted); font-size: var(--font-size-sm); }
+
+      .new-pack-btn {
+        align-self: flex-start; padding: 0 var(--space-md); min-height: 36px; border-radius: var(--radius-md);
+        border: 1px dashed var(--bg-border); background: transparent; color: var(--text-secondary);
+        font-size: var(--font-size-sm); font-weight: 500;
+      }
+      .new-pack-btn:hover { border-color: var(--color-purple); color: var(--color-purple); }
 
       .upload-progress { display: flex; flex-direction: column; gap: var(--space-xs); }
 
@@ -283,26 +267,19 @@ const CREATE_NEW_PACK = '__create_new_pack__';
   ],
 })
 export class ImportExamComponent {
-  private readonly importService = inject(ImportExamService);
-  private readonly packsService = inject(PacksService);
+  protected readonly importService = inject(ImportExamService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   protected readonly i18n = inject(I18nService);
 
+  /** Source of truth for "which pack" — the route, exactly like
+   * questions-page.component.ts. Switching to a different pack now means
+   * switching the active pack (header switcher) and clicking Import again,
+   * same as it works for Questions — no separate in-page target-pack
+   * selector to keep in sync with the URL any more. */
   readonly packId = input.required<string>();
 
-  protected readonly packs = this.packsService.packs;
-  // Defaults to (and resets to) the currently routed pack whenever it
-  // changes, while still letting the user manually pick a different target
-  // pack for a one-off cross-pack upload — a plain signal set once in the
-  // constructor used to go stale the moment the user switched packs
-  // elsewhere without this component being destroyed/recreated, silently
-  // scoping new uploads to the wrong pack.
-  protected readonly selectedPackId = linkedSignal(() => this.packId());
-
-  protected readonly CREATE_NEW_PACK = CREATE_NEW_PACK;
-  protected readonly creatingPack = signal(false);
-  protected newPackName = '';
+  protected readonly packEditorOpen = signal(false);
 
   protected readonly selectedFile = signal<File | null>(null);
   protected readonly expectedQuestions = signal<number | null>(null);
@@ -314,7 +291,7 @@ export class ImportExamComponent {
   readonly uploadProgress = this.importService.uploadProgress;
 
   private readonly jobsForPack = computed(() =>
-    this.importService.jobs().filter((j) => j.packId === this.selectedPackId()),
+    this.importService.jobs().filter((j) => j.packId === this.packId()),
   );
   protected readonly readyJobs = computed(() => this.jobsForPack().filter((j) => j.status === 'UPLOADED'));
   protected readonly activeJobs = computed(() =>
@@ -329,35 +306,15 @@ export class ImportExamComponent {
       .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)),
   );
 
-  packLabel(pack: Pack): string {
-    return packDisplayLabel(pack);
-  }
-
-  onSelectPack(value: string): void {
-    if (value === CREATE_NEW_PACK) {
-      this.newPackName = '';
-      this.creatingPack.set(true);
-      return;
-    }
-    this.selectedPackId.set(value);
-  }
-
-  /** Quick inline creation — "just create one on the spot, with 0
-   * documents in it" for a one-off import target, not the full pack
-   * editor (name/description/domains/color/etc.) reachable from the packs
-   * drawer. */
-  onCreatePack(): void {
-    const name = this.newPackName.trim();
-    if (!name) return;
-    const pack = this.packsService.create({
-      name,
-      description: '',
-      version: '',
-      domains: [],
-      color: DEFAULT_PACK_COLOR,
-    });
-    this.creatingPack.set(false);
-    this.selectedPackId.set(pack.id);
+  /** Reuses the exact same full pack editor the packs drawer's "New pack"
+   * opens (name/description/domains/color/timing/…), not a lightweight
+   * inline text field — the earlier version of this button only asked for
+   * a name, which meant a pack created for an import always needed a
+   * second trip to the drawer to fill in domains/timing before it was
+   * actually usable. */
+  onPackCreated(pack: Pack): void {
+    this.packEditorOpen.set(false);
+    void this.router.navigate(['/import', pack.id]);
   }
 
   onFileSelected(event: Event): void {
@@ -374,7 +331,7 @@ export class ImportExamComponent {
 
   async onUpload(fileInput: HTMLInputElement): Promise<void> {
     const file = this.selectedFile();
-    const packId = this.selectedPackId();
+    const packId = this.packId();
     if (!file || !packId) return;
     this.error.set(null);
     const result = await this.importService.uploadFile(packId, file, this.expectedQuestions() ?? undefined);
@@ -459,13 +416,17 @@ export class ImportExamComponent {
   }
 
   /** A job whose Phase 1 got far enough to produce draft rows (totalQuestions
-   * set) always has a review screen worth visiting, whether it's PARTIAL/
-   * FAILED from Phase 1 itself (some chunks failed to extract — fix them
-   * there) or from Phase 2 (some approved drafts failed to explain — resubmit
-   * them there). A FAILED job with no drafts at all (Phase 1 failed before
-   * producing any chunks) has nothing to review — plain Retry restarts it. */
+   * set) always has a review screen worth visiting — including a fully
+   * SUCCEEDED one: the review screen now doubles as a durable audit view of
+   * every question the job produced (see import-review-page.component.ts),
+   * not just a queue that's only reachable while something's still
+   * unresolved. Previously excluding SUCCEEDED here meant that fixing the
+   * very last flagged question made the review link vanish forever, with
+   * no way back in even to confirm everything actually landed. A FAILED job
+   * with no drafts at all (Phase 1 failed before producing any chunks) has
+   * nothing to review — plain Retry restarts it instead. */
   canReview(job: ImportJob): boolean {
-    return job.status !== 'SUCCEEDED' && job.totalQuestions != null;
+    return job.totalQuestions != null;
   }
 
   async onClearHistory(): Promise<void> {

@@ -347,7 +347,10 @@ export const IT: Record<string, string> = {
   // Import review page
   'importReview.nothingLeftToReview': 'Niente altro da revisionare.',
   'importReview.alreadyHaveExplanations': '{{count}} domanda/e di questo processo hanno già una spiegazione.',
-  'importReview.backToQuestions': 'Torna alle domande',
+  'importReview.backToQuestions': "Torna all'importazione",
+  'importReview.promotedHint': 'Questa domanda è già stata generata e aggiunta al pacchetto.',
+  'importReview.viewQuestion': 'Visualizza domanda',
+  'importReview.doneItem': 'Completata',
   'importReview.questionOf': 'Domanda {{current}} di {{total}}',
   'importReview.previous': 'Precedente',
   'importReview.next': 'Successiva',
@@ -392,11 +395,13 @@ export const IT: Record<string, string> = {
   'importDraft.hintPlaceholder': "Cosa non va? (facoltativo) es. 'la risposta corretta è C, non B'",
   'importDraft.reExtracting': 'Ri-estrazione…',
   'importDraft.reExtract': 'Ri-estrai',
+  'importDraft.explanationFailed': 'Generazione della spiegazione non riuscita: {{error}}',
 
   // Import exam
   'importExam.pageTitle': 'Importa esame',
   'importExam.pageSubtitle': "Carica un intero file d'esame e lascia che l'IA estragga tutte le domande contenute.",
   'importExam.subtitle': "Carica uno o più file d'esame (PDF, Markdown, oppure uno ZIP con un file Markdown + una cartella img/). Nulla viene estratto finché non scegli quali file caricati elaborare.",
+  'importExam.newPackForImport': '+ Nuovo pacchetto',
   'importExam.targetPack': 'Pacchetto di destinazione',
   'importExam.newPackName': 'Nome del nuovo pacchetto',
   'importExam.create': 'Crea',
