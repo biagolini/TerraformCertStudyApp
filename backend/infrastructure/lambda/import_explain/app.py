@@ -63,12 +63,24 @@ def handler(event, context):
             raise ValueError("Draft did not extract successfully — cannot generate an explanation for it")
 
         pack = _load_pack(pk, pack_id)
+        images = draft.get("images") or []
         explanation = _generate_explanation(
-            draft["stem"], draft["alternatives"], pack, source_general_comment=draft.get("sourceGeneralComment")
+            draft["stem"],
+            draft["alternatives"],
+            pack,
+            source_general_comment=draft.get("sourceGeneralComment"),
+            images=images,
         )
         comments_by_letter = explanation.get("comments") or {}
         alternatives = [
-            {**alt, "comment": comments_by_letter.get(alt["letter"].upper(), "")}
+            {
+                **alt,
+                "text": _append_images(alt.get("text", ""), _images_for(images, "alternativeText", alt.get("letter"))),
+                "comment": _append_images(
+                    comments_by_letter.get(alt["letter"].upper(), ""),
+                    _images_for(images, "alternativeComment", alt.get("letter")),
+                ),
+            }
             for alt in draft["alternatives"]
         ]
 
@@ -81,7 +93,7 @@ def handler(event, context):
             "packId": pack_id,
             "title": draft.get("title") or "Imported question",
             "domain": draft.get("domain") or "General",
-            "stem": draft["stem"],
+            "stem": _append_images(draft["stem"], _images_for(images, "stem")),
             "alternatives": alternatives,
             "metadata": {
                 "topics": topics if isinstance(topics, list) else [],
@@ -91,7 +103,7 @@ def handler(event, context):
             "createdAt": now,
             "updatedAt": now,
         }
-        general_comment = explanation.get("generalComment")
+        general_comment = _append_images(explanation.get("generalComment") or "", _images_for(images, "generalComment"))
         if general_comment:
             question["generalComment"] = general_comment
 
@@ -137,6 +149,34 @@ def _load_pack(pk, pack_id):
     return json.loads(item["data"]) if isinstance(item.get("data"), str) else item.get("data", {})
 
 
+def _images_for(images, target, alternative_letter=None):
+    """Keys of this draft's classified images matching one final-Question
+    field — see ImportDraftImage on the frontend for the classification
+    scheme. `Question` has no separate images concept of its own (see
+    question.model.ts): every image is always inline Markdown within
+    whichever text field it belongs to, so this is how a classified image
+    gets attached to that field's final text (`_append_images`, below)."""
+    return [
+        img["key"]
+        for img in images
+        if img.get("target") == target
+        and (alternative_letter is None or img.get("alternativeLetter") == alternative_letter)
+    ]
+
+
+def _append_images(text, image_keys):
+    """Deterministic, not agent-authored — the review agent never sees or
+    handles image Markdown itself (asking an LLM to place a placeholder
+    correctly inside prose it's simultaneously composing was the exact
+    reliability problem the `images` classification scheme replaced, see
+    import_extract/prompt.py). Appending each image at the end of its
+    target field, after the fact, is simpler and can't get the key wrong."""
+    if not image_keys:
+        return text
+    markdown = "\n\n".join(f"![diagram]({key})" for key in image_keys)
+    return f"{text}\n\n{markdown}" if text else markdown
+
+
 def _pack_context(pack):
     """The shape the review agent expects — see
     agent/review_agent/app.py's _pack_context_block."""
@@ -151,7 +191,7 @@ def _pack_context(pack):
     }
 
 
-def _generate_explanation(stem, alternatives, pack, output_language="", source_general_comment=None):
+def _generate_explanation(stem, alternatives, pack, output_language="", source_general_comment=None, images=None):
     """Calls the AgentCore Runtime review agent (mode=explain_structured,
     non-streaming) for the explanation content — moved verbatim from
     lambda/import_extract/app.py, which used to make this same call itself
@@ -168,7 +208,10 @@ def _generate_explanation(stem, alternatives, pack, output_language="", source_g
     material the agent can ground itself in, ground-truth-check, and rewrite
     for depth, never relay uncritically (the agent's own skill/system
     prompt is what tells it to treat this as unverified input, not this
-    Lambda)."""
+    Lambda). `images` are that same draft's classified images (see
+    ImportDraftImage on the frontend) — passed through so the agent can
+    reference a relevant diagram's key directly in the explanation it
+    writes (e.g. `![...](key)`) rather than only describing it in prose."""
     payload = {
         "mode": "explain_structured",
         "stream": False,
@@ -185,6 +228,7 @@ def _generate_explanation(stem, alternatives, pack, output_language="", source_g
             for a in alternatives
         ],
         "sourceGeneralComment": source_general_comment,
+        "images": images or [],
     }
     response = agentcore.invoke_agent_runtime(
         agentRuntimeArn=AGENT_RUNTIME_ARN,

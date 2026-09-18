@@ -20,6 +20,10 @@ ASSETS_BUCKET_NAME = os.environ.get("ASSETS_BUCKET_NAME", "cert-stud-assets")
 IMPORT_STATE_MACHINE_ARN = os.environ.get("IMPORT_STATE_MACHINE_ARN", "")
 IMPORT_EXPLAIN_STATE_MACHINE_ARN = os.environ.get("IMPORT_EXPLAIN_STATE_MACHINE_ARN", "")
 IMPORT_EXTRACT_LAMBDA_ARN = os.environ.get("IMPORT_EXTRACT_LAMBDA_ARN", "")
+# Mirrors lambda/import_extract/app.py's own VALID_IMAGE_TARGETS — a manual
+# draft edit must accept only the same classifications extraction itself
+# can produce, see ImportDraftImage on the frontend.
+VALID_IMAGE_TARGETS = {"stem", "alternativeText", "alternativeComment", "generalComment", "unplaced"}
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(TABLE_NAME)  # settings, packs, scripts, chats, import jobs
 questions_table = dynamodb.Table(QUESTIONS_TABLE_NAME)
@@ -661,13 +665,16 @@ def list_import_drafts(item_id):
 def update_draft(item_id, index):
     """Directly overwrites one draft's content with what the reviewer typed
     — no AI call, for a quick correction (fix a typo, adjust an
-    alternative's wording, flip which one is correct) that doesn't need a
-    full re-extraction. Same validation the extraction Lambda itself
-    applies (non-empty stem, >=2 alternatives, >=1 marked correct) — a
-    manual edit shouldn't be able to produce a draft the review screen
-    would otherwise never let through. A previously-FAILED draft that now
-    passes becomes SUCCEEDED and selectable, same as a successful
-    re-extract."""
+    alternative's wording, flip which one is correct, add/remove an
+    alternative, reassign or drop an image) that doesn't need a full
+    re-extraction. The edit form round-trips the FULL draft (including
+    sourceComment/sourceGeneralComment/images), so this route trusts the
+    submitted body as the complete new state rather than merging against
+    the old one. Same validation the extraction Lambda itself applies
+    (non-empty stem, >=2 alternatives, >=1 marked correct) — a manual edit
+    shouldn't be able to produce a draft the review screen would otherwise
+    never let through. A previously-FAILED draft that now passes becomes
+    SUCCEEDED and selectable, same as a successful re-extract."""
     pk = _user_pk()
     if not pk:
         return _error("Unauthorized", 401)
@@ -677,14 +684,6 @@ def update_draft(item_id, index):
         return _error("Draft not found", 404)
     draft = json.loads(draft_item["data"])
 
-    # sourceComment/sourceGeneralComment are raw material captured from the
-    # source exam during extraction (see import_extract/prompt.py) — a
-    # quick manual edit here only ever touches title/domain/stem/
-    # alternative text/correctness, so any existing sourceComment per
-    # letter is carried over rather than silently dropped just because the
-    # edit form that called this route didn't round-trip it.
-    old_comments_by_letter = {a.get("letter"): a.get("sourceComment") for a in (draft.get("alternatives") or [])}
-
     body = request.get_json(force=True) or {}
     stem = (body.get("stem") or "").strip()
     alternatives = [
@@ -692,7 +691,7 @@ def update_draft(item_id, index):
             "letter": a.get("letter"),
             "text": (a.get("text") or "").strip(),
             "isCorrect": bool(a.get("isCorrect")),
-            "sourceComment": a.get("sourceComment", old_comments_by_letter.get(a.get("letter"))),
+            "sourceComment": (a.get("sourceComment") or "").strip() or None,
         }
         for a in (body.get("alternatives") or [])
         if isinstance(a, dict) and a.get("letter") and (a.get("text") or "").strip()
@@ -704,12 +703,27 @@ def update_draft(item_id, index):
     if not any(a["isCorrect"] for a in alternatives):
         return _error("Mark at least one alternative as correct", 400)
 
+    valid_letters = {a["letter"] for a in alternatives}
+    images = []
+    for img in (body.get("images") or []):
+        if not isinstance(img, dict) or not img.get("key"):
+            continue
+        target = img.get("target")
+        if target not in VALID_IMAGE_TARGETS:
+            target = "unplaced"
+        alt_letter = img.get("alternativeLetter")
+        if target not in ("alternativeText", "alternativeComment") or alt_letter not in valid_letters:
+            alt_letter = None
+        images.append({"key": img["key"], "target": target, "alternativeLetter": alt_letter})
+
     draft.update({
         "extractStatus": "SUCCEEDED",
         "title": (body.get("title") or "").strip() or draft.get("title") or "Imported question",
         "domain": (body.get("domain") or "").strip() or draft.get("domain"),
         "stem": stem,
         "alternatives": alternatives,
+        "sourceGeneralComment": (body.get("sourceGeneralComment") or "").strip() or None,
+        "images": images,
         "error": None,
         "updatedAt": int(time.time() * 1000),
     })

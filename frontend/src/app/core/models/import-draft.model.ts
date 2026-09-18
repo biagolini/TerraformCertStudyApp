@@ -20,6 +20,32 @@ export interface ImportDraftAlternative {
   sourceComment?: string | null;
 }
 
+/** Where one extracted image belongs. Deliberately a classification, not an
+ * inline `{{IMG:n}}`-style placeholder embedded in the text itself — a
+ * separate structured field is both easier for a reviewer to reassign (a
+ * dropdown, not hunting for a token buried in a paragraph) and easier for
+ * the extraction model to fill correctly (a per-image classification is a
+ * much smaller ask than generating correct placeholder syntax inline while
+ * also writing the surrounding prose). 'unplaced' covers every image the
+ * model couldn't confidently attribute — surfaced for the reviewer to
+ * assign by hand rather than silently dropped. */
+export type ImportDraftImageTarget =
+  | 'stem'
+  | 'generalComment'
+  | 'alternativeText'
+  | 'alternativeComment'
+  | 'unplaced';
+
+export interface ImportDraftImage {
+  /** Relative key (`{jobId}/{questionId}/{filename}`), resolved via
+   * ImageAssetService the same way as any other question image. */
+  key: string;
+  target: ImportDraftImageTarget;
+  /** Set only when target is 'alternativeText' or 'alternativeComment' —
+   * which alternative's letter this image belongs to. */
+  alternativeLetter?: string | null;
+}
+
 export interface ImportDraftQuestion {
   jobId: string;
   index: number;
@@ -29,14 +55,7 @@ export interface ImportDraftQuestion {
   domain: string | null;
   stem: string | null;
   alternatives: ImportDraftAlternative[];
-  /** Images sent to the extraction model but not referenced inline in the
-   * stem or any alternative — e.g. merely-illustrative images the model
-   * was told to omit from the question text itself. Surfaced here purely
-   * for visibility during review; they are never carried into the final
-   * Question (Phase 2 only ever sees this draft's stem/alternatives, not
-   * the original images). Keys are `{jobId}/{questionId}/{filename}`,
-   * resolved the same way as any other question image. */
-  referenceImages?: string[];
+  images?: ImportDraftImage[];
   /** Raw overall explanation the source provided, not attributable to one
    * specific option (e.g. an "Overall explanation" block after all
    * options) — same "reference material for Phase 2" role as
@@ -49,4 +68,19 @@ export interface ImportDraftQuestion {
   lastHint: string | null;
   createdAt: number;
   updatedAt: number;
+}
+
+/** Drafts extracted before the `images` classification scheme shipped only
+ * have the old flat `referenceImages: string[]` (no target info at all —
+ * every one was effectively "unplaced"). Normalizing on read means an
+ * in-flight review job doesn't lose visibility into those images just
+ * because it hasn't been re-extracted since. */
+export function normalizeDraftImages(draft: ImportDraftQuestion): ImportDraftQuestion {
+  if (draft.images && draft.images.length > 0) return draft;
+  const legacy = (draft as unknown as { referenceImages?: string[] }).referenceImages;
+  if (!legacy || legacy.length === 0) return draft;
+  return {
+    ...draft,
+    images: legacy.map((key) => ({ key, target: 'unplaced' as const, alternativeLetter: null })),
+  };
 }

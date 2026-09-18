@@ -28,7 +28,6 @@ import os
 import random
 import re
 import time
-from urllib.parse import unquote
 
 import boto3
 from botocore.exceptions import ClientError
@@ -76,8 +75,8 @@ import_drafts_table = dynamodb.Table(IMPORT_DRAFTS_TABLE_NAME)
 s3 = boto3.client("s3")
 bedrock = boto3.client("bedrock-runtime")
 
-IMG_PLACEHOLDER_RE = re.compile(r"\{\{IMG:(\d+)\}\}")
 MARKDOWN_IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
+VALID_IMAGE_TARGETS = {"stem", "alternativeText", "alternativeComment", "generalComment", "unplaced"}
 
 
 def handler(event, context):
@@ -122,7 +121,7 @@ def handler(event, context):
             "stem": extracted["stem"],
             "alternatives": extracted["alternatives"],
             "sourceGeneralComment": extracted["sourceGeneralComment"],
-            "referenceImages": extracted["referenceImages"],
+            "images": extracted["images"],
             "error": None,
             "preview": preview,
         })
@@ -136,7 +135,7 @@ def handler(event, context):
             "stem": None,
             "alternatives": [],
             "sourceGeneralComment": None,
-            "referenceImages": [],
+            "images": [],
             "error": str(e),
             "preview": preview,
         })
@@ -308,33 +307,50 @@ def _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id, hi
         raise ValueError("Extracted question failed validation: no alternative marked correct")
 
     kind = chunk["kind"]
-    used_indices = set()
-    stem = _rewrite_images(stem, kind, image_keys, sub, job_id, question_id, used_indices)
+    valid_letters = {a["letter"] for a in alternatives}
+    # Text fields are plain prose per the prompt — but the model isn't
+    # strictly bound to that instruction (same looseness as `enum` fields),
+    # so strip any stray image Markdown it copies through verbatim from the
+    # source rather than leave a reference to a scratch-only key that was
+    # never promoted and will never resolve.
+    stem = MARKDOWN_IMAGE_RE.sub("", stem).strip()
     for alt in alternatives:
-        alt["text"] = _rewrite_images(alt.get("text", ""), kind, image_keys, sub, job_id, question_id, used_indices)
-        source_comment = (alt.get("sourceComment") or "").strip() or None
-        if source_comment:
-            source_comment = _rewrite_images(source_comment, kind, image_keys, sub, job_id, question_id, used_indices)
+        alt["text"] = MARKDOWN_IMAGE_RE.sub("", alt.get("text", "")).strip()
+        source_comment = MARKDOWN_IMAGE_RE.sub("", (alt.get("sourceComment") or "")).strip() or None
         alt["sourceComment"] = source_comment
 
-    source_general_comment = (question_input.get("generalComment") or "").strip() or None
-    if source_general_comment:
-        source_general_comment = _rewrite_images(
-            source_general_comment, kind, image_keys, sub, job_id, question_id, used_indices
-        )
+    source_general_comment = MARKDOWN_IMAGE_RE.sub("", (question_input.get("generalComment") or "")).strip() or None
 
-    # Every image supplied to the model gets promoted, not just the ones it
-    # chose to reference inline — a genuinely decorative image (e.g. a
-    # repeated page header) still has nowhere sensible to go. Surfacing
-    # every leftover as `referenceImages` keeps it visible on the review
-    # screen even though it never flows into the final explanation.
-    reference_images = []
+    # Every image supplied to the model gets classified and promoted — even
+    # a genuinely decorative one (e.g. a repeated page header) still has
+    # nowhere sensible to go, so it's classified "unplaced" rather than
+    # silently dropped, keeping it visible for the reviewer to reassign.
+    raw_classifications = question_input.get("images") or []
+    by_index = {
+        c["index"]: c
+        for c in raw_classifications
+        if isinstance(c, dict) and isinstance(c.get("index"), int)
+    }
+    images = []
     for i, key in enumerate(image_keys):
-        if i in used_indices:
-            continue
+        classification = by_index.get(i) or {}
+        target = classification.get("target")
+        if target not in VALID_IMAGE_TARGETS:
+            target = "unplaced"
+        alt_letter = classification.get("alternativeLetter")
+        if target in ("alternativeText", "alternativeComment") and alt_letter not in valid_letters:
+            # Can't anchor to a nonexistent alternative — surface it instead
+            # of silently dropping it.
+            target, alt_letter = "unplaced", None
+        elif target not in ("alternativeText", "alternativeComment"):
+            alt_letter = None
         filename = os.path.basename(key)
         _promote_image(key, sub, job_id, question_id, filename)
-        reference_images.append(f"{job_id}/{question_id}/{filename}")
+        images.append({
+            "key": f"{job_id}/{question_id}/{filename}",
+            "target": target,
+            "alternativeLetter": alt_letter,
+        })
 
     # `sourceComment`/`sourceGeneralComment` are raw material the source exam
     # already provided — NOT the final `comment`/`generalComment` a Question
@@ -356,7 +372,7 @@ def _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id, hi
             for a in alternatives
         ],
         "sourceGeneralComment": source_general_comment,
-        "referenceImages": reference_images,
+        "images": images,
     }
 
 
@@ -423,50 +439,6 @@ def _extract_tool_input(response):
         if "toolUse" in block:
             return block["toolUse"]["input"]
     raise ValueError("Model did not call the emit_question tool")
-
-
-def _rewrite_images(text, chunk_kind, image_keys, sub, job_id, question_id, used_indices):
-    """Resolves image references to permanent, presign-able S3 keys, and
-    records which `image_keys` indices were actually used inline (via
-    `used_indices`, mutated in place) so the caller can separately promote
-    and surface any leftover images the model didn't reference — see
-    `_extract_question`'s `referenceImages`. Two passes, because the model
-    doesn't reliably follow just one convention:
-    1. The intended path — `{{IMG:n}}` placeholders the model was told to use.
-    2. A safety net for markdown/ZIP sources — despite being told not to,
-       the model sometimes copies the source's own `![alt](ref)` syntax
-       through verbatim instead of using a placeholder. Rather than leave a
-       reference that resolves nowhere, still try to match it by basename
-       against this chunk's known images.
-    """
-    if not text:
-        return text
-
-    def replace_placeholder(m):
-        n = int(m.group(1))
-        if n < 0 or n >= len(image_keys):
-            return ""
-        used_indices.add(n)
-        filename = os.path.basename(image_keys[n])
-        _promote_image(image_keys[n], sub, job_id, question_id, filename)
-        return f"![diagram]({job_id}/{question_id}/{filename})"
-
-    text = IMG_PLACEHOLDER_RE.sub(replace_placeholder, text)
-
-    if chunk_kind == "markdown":
-        def replace_stray_markdown_image(m):
-            alt, ref = m.group(1), m.group(2)
-            basename = os.path.basename(unquote(ref))
-            scratch_key = next((k for k in image_keys if k.endswith(f"/{basename}")), None)
-            if not scratch_key:
-                return ""  # points nowhere resolvable — drop rather than leave a broken reference
-            used_indices.add(image_keys.index(scratch_key))
-            _promote_image(scratch_key, sub, job_id, question_id, basename)
-            return f"![{alt}]({job_id}/{question_id}/{basename})"
-
-        text = MARKDOWN_IMAGE_RE.sub(replace_stray_markdown_image, text)
-
-    return text
 
 
 def _promote_image(scratch_key, sub, job_id, question_id, filename):

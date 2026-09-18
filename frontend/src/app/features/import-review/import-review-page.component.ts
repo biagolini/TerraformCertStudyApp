@@ -289,7 +289,10 @@ export class ImportReviewPageComponent implements OnInit {
 
   async onEditSaved(
     index: number,
-    edits: Pick<ImportDraftQuestion, 'title' | 'domain' | 'stem' | 'alternatives'>,
+    edits: Pick<
+      ImportDraftQuestion,
+      'title' | 'domain' | 'stem' | 'alternatives' | 'sourceGeneralComment' | 'images'
+    >,
   ): Promise<void> {
     this.error.set(null);
     this.busyIndices.set(new Set([...this.busyIndices(), index]));

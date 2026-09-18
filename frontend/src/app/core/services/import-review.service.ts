@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { environment } from '../../../environments/environment';
-import { ImportDraftQuestion } from '../models/import-draft.model';
+import { ImportDraftQuestion, normalizeDraftImages } from '../models/import-draft.model';
 import { AuthService } from './auth.service';
 
 /** Backs the review screen only — job-scoped state that's only relevant
@@ -32,7 +32,7 @@ export class ImportReviewService {
         return;
       }
       const body = (await res.json()) as { drafts: ImportDraftQuestion[] };
-      this.draftsState.set(body.drafts ?? []);
+      this.draftsState.set((body.drafts ?? []).map(normalizeDraftImages));
     } finally {
       this.loadingState.set(false);
     }
@@ -52,16 +52,20 @@ export class ImportReviewService {
       return { error: body.error || 'Re-extract failed.' };
     }
     const body = (await res.json()) as { draft: ImportDraftQuestion };
-    this.draftsState.update((drafts) => drafts.map((d) => (d.index === index ? body.draft : d)));
+    const normalized = normalizeDraftImages(body.draft);
+    this.draftsState.update((drafts) => drafts.map((d) => (d.index === index ? normalized : d)));
     return {};
   }
 
-  /** Directly overwrites one draft's title/domain/stem/alternatives with
-   * what the reviewer typed — no AI call, for a quick correction. */
+  /** Directly overwrites one draft's content with what the reviewer typed
+   * — no AI call, for a quick correction. */
   async updateDraft(
     jobId: string,
     index: number,
-    edits: Pick<ImportDraftQuestion, 'title' | 'domain' | 'stem' | 'alternatives'>,
+    edits: Pick<
+      ImportDraftQuestion,
+      'title' | 'domain' | 'stem' | 'alternatives' | 'sourceGeneralComment' | 'images'
+    >,
   ): Promise<{ error?: string }> {
     const token = await this.auth.getValidToken();
     const res = await fetch(`${this.apiUrl}/data/imports/${jobId}/drafts/${index}`, {
@@ -74,7 +78,8 @@ export class ImportReviewService {
       return { error: body.error || 'Failed to save edits.' };
     }
     const body = (await res.json()) as { draft: ImportDraftQuestion };
-    this.draftsState.update((drafts) => drafts.map((d) => (d.index === index ? body.draft : d)));
+    const normalized = normalizeDraftImages(body.draft);
+    this.draftsState.update((drafts) => drafts.map((d) => (d.index === index ? normalized : d)));
     return {};
   }
 

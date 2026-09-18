@@ -19,12 +19,16 @@ and (3) both a per-option box AND a trailing overall block in the same
 question. See .temp/model1.png, model2.png, model3.png (repo-local reference
 screenshots) for what each looks like.
 
-An image's association with the stem, one specific alternative, its
-per-alternative source comment, or the general source comment is captured
-implicitly by WHICH text field its `{{IMG:n}}` placeholder ends up in — the
-same single mechanism `_rewrite_images` (app.py) already resolves for the
-stem/alternative text, now just extended to two more fields, rather than a
-second parallel "image location" scheme.
+Images are classified, not inlined: rather than asking the model to embed an
+`{{IMG:n}}`-style placeholder correctly inside prose it's simultaneously
+composing (previously observed to be unreliable — images silently dropped or
+placed in the wrong spot), each image gets ONE simple classification in a
+separate top-level `images` array: which field it belongs to (the stem, one
+alternative's own text, one alternative's source explanation, the overall
+source explanation, or "couldn't tell" — see ImportDraftImageTarget on the
+frontend). A human reviewer can freely reassign or drop any of these on the
+review screen — seeing every image with its own classification is far
+easier to fix than hunting for a misplaced token buried in a paragraph.
 
 Built per-invocation (not static) because the valid domain list depends on
 the target pack — see build_system_prompt/build_tool_schema. Kept in its own
@@ -44,6 +48,7 @@ Rules:
 - IGNORE trailing "References:" / "Check out these Cheat Sheets:" link blocks.
 - Write a short, descriptive title.
 - Formatting: wrap any technical identifier in backticks — a parameter/field/property name (e.g. `runOrder`, `MaxConcurrency`), a CLI flag, a file or path name, an API/service action name, an environment variable, or a literal code value — exactly as a technical reader expects to see it typeset, e.g. "Change the `runOrder` of your actions". Apply this consistently in the stem, every alternative's text, AND any explanation text you extract — not just where the source material itself already used special formatting, since the source is often plain, unstyled text and you still need to add this. Use **bold** only for genuine emphasis, never as a substitute for backticks on a technical term.
+- Never write image Markdown syntax (`![...](...)`) or any `{{...}}` placeholder token yourself, anywhere in stem/alternative/explanation text — images are classified separately, see "Images" below. Text fields are plain prose only.
 
 Explanations — practice-exam sources almost always ship one of these layouts, sometimes both at once:
 1. A per-alternative box directly under EACH option (often literally headed "Explanation"), giving a reason specific to that one option — correct or not.
@@ -53,17 +58,19 @@ Extract whatever is actually present, verbatim/lightly cleaned (still strip the 
 - If a piece of explanation clearly applies to the whole question rather than one option (or you cannot confidently attribute it to a single option), put it in the top-level "generalComment" instead of guessing which option it belongs to.
 - It is normal and expected for many questions to have NO explanation at all in the source — leave "sourceComment"/"generalComment" absent (do not fabricate one) rather than inventing reasoning; that is a separate, later step performed by a different system.
 
-Images — placement rule: place an image's `{{IMG:n}}` placeholder (n = 0-based index among the images you were given, in the order given) in whichever field it actually belongs to:
-- The QUESTION STEM or an ALTERNATIVE'S "text" — ONLY IF examining that image is MANDATORY to answer the question (the stem explicitly depends on it, e.g. "as shown below", "based on the following diagram", "given the configuration above", "in the screenshot below") and the question cannot be correctly answered from the text alone.
-- An alternative's "sourceComment" or the top-level "generalComment" — if the image instead illustrates an EXPLANATION (e.g. an architecture diagram inside the "Overall explanation" box, a screenshot embedded in one option's own explanation) rather than the question itself.
-Only omit an image entirely if it's decorative and belongs to none of the above (e.g. a repeated page header/logo). Never write literal `![...](...)` Markdown image syntax yourself — always use `{{IMG:n}}` for any image you place, even if the source text already contained its own image syntax at that spot. When in doubt whether the stem/alternative text truly requires the image (as opposed to it only supporting an explanation), prefer placing it in the relevant "sourceComment"/"generalComment" over the stem/alternative text.
+Images — you were given zero or more images alongside this question, in a fixed order (image 0, image 1, ...). For EVERY image you were given, add exactly one entry to the top-level "images" array classifying where it belongs:
+- "stem" — examining the image is MANDATORY to answer the question itself (the stem explicitly depends on it, e.g. "as shown below", "based on the following diagram", "given the configuration above") and the question cannot be correctly answered from the text alone.
+- "alternativeText" (with "alternativeLetter" set) — examining the image is MANDATORY to evaluate that ONE specific alternative (rare — most alternatives are plain text).
+- "alternativeComment" (with "alternativeLetter" set) — the image illustrates that one alternative's OWN explanation (e.g. a diagram inside its "Explanation" box), rather than the question or alternative itself.
+- "generalComment" — the image illustrates the OVERALL explanation (e.g. an architecture diagram inside an "Overall explanation" block after all options), not the question itself.
+- "unplaced" — decorative (e.g. a repeated page header/logo), purely illustrative with no clear single home, or you genuinely cannot tell where it belongs. Use this rather than guessing.
+When in doubt between the stem/an alternative's own text vs. an explanation field, prefer the explanation field — most images support an explanation rather than being mandatory to answer the question itself.
 
-Examples of images that ARE mandatory in the stem (the question cannot be answered without them):
-1. "A company has the VPC architecture shown in the diagram below. Which change would allow the private subnet to reach the internet?" — the stem explicitly references "the diagram below" and the answer depends on details (subnet layout, route tables, NAT/IGW placement) only visible in that image. Correct: `{{IMG:0}}` placed in the stem.
-2. "The following EventBridge rule has a custom event pattern, as shown below. Which change would make this rule match S3 object-created events for the given bucket?" — the actual event-pattern JSON is only visible in the image; you cannot judge whether the pattern is correct without reading it. Correct: `{{IMG:0}}` placed in the stem.
-3. "Based on the CloudWatch metrics graph below, showing CPUUtilization over the last hour, what Auto Scaling adjustment is most appropriate?" — the stem asks you to interpret a specific shape/value in the graph. Correct: `{{IMG:0}}` placed in the stem.
-4. "A developer sees the following error in the console when deploying the Lambda function, as captured in the screenshot. What is the most likely cause?" — the exact error text/UI state is only visible in the screenshot and is the entire subject of the question. Correct: `{{IMG:0}}` placed in the stem.
-Example of an image that belongs in an explanation instead: the question itself is fully answerable from text alone, but the "Overall explanation" box below the options includes a diagram illustrating why the correct answer works (e.g. a cost-optimization workflow diagram). Correct: `{{IMG:0}}` placed inside "generalComment", not the stem.
+Examples of images that ARE mandatory (target: "stem"):
+1. "A company has the VPC architecture shown in the diagram below. Which change would allow the private subnet to reach the internet?" — the answer depends on details (subnet layout, route tables, NAT/IGW placement) only visible in that image.
+2. "The following EventBridge rule has a custom event pattern, as shown below. Which change would make this rule match S3 object-created events for the given bucket?" — the actual event-pattern JSON is only visible in the image.
+3. "Based on the CloudWatch metrics graph below, showing CPUUtilization over the last hour, what Auto Scaling adjustment is most appropriate?" — the stem asks you to interpret a specific shape/value in the graph.
+Example of target: "generalComment" — the question itself is fully answerable from text alone, but the source's "Overall explanation" block includes a diagram illustrating why the correct answer works (e.g. a cost-optimization workflow diagram).
 - You MUST call the emit_question tool exactly once with your extraction. Do not respond with plain text.
 """
 
@@ -94,11 +101,11 @@ def build_tool_schema(domain_names):
             "description": (
                 "Emit one structured multiple-choice exam question extracted "
                 "from the supplied source material — stem, alternatives, which "
-                "is correct, and any explanation the source material already "
-                "provides for them. The FINAL explanation a student sees is "
-                "still generated separately by the review agent — what's "
-                "captured here is reference material for that agent, not the "
-                "final text."
+                "is correct, any explanation the source material already "
+                "provides for them, and where each supplied image belongs. "
+                "The FINAL explanation a student sees is still generated "
+                "separately by the review agent — what's captured here is "
+                "reference material for that agent, not the final text."
             ),
             "inputSchema": {
                 "json": {
@@ -114,14 +121,14 @@ def build_tool_schema(domain_names):
                             "description": (
                                 "The COMPLETE question text, copied verbatim — every scenario "
                                 "paragraph plus the final question sentence, not just the last "
-                                "paragraph. Never summarize or shorten it. Only include a "
-                                "supplied image's {{IMG:n}} placeholder here if examining that "
-                                "image is MANDATORY to answer the question (the stem explicitly "
-                                "depends on it, e.g. 'as shown below'). Wrap every technical "
-                                "identifier (parameter/field name, CLI flag, file/path name, "
-                                "API action, env var, literal code value) in backticks, e.g. "
-                                "'the `runOrder` value' — the source text is plain and will not "
-                                "already have these, you must add them yourself."
+                                "paragraph. Never summarize or shorten it. Plain prose only — "
+                                "never include image Markdown or a placeholder token; classify "
+                                "images separately in the top-level \"images\" array instead. "
+                                "Wrap every technical identifier (parameter/field name, CLI "
+                                "flag, file/path name, API action, env var, literal code value) "
+                                "in backticks, e.g. 'the `runOrder` value' — the source text is "
+                                "plain and will not already have these, you must add them "
+                                "yourself."
                             ),
                         },
                         "alternatives": {
@@ -133,11 +140,11 @@ def build_tool_schema(domain_names):
                                     "text": {
                                         "type": "string",
                                         "description": (
-                                            "The alternative's own text. Only include a supplied "
-                                            "image's {{IMG:n}} placeholder here if examining that "
-                                            "image is MANDATORY to answer the question — not "
-                                            "merely explanatory. See the Images rule. Wrap every "
-                                            "technical identifier (parameter/field name, CLI flag, "
+                                            "The alternative's own text. Plain prose only — "
+                                            "never include image Markdown or a placeholder "
+                                            "token; classify images separately in the top-level "
+                                            "\"images\" array instead. Wrap every technical "
+                                            "identifier (parameter/field name, CLI flag, "
                                             "file/path name, API action, env var, literal code "
                                             "value) in backticks, e.g. 'Change the `runOrder`' — "
                                             "the source text is plain and will not already have "
@@ -155,9 +162,8 @@ def build_tool_schema(domain_names):
                                             "option, or if you can't confidently attribute the "
                                             "explanation you see to this specific option — put it "
                                             "in the top-level generalComment instead in that case. "
-                                            "Never invent one. May include an {{IMG:n}} placeholder "
-                                            "if an image illustrates specifically this option's "
-                                            "explanation."
+                                            "Never invent one. Plain prose only — never include "
+                                            "image Markdown or a placeholder token."
                                         ),
                                     },
                                 },
@@ -172,10 +178,44 @@ def build_tool_schema(domain_names):
                                 "after all the options), used when the source's explanation isn't "
                                 "attributable to one specific option, or when you can't tell which "
                                 "option a piece of explanation belongs to. Omit entirely if the "
-                                "source has no such text. Never invent one. May include an "
-                                "{{IMG:n}} placeholder if an image illustrates this general "
-                                "explanation rather than the question itself."
+                                "source has no such text. Never invent one. Plain prose only — "
+                                "never include image Markdown or a placeholder token."
                             ),
+                        },
+                        "images": {
+                            "type": "array",
+                            "description": (
+                                "EXACTLY one entry per image you were given (same order: entry "
+                                "0 describes image 0, etc.) — see the \"Images\" rule above."
+                            ),
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "index": {
+                                        "type": "integer",
+                                        "description": "0-based index of the image this entry describes.",
+                                    },
+                                    "target": {
+                                        "type": "string",
+                                        "enum": [
+                                            "stem",
+                                            "alternativeText",
+                                            "alternativeComment",
+                                            "generalComment",
+                                            "unplaced",
+                                        ],
+                                    },
+                                    "alternativeLetter": {
+                                        "type": "string",
+                                        "description": (
+                                            "REQUIRED when target is 'alternativeText' or "
+                                            "'alternativeComment' — which alternative's letter "
+                                            "this image belongs to. Omit otherwise."
+                                        ),
+                                    },
+                                },
+                                "required": ["index", "target"],
+                            },
                         },
                     },
                     "required": ["title", "domain", "stem", "alternatives"],

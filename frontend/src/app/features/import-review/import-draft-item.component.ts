@@ -1,9 +1,41 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ImportDraftAlternative, ImportDraftQuestion } from '../../core/models/import-draft.model';
+import {
+  ImportDraftAlternative,
+  ImportDraftImage,
+  ImportDraftQuestion,
+} from '../../core/models/import-draft.model';
+import { ImageAssetService } from '../../core/services/image-asset.service';
 import { DomainBadgeComponent } from '../../shared/components/domain-badge.component';
 import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
 import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.component';
+
+/** Encodes an ImportDraftImage's target+alternativeLetter as one <select>
+ * value and back — 'stem' | 'generalComment' | 'unplaced' pass through as-is,
+ * an alternative-scoped target becomes `alternativeText:A` / `alternativeComment:A`. */
+function encodeImageTarget(img: Pick<ImportDraftImage, 'target' | 'alternativeLetter'>): string {
+  if (img.target === 'alternativeText' || img.target === 'alternativeComment') {
+    return `${img.target}:${img.alternativeLetter ?? ''}`;
+  }
+  return img.target;
+}
+
+function decodeImageTarget(value: string): Pick<ImportDraftImage, 'target' | 'alternativeLetter'> {
+  const [target, letter] = value.split(':');
+  if (target === 'alternativeText' || target === 'alternativeComment') {
+    return { target, alternativeLetter: letter || null };
+  }
+  return { target: target as ImportDraftImage['target'], alternativeLetter: null };
+}
+
+function nextAlternativeLetter(existing: readonly { letter: string }[]): string {
+  const used = new Set(existing.map((a) => a.letter.toUpperCase()));
+  for (let code = 65; code <= 90; code++) {
+    const letter = String.fromCharCode(code);
+    if (!used.has(letter)) return letter;
+  }
+  return `X${existing.length}`; // 26 alternatives is already absurd — just don't collide
+}
 
 /** One row in the review screen's list — a sibling to
  * question-list/question-item.component.ts, not a reuse of it: the data
@@ -89,19 +121,77 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
               <textarea class="edit-textarea" rows="5" [(ngModel)]="editStem"></textarea>
             </label>
             @for (alt of editAlternatives(); track alt.letter) {
-              <div class="edit-alt-row">
-                <label class="edit-correct-check">
-                  <input type="checkbox" [checked]="alt.isCorrect" (change)="toggleEditCorrect(alt.letter)" />
-                  <span>{{ alt.letter }}</span>
-                </label>
+              <div class="edit-alt-block">
+                <div class="edit-alt-row">
+                  <label class="edit-correct-check">
+                    <input type="checkbox" [checked]="alt.isCorrect" (change)="toggleEditCorrect(alt.letter)" />
+                    <span>{{ alt.letter }}</span>
+                  </label>
+                  <textarea
+                    class="edit-textarea"
+                    rows="2"
+                    [ngModel]="alt.text"
+                    (ngModelChange)="setEditAltText(alt.letter, $event)"
+                  ></textarea>
+                  <button
+                    type="button"
+                    class="remove-alt-btn"
+                    [disabled]="editAlternatives().length <= 2"
+                    [attr.aria-label]="'Remove alternative ' + alt.letter"
+                    (click)="removeAlternative(alt.letter)"
+                  >×</button>
+                </div>
                 <textarea
-                  class="edit-textarea"
+                  class="edit-textarea edit-comment-textarea"
                   rows="2"
-                  [ngModel]="alt.text"
-                  (ngModelChange)="setEditAltText(alt.letter, $event)"
+                  placeholder="Source explanation for this option (optional)"
+                  [ngModel]="alt.sourceComment ?? ''"
+                  (ngModelChange)="setEditAltComment(alt.letter, $event)"
                 ></textarea>
               </div>
             }
+            <button type="button" class="add-alt-btn" (click)="addAlternative()">+ Add alternative</button>
+
+            <label class="edit-label">
+              <span>Overall source explanation (optional)</span>
+              <textarea class="edit-textarea" rows="3" [(ngModel)]="editSourceGeneralComment"></textarea>
+            </label>
+
+            <div class="edit-images">
+              <span class="edit-label-text">Images</span>
+              @for (img of editImages(); track img.key) {
+                <div class="edit-image-row">
+                  <div class="edit-image-thumb"><app-markdown-renderer [source]="'![image](' + img.key + ')'" /></div>
+                  <select
+                    class="edit-domain-input"
+                    [ngModel]="encodeTarget(img)"
+                    (ngModelChange)="setImageTarget(img.key, $event)"
+                  >
+                    <option value="stem">Question stem</option>
+                    @for (alt of editAlternatives(); track alt.letter) {
+                      <option [value]="'alternativeText:' + alt.letter">Alternative {{ alt.letter }} text</option>
+                      <option [value]="'alternativeComment:' + alt.letter">Alternative {{ alt.letter }} explanation</option>
+                    }
+                    <option value="generalComment">Overall explanation</option>
+                    <option value="unplaced">Not placed</option>
+                  </select>
+                  <button
+                    type="button"
+                    class="remove-alt-btn"
+                    [attr.aria-label]="'Remove image'"
+                    (click)="removeImage(img.key)"
+                  >×</button>
+                </div>
+              }
+              <label class="add-image-btn">
+                {{ uploadingImage() ? 'Uploading…' : '+ Add image' }}
+                <input type="file" accept=".png,.jpg,.jpeg,.gif,.webp" hidden [disabled]="uploadingImage()" (change)="onAddImage($event)" />
+              </label>
+              @if (imageUploadError()) {
+                <p class="error-line">{{ imageUploadError() }}</p>
+              }
+            </div>
+
             <div class="edit-actions">
               <button type="button" class="hint-submit" [disabled]="busy()" (click)="saveEdit()">
                 {{ busy() ? 'Saving…' : 'Save' }}
@@ -115,18 +205,33 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
             <p class="preview-line">{{ draft().preview }}</p>
           }
         } @else {
-          <div class="stem"><app-markdown-renderer [source]="draft().stem ?? ''" /></div>
+          <div class="stem">
+            <app-markdown-renderer [source]="draft().stem ?? ''" />
+            @for (img of imagesFor('stem'); track img.key) {
+              <app-markdown-renderer [source]="'![diagram](' + img.key + ')'" />
+            }
+          </div>
 
           <div class="alternatives">
             @for (alt of draft().alternatives; track alt.letter) {
               <div class="option-card" [class.correct]="alt.isCorrect">
                 <span class="option-letter">{{ alt.letter }}</span>
                 <div class="option-body">
-                  <div class="option-text"><app-markdown-renderer [source]="alt.text" /></div>
-                  @if (alt.sourceComment) {
+                  <div class="option-text">
+                    <app-markdown-renderer [source]="alt.text" />
+                    @for (img of imagesFor('alternativeText', alt.letter); track img.key) {
+                      <app-markdown-renderer [source]="'![diagram](' + img.key + ')'" />
+                    }
+                  </div>
+                  @if (alt.sourceComment || imagesFor('alternativeComment', alt.letter).length > 0) {
                     <div class="source-comment">
                       <p class="source-label">Source explanation (unverified):</p>
-                      <app-markdown-renderer [source]="alt.sourceComment" />
+                      @if (alt.sourceComment) {
+                        <app-markdown-renderer [source]="alt.sourceComment" />
+                      }
+                      @for (img of imagesFor('alternativeComment', alt.letter); track img.key) {
+                        <app-markdown-renderer [source]="'![diagram](' + img.key + ')'" />
+                      }
                     </div>
                   }
                 </div>
@@ -141,19 +246,24 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
             }
           </div>
 
-          @if (draft().sourceGeneralComment) {
+          @if (draft().sourceGeneralComment || imagesFor('generalComment').length > 0) {
             <div class="source-comment">
               <p class="source-label">Overall source explanation (unverified):</p>
-              <app-markdown-renderer [source]="draft().sourceGeneralComment!" />
+              @if (draft().sourceGeneralComment) {
+                <app-markdown-renderer [source]="draft().sourceGeneralComment!" />
+              }
+              @for (img of imagesFor('generalComment'); track img.key) {
+                <app-markdown-renderer [source]="'![diagram](' + img.key + ')'" />
+              }
             </div>
           }
 
-          @if ((draft().referenceImages ?? []).length > 0) {
+          @if (imagesFor('unplaced').length > 0) {
             <div class="reference-images">
-              <p class="reference-label">Other image(s) from this question (not placed in the text):</p>
+              <p class="reference-label">Other image(s) from this question (not placed — edit to assign one):</p>
               <div class="reference-grid">
-                @for (key of draft().referenceImages; track key) {
-                  <app-markdown-renderer [source]="'![reference image](' + key + ')'" />
+                @for (img of imagesFor('unplaced'); track img.key) {
+                  <app-markdown-renderer [source]="'![reference image](' + img.key + ')'" />
                 }
               </div>
             </div>
@@ -493,6 +603,98 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
       .edit-alt-row .edit-textarea {
         flex: 1;
       }
+      .edit-alt-block {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xs);
+        padding-bottom: var(--space-xs);
+        border-bottom: 1px dashed var(--bg-border);
+      }
+      .edit-comment-textarea {
+        margin-left: calc(18px + var(--space-sm));
+        font-size: var(--font-size-xs);
+      }
+      .remove-alt-btn {
+        flex-shrink: 0;
+        width: 28px;
+        height: 28px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--bg-border);
+        background: transparent;
+        color: var(--text-muted);
+        font-size: var(--font-size-base);
+        line-height: 1;
+      }
+      .remove-alt-btn:hover:not(:disabled) {
+        border-color: var(--color-red);
+        color: var(--color-red);
+      }
+      .remove-alt-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .add-alt-btn {
+        align-self: flex-start;
+        height: 32px;
+        padding: 0 var(--space-md);
+        border-radius: var(--radius-md);
+        border: 1px dashed var(--bg-border);
+        background: transparent;
+        color: var(--text-secondary);
+        font-size: var(--font-size-sm);
+      }
+      .add-alt-btn:hover {
+        border-color: var(--color-purple);
+        color: var(--text-primary);
+      }
+      .edit-label-text {
+        font-size: var(--font-size-xs);
+        color: var(--text-muted);
+      }
+      .edit-images {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xs);
+      }
+      .edit-image-row {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+      }
+      .edit-image-thumb {
+        width: 64px;
+        flex-shrink: 0;
+        overflow: hidden;
+        border-radius: var(--radius-sm);
+      }
+      .edit-image-row select {
+        flex: 1;
+        min-width: 0;
+        height: 32px;
+        padding: 0 var(--space-sm);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--bg-border);
+        background: var(--bg-input);
+        color: var(--text-primary);
+        font-size: var(--font-size-sm);
+      }
+      .add-image-btn {
+        align-self: flex-start;
+        height: 32px;
+        padding: 0 var(--space-md);
+        display: inline-flex;
+        align-items: center;
+        border-radius: var(--radius-md);
+        border: 1px dashed var(--bg-border);
+        background: transparent;
+        color: var(--text-secondary);
+        font-size: var(--font-size-sm);
+        cursor: pointer;
+      }
+      .add-image-btn:hover {
+        border-color: var(--color-purple);
+        color: var(--text-primary);
+      }
       .edit-actions {
         display: flex;
         gap: var(--space-sm);
@@ -516,13 +718,17 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
   ],
 })
 export class ImportDraftItemComponent {
+  private readonly imageAssets = inject(ImageAssetService);
+
   readonly draft = input.required<ImportDraftQuestion>();
   readonly selected = input.required<boolean>();
   readonly busy = input<boolean>(false);
 
   readonly selectionToggled = output<void>();
   readonly reExtractRequested = output<string | undefined>();
-  readonly editSaved = output<Pick<ImportDraftQuestion, 'title' | 'domain' | 'stem' | 'alternatives'>>();
+  readonly editSaved = output<
+    Pick<ImportDraftQuestion, 'title' | 'domain' | 'stem' | 'alternatives' | 'sourceGeneralComment' | 'images'>
+  >();
 
   protected readonly hintOpen = signal(false);
   protected hintText = '';
@@ -531,9 +737,22 @@ export class ImportDraftItemComponent {
   protected editTitle = '';
   protected editDomain = '';
   protected editStem = '';
+  protected editSourceGeneralComment = '';
   protected readonly editAlternatives = signal<ImportDraftAlternative[]>([]);
+  protected readonly editImages = signal<ImportDraftImage[]>([]);
+  protected readonly uploadingImage = signal(false);
+  protected readonly imageUploadError = signal<string | null>(null);
 
   readonly isFailed = computed(() => this.draft().extractStatus === 'FAILED');
+
+  /** Images matching one view-mode slot — see ImportDraftImageTarget. */
+  imagesFor(target: ImportDraftImage['target'], alternativeLetter?: string): ImportDraftImage[] {
+    return (this.draft().images ?? []).filter(
+      (img) => img.target === target && (alternativeLetter === undefined || img.alternativeLetter === alternativeLetter),
+    );
+  }
+
+  protected readonly encodeTarget = encodeImageTarget;
 
   readonly checkboxLabel = computed(() =>
     this.selected() ? `Deselect question ${this.draft().index + 1}` : `Select question ${this.draft().index + 1}`,
@@ -555,6 +774,7 @@ export class ImportDraftItemComponent {
     this.editTitle = d.title ?? '';
     this.editDomain = d.domain ?? '';
     this.editStem = d.stem ?? '';
+    this.editSourceGeneralComment = d.sourceGeneralComment ?? '';
     this.editAlternatives.set(
       d.alternatives.length > 0
         ? d.alternatives.map((a) => ({ ...a }))
@@ -563,6 +783,8 @@ export class ImportDraftItemComponent {
             { letter: 'B', text: '', isCorrect: false },
           ],
     );
+    this.editImages.set((d.images ?? []).map((img) => ({ ...img })));
+    this.imageUploadError.set(null);
     this.hintOpen.set(false);
     this.editing.set(true);
   }
@@ -579,12 +801,66 @@ export class ImportDraftItemComponent {
     this.editAlternatives.update((alts) => alts.map((a) => (a.letter === letter ? { ...a, text } : a)));
   }
 
+  setEditAltComment(letter: string, sourceComment: string): void {
+    this.editAlternatives.update((alts) =>
+      alts.map((a) => (a.letter === letter ? { ...a, sourceComment: sourceComment || null } : a)),
+    );
+  }
+
+  addAlternative(): void {
+    const letter = nextAlternativeLetter(this.editAlternatives());
+    this.editAlternatives.update((alts) => [...alts, { letter, text: '', isCorrect: false }]);
+  }
+
+  removeAlternative(letter: string): void {
+    if (this.editAlternatives().length <= 2) return;
+    this.editAlternatives.update((alts) => alts.filter((a) => a.letter !== letter));
+    // An image anchored to the alternative that just disappeared would
+    // otherwise point at a letter that no longer exists.
+    this.editImages.update((imgs) =>
+      imgs.map((img) => (img.alternativeLetter === letter ? { ...img, target: 'unplaced', alternativeLetter: null } : img)),
+    );
+  }
+
+  setImageTarget(key: string, encoded: string): void {
+    const { target, alternativeLetter } = decodeImageTarget(encoded);
+    this.editImages.update((imgs) => imgs.map((img) => (img.key === key ? { ...img, target, alternativeLetter } : img)));
+  }
+
+  removeImage(key: string): void {
+    this.editImages.update((imgs) => imgs.filter((img) => img.key !== key));
+  }
+
+  async onAddImage(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    this.uploadingImage.set(true);
+    this.imageUploadError.set(null);
+    try {
+      const result = await this.imageAssets.uploadManual(file);
+      if ('error' in result) {
+        this.imageUploadError.set(result.error);
+        return;
+      }
+      this.editImages.update((imgs) => [
+        ...imgs,
+        { key: result.relativeKey, target: 'unplaced', alternativeLetter: null },
+      ]);
+    } finally {
+      this.uploadingImage.set(false);
+      input.value = '';
+    }
+  }
+
   saveEdit(): void {
     this.editSaved.emit({
       title: this.editTitle.trim() || null,
       domain: this.editDomain.trim() || null,
       stem: this.editStem.trim() || null,
       alternatives: this.editAlternatives(),
+      sourceGeneralComment: this.editSourceGeneralComment.trim() || null,
+      images: this.editImages(),
     });
     // Optimistic close — the parent's save is async and this component has
     // no callback path to know when it resolves; a failure surfaces via the
