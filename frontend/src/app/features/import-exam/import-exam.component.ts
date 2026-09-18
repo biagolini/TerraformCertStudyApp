@@ -161,8 +161,14 @@ const CREATE_NEW_PACK = '__create_new_pack__';
               }
               <div class="job-actions">
                 <button type="button" class="btn-ghost-sm" (click)="onReview(job)">Review {{ job.totalQuestions }} question(s)</button>
+                <button type="button" class="btn-ghost-sm" [disabled]="openingOriginal() === job.id" (click)="onViewOriginal(job)">
+                  {{ openingOriginal() === job.id ? 'Opening…' : 'View original ↗' }}
+                </button>
                 <button type="button" class="btn-ghost-sm" (click)="onDeleteJob(job)">Delete</button>
               </div>
+              @if (originalFileError()?.jobId === job.id) {
+                <p class="error-line">{{ originalFileError()!.message }}</p>
+              }
             </div>
           }
         </div>
@@ -304,6 +310,8 @@ export class ImportExamComponent {
   protected readonly expectedQuestions = signal<number | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly checkedJobIds = signal<ReadonlySet<string>>(new Set());
+  protected readonly openingOriginal = signal<string | null>(null);
+  protected readonly originalFileError = signal<{ jobId: string; message: string } | null>(null);
 
   readonly uploadProgress = this.importService.uploadProgress;
 
@@ -422,6 +430,25 @@ export class ImportExamComponent {
    * "Recent" (which has its own bulk "Clear history"). Same DELETE route
    * either way; the backend also purges that job's uploads/scratch S3
    * content immediately rather than waiting on the bucket's lifecycle rule. */
+  /** Re-opens the exact file the user uploaded in a new tab — deliberately
+   * not part of the review screen itself (a separate window is easier to
+   * flip back to while fixing a question than something wedged into that
+   * page). Only works within the uploads/ prefix's 2-day lifecycle. */
+  async onViewOriginal(job: ImportJob): Promise<void> {
+    this.originalFileError.set(null);
+    this.openingOriginal.set(job.id);
+    try {
+      const result = await this.importService.getOriginalFileUrl(job.id);
+      if (result.error) {
+        this.originalFileError.set({ jobId: job.id, message: result.error });
+        return;
+      }
+      window.open(result.url, '_blank', 'noopener');
+    } finally {
+      this.openingOriginal.set(null);
+    }
+  }
+
   onDeleteJob(job: ImportJob): void {
     const dialogRef = this.dialog.open(ConfirmDeleteDialogComponent, {
       data: { title: job.filename },

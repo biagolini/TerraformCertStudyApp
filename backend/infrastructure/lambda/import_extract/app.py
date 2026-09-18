@@ -17,10 +17,16 @@ Any extraction failure is caught internally and always still produces a
 draft row (`extractStatus: "FAILED"`, with `error`/`preview` set) rather
 than leaving that chunk's slot in the review list empty — so the review
 screen is the single place both "wrong" and "outright failed" extractions
-get fixed. The Step Functions result returned from `handler()` mirrors this
-via `{"status": "FAILED"}` rather than raising, so one bad question never
-fails the whole Map (see the ASL template's Catch for the rarer case of an
-infrastructure-level failure, e.g. a Lambda timeout, that Python can't catch).
+get fixed. A validation failure (empty stem, too few alternatives, none
+marked correct) keeps whatever partial title/domain/stem/alternatives/
+images the model DID produce rather than discarding them — the reviewer
+fixes the one broken field instead of retyping the whole question; only a
+genuine exception (Bedrock/S3/etc, no model output to salvage) leaves those
+fields empty. The Step Functions result returned from `handler()` mirrors
+this via `{"status": "FAILED"}` rather than raising, so one bad question
+never fails the whole Map (see the ASL template's Catch for the rarer case
+of an infrastructure-level failure, e.g. a Lambda timeout, that Python
+can't catch).
 """
 
 import json
@@ -114,20 +120,33 @@ def handler(event, context):
     }
     try:
         extracted = _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id, hint)
+        # A validation issue (empty stem, too few alternatives, no correct
+        # one marked) still keeps whatever the model DID manage to extract —
+        # see `_extract_question`'s own comment. The review screen shows
+        # this partial content plus the error, so a reviewer fixes the one
+        # broken field by hand instead of retyping the whole question from
+        # the original source file.
+        validation_error = extracted["validationError"]
         draft.update({
-            "extractStatus": "SUCCEEDED",
+            "extractStatus": "FAILED" if validation_error else "SUCCEEDED",
             "title": extracted["title"],
             "domain": extracted["domain"],
             "stem": extracted["stem"],
             "alternatives": extracted["alternatives"],
             "sourceGeneralComment": extracted["sourceGeneralComment"],
             "images": extracted["images"],
-            "error": None,
+            "error": validation_error,
             "preview": preview,
         })
-        result = {"index": index, "status": "SUCCEEDED", "questionId": question_id}
-        failed = False
-    except Exception as e:  # noqa: BLE001 — any failure here must degrade to a per-item result
+        result = {
+            "index": index,
+            "status": "FAILED" if validation_error else "SUCCEEDED",
+            "questionId": question_id,
+        }
+        if validation_error:
+            result["error"] = validation_error
+        failed = bool(validation_error)
+    except Exception as e:  # noqa: BLE001 — a genuine failure (Bedrock/S3/etc) with no partial data to keep
         draft.update({
             "extractStatus": "FAILED",
             "title": None,
@@ -296,15 +315,21 @@ def _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id, hi
         if isinstance(a, dict) and a.get("letter") and (a.get("text") or "").strip()
     ]
 
+    # A failure here no longer aborts the extraction — whatever the model
+    # DID manage to produce (a stem with only 1 alternative, alternatives
+    # with none marked correct, ...) is still worth keeping as a head start
+    # for the reviewer to fix by hand, rather than throwing it all away and
+    # leaving the review screen's edit form empty. See handler()'s use of
+    # `validationError` for how this maps to `extractStatus`.
+    validation_error = None
     if not stem:
-        print(f"[validation-failure] question_id={question_id} reason=empty_stem raw={json.dumps(question_input)[:2000]}")
-        raise ValueError("Extracted question failed validation: empty stem")
-    if len(alternatives) < 2:
-        print(f"[validation-failure] question_id={question_id} reason=too_few_alternatives ({len(alternatives)}) raw={json.dumps(question_input)[:2000]}")
-        raise ValueError(f"Extracted question failed validation: only {len(alternatives)} usable alternative(s) (need at least 2)")
-    if not any(a.get("isCorrect") for a in alternatives):
-        print(f"[validation-failure] question_id={question_id} reason=no_correct_marked raw={json.dumps(question_input)[:2000]}")
-        raise ValueError("Extracted question failed validation: no alternative marked correct")
+        validation_error = "Extraction failed validation: empty stem"
+    elif len(alternatives) < 2:
+        validation_error = f"Extraction failed validation: only {len(alternatives)} usable alternative(s) (need at least 2)"
+    elif not any(a.get("isCorrect") for a in alternatives):
+        validation_error = "Extraction failed validation: no alternative marked correct"
+    if validation_error:
+        print(f"[validation-failure] question_id={question_id} reason={validation_error} raw={json.dumps(question_input)[:2000]}")
 
     kind = chunk["kind"]
     valid_letters = {a["letter"] for a in alternatives}
@@ -373,6 +398,7 @@ def _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id, hi
         ],
         "sourceGeneralComment": source_general_comment,
         "images": images,
+        "validationError": validation_error,
     }
 
 

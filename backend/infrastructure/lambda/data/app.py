@@ -10,6 +10,7 @@ import uuid
 import boto3
 from boto3.dynamodb.conditions import Key
 from botocore.client import Config
+from botocore.exceptions import ClientError
 from flask import Flask, Response, request
 
 TABLE_NAME = os.environ.get("TABLE_NAME", "cert-stud-data")
@@ -20,10 +21,15 @@ ASSETS_BUCKET_NAME = os.environ.get("ASSETS_BUCKET_NAME", "cert-stud-assets")
 IMPORT_STATE_MACHINE_ARN = os.environ.get("IMPORT_STATE_MACHINE_ARN", "")
 IMPORT_EXPLAIN_STATE_MACHINE_ARN = os.environ.get("IMPORT_EXPLAIN_STATE_MACHINE_ARN", "")
 IMPORT_EXTRACT_LAMBDA_ARN = os.environ.get("IMPORT_EXTRACT_LAMBDA_ARN", "")
+IMPORT_FINALIZE_LAMBDA_ARN = os.environ.get("IMPORT_FINALIZE_LAMBDA_ARN", "")
 # Mirrors lambda/import_extract/app.py's own VALID_IMAGE_TARGETS — a manual
 # draft edit must accept only the same classifications extraction itself
 # can produce, see ImportDraftImage on the frontend.
 VALID_IMAGE_TARGETS = {"stem", "alternativeText", "alternativeComment", "generalComment", "unplaced"}
+# Mirrors lambda/import_extract/app.py's own IMPORT_DRAFT_TTL_SECONDS — a
+# manually-added draft (create_draft) must expire on the same schedule as
+# an extracted one.
+IMPORT_DRAFT_TTL_SECONDS = 14 * 24 * 60 * 60
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(TABLE_NAME)  # settings, packs, scripts, chats, import jobs
 questions_table = dynamodb.Table(QUESTIONS_TABLE_NAME)
@@ -41,6 +47,13 @@ sfn = boto3.client("stepfunctions", region_name=os.environ.get("AWS_REGION", "us
 
 # Bedrock control-plane client (model discovery — NOT the runtime client).
 bedrock_ctl = boto3.client("bedrock", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+# Bedrock runtime client — used only by generate_draft_title's single plain
+# Converse call (no tool-use), a small enough ask that pulling in the
+# structured-output/AgentCore machinery elsewhere in this pipeline would be
+# overkill. A fixed, fast/cheap model — this is a one-line convenience
+# feature, not something worth a user-facing model picker.
+bedrock_runtime = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+TITLE_MODEL_ID = "us.amazon.nova-lite-v1:0"
 
 # Model IDs known to support the Converse reasoning capability (reasoningConfig).
 # There is no API flag for this, so it is maintained explicitly. Extend as AWS
@@ -225,9 +238,70 @@ def put_chat(item_id):
 
 @app.route("/data/packs/<item_id>", methods=["DELETE"])
 def delete_pack(item_id):
+    """Deleting a pack cascades to everything that only makes sense in the
+    context of it — previously this deleted just the bare pack record,
+    leaving its questions, their S3 images, its import job history, that
+    history's draft rows and uploads/scratch S3 content, and its quiz
+    attempts all permanently invisible (nothing in the UI can reach a
+    question or job whose pack no longer exists) but still fully live and
+    billable in DynamoDB/S3 forever. Reuses the same per-item cleanup
+    delete_question/delete_import already use rather than duplicating it."""
     pk = _user_pk()
     if not pk:
         return _error("Unauthorized", 401)
+    sub = pk.removeprefix("USER#")
+
+    # Questions belonging to this pack — no packId index, so a full
+    # (paginated) scan of this user's own questions, filtered in Python.
+    resp = questions_table.query(KeyConditionExpression=Key("pk").eq(pk))
+    while True:
+        for q_item in resp.get("Items", []):
+            data = json.loads(q_item["data"]) if isinstance(q_item.get("data"), str) else q_item.get("data", {})
+            if data.get("packId") != item_id:
+                continue
+            _delete_question_images(sub, data)
+            questions_table.delete_item(Key={"pk": pk, "sk": q_item["sk"]})
+        if "LastEvaluatedKey" not in resp:
+            break
+        resp = questions_table.query(
+            KeyConditionExpression=Key("pk").eq(pk), ExclusiveStartKey=resp["LastEvaluatedKey"]
+        )
+
+    # Import jobs belonging to this pack, plus their drafts and S3 content
+    # — same cleanup delete_import does for a single job.
+    resp = table.query(KeyConditionExpression=Key("pk").eq(pk) & Key("sk").begins_with("IMPORTJOB#"))
+    while True:
+        for item in resp.get("Items", []):
+            data = json.loads(item["data"]) if isinstance(item.get("data"), str) else item.get("data", {})
+            if data.get("packId") != item_id:
+                continue
+            job_id = item["sk"].removeprefix("IMPORTJOB#")
+            _delete_job_drafts(pk, job_id)
+            _delete_s3_prefix(f"uploads/{sub}/{job_id}/")
+            _delete_s3_prefix(f"scratch/{job_id}/")
+            table.delete_item(Key={"pk": pk, "sk": item["sk"]})
+        if "LastEvaluatedKey" not in resp:
+            break
+        resp = table.query(
+            KeyConditionExpression=Key("pk").eq(pk) & Key("sk").begins_with("IMPORTJOB#"),
+            ExclusiveStartKey=resp["LastEvaluatedKey"],
+        )
+
+    # Quiz attempt history for this pack — no longer actionable once the
+    # pack (and its questions) are gone.
+    resp = quiz_attempts_table.query(KeyConditionExpression=Key("pk").eq(pk))
+    while True:
+        for item in resp.get("Items", []):
+            data = json.loads(item["data"]) if isinstance(item.get("data"), str) else item.get("data", {})
+            if data.get("packId") != item_id:
+                continue
+            quiz_attempts_table.delete_item(Key={"pk": pk, "sk": item["sk"]})
+        if "LastEvaluatedKey" not in resp:
+            break
+        resp = quiz_attempts_table.query(
+            KeyConditionExpression=Key("pk").eq(pk), ExclusiveStartKey=resp["LastEvaluatedKey"]
+        )
+
     table.delete_item(Key={"pk": pk, "sk": f"PACK#{item_id}"})
     return _json({"ok": True})
 
@@ -605,6 +679,41 @@ def delete_import(item_id):
     return _json({"ok": True})
 
 
+@app.route("/data/imports/<item_id>/original-url", methods=["GET"])
+def get_original_upload_url(item_id):
+    """Presigned GET for the exact file the user uploaded for this job — a
+    quick way to re-open it in another tab while reviewing, instead of
+    hunting for it on their own machine again. Only works within the
+    uploads/ prefix's 2-day lifecycle window (see aws_s3_assets.tf); past
+    that the file is genuinely gone and this returns a clear error rather
+    than a presigned URL that would 404 when actually opened."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    sub = pk.removeprefix("USER#")
+
+    item = table.get_item(Key={"pk": pk, "sk": f"IMPORTJOB#{item_id}"}).get("Item")
+    if not item or "data" not in item:
+        return _error("Job not found", 404)
+    job = json.loads(item["data"])
+    filename = job.get("filename")
+    if not filename:
+        return _error("Job has no associated file", 404)
+
+    key = f"uploads/{sub}/{item_id}/{filename}"
+    try:
+        s3.head_object(Bucket=ASSETS_BUCKET_NAME, Key=key)
+    except ClientError:
+        return _error("The original file is no longer available — uploads are kept for 2 days", 404)
+
+    url = s3.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": ASSETS_BUCKET_NAME, "Key": key},
+        ExpiresIn=300,
+    )
+    return _json({"url": url, "filename": filename})
+
+
 def _delete_s3_prefix(prefix):
     """Deletes every object under an S3 prefix, paginating both the list
     and the delete (delete_objects caps at 1000 keys per call)."""
@@ -736,6 +845,151 @@ def update_draft(item_id, index):
     return _json({"draft": draft})
 
 
+@app.route("/data/imports/<item_id>/drafts", methods=["POST"])
+def create_draft(item_id):
+    """Manually adds a brand-new, blank question to this job's review list
+    — for something extraction missed entirely, not a correction to an
+    existing one (that's update_draft). Starts out in the same
+    FAILED-with-a-message shape a genuine extraction failure uses (see
+    import_extract/app.py's validationError handling) purely so the review
+    screen's existing "needs attention, click edit to fill in" treatment
+    applies here for free — the reviewer clicks the pencil, fills in the
+    stem/alternatives, and update_draft flips it to SUCCEEDED exactly like
+    fixing any other failed extraction. Has no `chunk` (no source material
+    to re-extract from) — see re_extract_draft's guard for that."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+
+    job_item = table.get_item(Key={"pk": pk, "sk": f"IMPORTJOB#{item_id}"}).get("Item")
+    if not job_item or "data" not in job_item:
+        return _error("Job not found", 404)
+    job_data = json.loads(job_item["data"])
+
+    resp = import_drafts_table.query(
+        KeyConditionExpression=Key("pk").eq(pk) & Key("sk").begins_with(f"DRAFT#{item_id}#"),
+        ProjectionExpression="sk",
+    )
+    existing_indices = [int(i["sk"].rsplit("#", 1)[1]) for i in resp.get("Items", [])]
+    next_index = (max(existing_indices) + 1) if existing_indices else 0
+
+    now = int(time.time() * 1000)
+    draft = {
+        "jobId": item_id,
+        "index": next_index,
+        "packId": job_data.get("packId"),
+        "extractStatus": "FAILED",
+        "title": None,
+        "domain": None,
+        "stem": None,
+        "alternatives": [],
+        "sourceGeneralComment": None,
+        "images": [],
+        "error": "New question — click edit to fill in the details",
+        "preview": None,
+        "promoted": False,
+        "reExtractCount": 0,
+        "lastHint": None,
+        "createdAt": now,
+        "updatedAt": now,
+    }
+    import_drafts_table.put_item(Item={
+        "pk": pk,
+        "sk": f"DRAFT#{item_id}#{next_index:04d}",
+        "ttl": int(time.time()) + IMPORT_DRAFT_TTL_SECONDS,
+        "data": json.dumps(draft),
+    })
+    _adjust_total_questions(pk, item_id, delta=1)
+    return _json({"draft": draft})
+
+
+@app.route("/data/imports/<item_id>/drafts/<int:index>", methods=["DELETE"])
+def delete_draft(item_id, index):
+    """Removes one question from the review list entirely — for a
+    duplicate, a source chunk that never should have been its own
+    question, or anything else not worth fixing by hand. Indices are
+    stable identifiers, not a dense array — deleting one never renumbers
+    the others."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    sk = f"DRAFT#{item_id}#{index:04d}"
+    if not import_drafts_table.get_item(Key={"pk": pk, "sk": sk}).get("Item"):
+        return _error("Draft not found", 404)
+    import_drafts_table.delete_item(Key={"pk": pk, "sk": sk})
+    _adjust_total_questions(pk, item_id, delta=-1)
+    return _json({"ok": True})
+
+
+def _adjust_total_questions(pk, job_id, delta):
+    """Keeps the job's totalQuestions count in sync with manual add/delete
+    on the review screen — otherwise the "Ready to review" list's "N
+    extracted" badge and the expected-vs-found mismatch warning drift out
+    of sync with what's actually there."""
+    item = table.get_item(Key={"pk": pk, "sk": f"IMPORTJOB#{job_id}"}).get("Item")
+    if not item or "data" not in item:
+        return
+    data = json.loads(item["data"])
+    if isinstance(data.get("totalQuestions"), int):
+        data["totalQuestions"] = max(0, data["totalQuestions"] + delta)
+    table.put_item(Item={
+        "pk": pk,
+        "sk": f"IMPORTJOB#{job_id}",
+        "data": json.dumps(data),
+        "processedCount": item.get("processedCount", 0),
+        "failedCount": item.get("failedCount", 0),
+    })
+
+
+@app.route("/data/imports/<item_id>/drafts/<int:index>/generate-title", methods=["POST"])
+def generate_draft_title(item_id, index):
+    """Edit form's 'Generate title' button — many extracted questions have
+    no usable title (the source material simply didn't have one, e.g. a
+    plain numbered list of questions). Reads stem/alternatives from the
+    REQUEST BODY, not the stored draft, so it reflects whatever the
+    reviewer has typed in the edit form even before they hit Save. Never
+    persists anything itself — the caller fills the title field and still
+    has to click Save, same as typing one by hand."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+
+    body = request.get_json(force=True) or {}
+    stem = (body.get("stem") or "").strip()
+    if not stem:
+        return _error("Stem is required to generate a title", 400)
+    alternatives = body.get("alternatives") or []
+    correct = next(
+        (a.get("text") for a in alternatives if isinstance(a, dict) and a.get("isCorrect") and a.get("text")),
+        None,
+    )
+
+    user_text = f"Question:\n{stem}"
+    if correct:
+        user_text += f"\n\nCorrect answer: {correct}"
+
+    try:
+        response = bedrock_runtime.converse(
+            modelId=TITLE_MODEL_ID,
+            system=[{"text": (
+                "Write a short, descriptive title (5-10 words) for this exam "
+                "question — name the specific service/pattern/concept it "
+                "tests, not a generic label like 'AWS Question'. Reply with "
+                "ONLY the title text: no quotes, no trailing punctuation, no "
+                "preamble."
+            )}],
+            messages=[{"role": "user", "content": [{"text": user_text}]}],
+            inferenceConfig={"maxTokens": 60},
+        )
+        title = response["output"]["message"]["content"][0]["text"].strip().strip('"').strip()
+    except Exception as e:  # noqa: BLE001 — surface as a normal error, not a 500
+        return _error(f"Title generation failed: {e}", 502)
+
+    if not title:
+        return _error("Title generation returned nothing", 502)
+    return _json({"title": title})
+
+
 @app.route("/data/imports/<item_id>/drafts/<int:index>/re-extract", methods=["POST"])
 def re_extract_draft(item_id, index):
     """Re-runs structure extraction for exactly one question, synchronously,
@@ -769,6 +1023,10 @@ def re_extract_draft(item_id, index):
     if not draft_item:
         return _error("Draft not found", 404)
     draft_data = json.loads(draft_item["data"])
+    if not draft_data.get("chunk"):
+        # A manually-added question (create_draft) has no source chunk to
+        # re-run extraction against — edit it by hand instead.
+        return _error("This question was added manually and has no source material to re-extract from", 400)
 
     body = request.get_json(silent=True) or {}
     hint = (body.get("hint") or "").strip() or None
@@ -867,6 +1125,118 @@ def generate_explanations(item_id):
         }),
     )
     return _json({"ok": True, "queued": len(indices)})
+
+
+def _images_for(images, target, alternative_letter=None):
+    """Mirrors lambda/import_explain/app.py's own helper of the same name
+    — kept as a small duplicate rather than a shared module, same
+    reasoning as that file's docstring (no shared-layer mechanism exists
+    in this repo, and ~15 lines of duplication beats inventing one)."""
+    return [
+        img["key"]
+        for img in images
+        if img.get("target") == target
+        and (alternative_letter is None or img.get("alternativeLetter") == alternative_letter)
+    ]
+
+
+def _append_images(text, image_keys):
+    if not image_keys:
+        return text
+    markdown = "\n\n".join(f"![diagram]({key})" for key in image_keys)
+    return f"{text}\n\n{markdown}" if text else markdown
+
+
+@app.route("/data/imports/<item_id>/save-as-is", methods=["POST"])
+def save_drafts_as_is(item_id):
+    """Bulk-finalizes every pending, successfully-extracted draft directly
+    into its final Question — no AI call at all. Each alternative's final
+    `comment` (and the question's `generalComment`) is exactly the raw
+    sourceComment/sourceGeneralComment text captured during extraction,
+    verbatim — the fast alternative to 'Refine extraction with AI'
+    (generate_explanations) for a job whose source material was already
+    good enough on its own, not a replacement for it. Synchronous — unlike
+    Phase 2's AgentCore calls, nothing here is slow enough to need Step
+    Functions; reuses import-finalize's own status decision afterward
+    (AWAITING_REVIEW/SUCCEEDED/PARTIAL/FAILED, see its module docstring)
+    rather than duplicating that logic here."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    sub = pk.removeprefix("USER#")
+
+    job_item = table.get_item(Key={"pk": pk, "sk": f"IMPORTJOB#{item_id}"}).get("Item")
+    if not job_item or "data" not in job_item:
+        return _error("Job not found", 404)
+    job_data = json.loads(job_item["data"])
+    pack_id = job_data.get("packId")
+
+    resp = import_drafts_table.query(
+        KeyConditionExpression=Key("pk").eq(pk) & Key("sk").begins_with(f"DRAFT#{item_id}#"),
+    )
+    now = int(time.time() * 1000)
+    saved = 0
+    for item in resp.get("Items", []):
+        draft = json.loads(item["data"])
+        if draft.get("promoted") or draft.get("extractStatus") != "SUCCEEDED":
+            continue
+
+        images = draft.get("images") or []
+        question_id = f"{item_id}-{draft['index']:03d}"
+        alternatives = [
+            {
+                "letter": alt.get("letter"),
+                "text": _append_images(alt.get("text") or "", _images_for(images, "alternativeText", alt.get("letter"))),
+                "isCorrect": bool(alt.get("isCorrect")),
+                "comment": _append_images(
+                    alt.get("sourceComment") or "",
+                    _images_for(images, "alternativeComment", alt.get("letter")),
+                ),
+            }
+            for alt in (draft.get("alternatives") or [])
+        ]
+        question = {
+            "id": question_id,
+            "packId": pack_id,
+            "title": draft.get("title") or "Imported question",
+            "domain": draft.get("domain") or "General",
+            "stem": _append_images(draft.get("stem") or "", _images_for(images, "stem")),
+            "alternatives": alternatives,
+            "metadata": {"topics": [], "relatedServices": []},
+            "starred": False,
+            "createdAt": now,
+            "updatedAt": now,
+        }
+        general_comment = _append_images(
+            draft.get("sourceGeneralComment") or "", _images_for(images, "generalComment")
+        )
+        if general_comment:
+            question["generalComment"] = general_comment
+
+        questions_table.put_item(Item={"pk": pk, "sk": f"QUESTION#{question_id}", "data": json.dumps(question)})
+
+        draft["promoted"] = True
+        draft["updatedAt"] = now
+        import_drafts_table.put_item(Item={
+            "pk": pk,
+            "sk": item["sk"],
+            "ttl": item.get("ttl"),
+            "data": json.dumps(draft),
+        })
+        saved += 1
+
+    if saved > 0 and IMPORT_FINALIZE_LAMBDA_ARN:
+        lambda_client.invoke(
+            FunctionName=IMPORT_FINALIZE_LAMBDA_ARN,
+            InvocationType="RequestResponse",
+            Payload=json.dumps({
+                "jobId": item_id,
+                "sub": sub,
+                "phase": "explain",
+                "results": [{"index": None, "status": "SUCCEEDED"}] * saved,
+            }).encode("utf-8"),
+        )
+    return _json({"ok": True, "saved": saved})
 
 
 @app.route("/data/assets/presign", methods=["GET"])

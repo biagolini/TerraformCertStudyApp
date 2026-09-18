@@ -33,3 +33,28 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'chat', path: '/chat', label: 'Chat', icon: 'M4 4h16v12H8l-4 4z' },
   { id: 'export', path: '/export', label: 'Export', icon: 'M12 4v12M7 11l5 5 5-5M4 20h16' },
 ];
+
+export const DEFAULT_NAV_ORDER: NavTabId[] = NAV_ITEMS.map((item) => item.id);
+
+/** Resolves a stored nav order into the actual NavItem list, in that
+ * order — tolerant of a stale/incomplete order (a new NAV_ITEMS entry
+ * shipped after the user's order was saved, or an unrecognized id left
+ * over from a removed one): known ids come first in the given order,
+ * followed by any current nav items missing from it, so a nav item never
+ * just disappears because the stored order predates it. */
+export function resolveNavOrder(order: readonly string[]): NavItem[] {
+  const byId = new Map(NAV_ITEMS.map((item) => [item.id, item]));
+  const ordered: NavItem[] = [];
+  const seen = new Set<NavTabId>();
+  for (const id of order) {
+    const item = byId.get(id as NavTabId);
+    if (item && !seen.has(item.id)) {
+      ordered.push(item);
+      seen.add(item.id);
+    }
+  }
+  for (const item of NAV_ITEMS) {
+    if (!seen.has(item.id)) ordered.push(item);
+  }
+  return ordered;
+}

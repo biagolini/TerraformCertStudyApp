@@ -573,6 +573,9 @@ export class StorageService {
         hiddenNavTabs: Array.isArray(parsed.hiddenNavTabs)
           ? parsed.hiddenNavTabs.filter((id): id is NavTabId => NAV_ITEMS.some((item) => item.id === id))
           : DEFAULT_SETTINGS.hiddenNavTabs,
+        navOrder: Array.isArray(parsed.navOrder)
+          ? parsed.navOrder.filter((id): id is NavTabId => NAV_ITEMS.some((item) => item.id === id))
+          : DEFAULT_SETTINGS.navOrder,
       };
     } catch { return { ...DEFAULT_SETTINGS }; }
   }

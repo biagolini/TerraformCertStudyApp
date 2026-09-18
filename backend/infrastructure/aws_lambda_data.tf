@@ -63,6 +63,7 @@ resource "aws_lambda_function" "data" {
       IMPORT_STATE_MACHINE_ARN         = aws_sfn_state_machine.import_exam.arn
       IMPORT_EXPLAIN_STATE_MACHINE_ARN = aws_sfn_state_machine.import_exam_explain.arn
       IMPORT_EXTRACT_LAMBDA_ARN        = aws_lambda_function.import_extract.arn
+      IMPORT_FINALIZE_LAMBDA_ARN       = aws_lambda_function.import_finalize.arn
     }
   }
 
@@ -127,6 +128,14 @@ resource "aws_iam_role_policy" "lambda_data_s3_assets" {
       {
         Effect   = "Allow"
         Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.assets.arn}/uploads/*"
+      },
+      {
+        # "View original file" (see lambda/data/app.py's
+        # get_original_upload_url) — presigns the exact file the user
+        # uploaded, while it's still within the 2-day uploads/ lifecycle.
+        Effect   = "Allow"
+        Action   = "s3:GetObject"
         Resource = "${aws_s3_bucket.assets.arn}/uploads/*"
       },
       {
@@ -203,9 +212,15 @@ resource "aws_iam_role_policy" "lambda_data_invoke_extract" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
-      Action   = "lambda:InvokeFunction"
-      Resource = aws_lambda_function.import_extract.arn
+      Effect = "Allow"
+      Action = "lambda:InvokeFunction"
+      Resource = [
+        aws_lambda_function.import_extract.arn,
+        # "Save as is" (see lambda/data/app.py's save_drafts_as_is) reuses
+        # import-finalize's own status decision synchronously rather than
+        # duplicating that logic.
+        aws_lambda_function.import_finalize.arn,
+      ]
     }]
   })
 }
@@ -224,6 +239,23 @@ resource "aws_iam_role_policy" "lambda_data_bedrock_list" {
         "bedrock:ListFoundationModels",
         "bedrock:ListInferenceProfiles",
       ]
+      Resource = "*"
+    }]
+  })
+}
+
+# --- Generate-title button (edit form): one-off plain Bedrock Converse
+# call, no tool-use — see lambda/data/app.py's generate_draft_title ---
+
+resource "aws_iam_role_policy" "lambda_data_bedrock_invoke" {
+  name = "${var.project_prefix}-lambda-data-bedrock-invoke"
+  role = aws_iam_role.lambda_data.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "bedrock:InvokeModel"
       Resource = "*"
     }]
   })

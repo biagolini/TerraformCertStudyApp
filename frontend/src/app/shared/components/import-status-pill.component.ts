@@ -1,24 +1,29 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { ImportExamService } from '../../core/services/import-exam.service';
 import { ImportJob, isImportJobRunning } from '../../core/models/import-job.model';
 
-/** Keeps any in-progress bulk exam import visible in the header while its
- * Step Functions pipeline runs in the background, so progress isn't lost
- * just because the user navigated to another tab. Mirrors SyncStatusComponent's
- * icon-toggle + dropdown-panel pattern. Only appears while at least one job
- * is actually running (either pipeline phase — see isImportJobRunning) —
- * uploaded-but-not-yet-processed and awaiting-review files don't need a
- * persistent header indicator, they're visible in the import panel itself. */
+/** Keeps any bulk exam import visible in the header — both while its Step
+ * Functions pipeline is actively running (so progress isn't lost just
+ * because the user navigated to another tab) AND once Phase 1 lands on
+ * AWAITING_REVIEW, since that state otherwise has NO indicator anywhere
+ * outside the Import page itself: the icon used to only show for
+ * isImportJobRunning, so the moment extraction finished it just vanished,
+ * leaving no way back into the review screen short of remembering to open
+ * /import by hand. Mirrors SyncStatusComponent's icon-toggle + dropdown-
+ * panel pattern; an AWAITING_REVIEW line is clickable (opens the review
+ * screen directly), a still-running one isn't (nothing to act on yet). */
 @Component({
   selector: 'app-import-status-pill',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (processingJobs().length > 0) {
+    @if (visibleJobs().length > 0) {
       <div class="import-wrap">
         <button
           type="button"
-          class="import-toggle spinning"
+          class="import-toggle"
+          [class.spinning]="anyRunning()"
           (click)="onClick()"
           [attr.aria-label]="ariaLabel()"
           [title]="ariaLabel()"
@@ -31,13 +36,20 @@ import { ImportJob, isImportJobRunning } from '../../core/models/import-job.mode
 
         @if (panelOpen()) {
           <div class="import-panel" role="dialog" aria-label="Exam import status">
-            @for (job of processingJobs(); track job.id) {
-              <div class="job-line">
-                <p class="panel-title">{{ job.filename }}</p>
-                <p class="panel-body">
-                  {{ progressTotal(job) ? job.processedCount + ' of ' + progressTotal(job) + ' processed' : 'Detecting questions…' }}
-                </p>
-              </div>
+            @for (job of visibleJobs(); track job.id) {
+              @if (job.status === 'AWAITING_REVIEW') {
+                <button type="button" class="job-line job-line-action" (click)="onReview(job)">
+                  <p class="panel-title">{{ job.filename }}</p>
+                  <p class="panel-body panel-action">{{ job.totalQuestions }} question(s) ready to review →</p>
+                </button>
+              } @else {
+                <div class="job-line">
+                  <p class="panel-title">{{ job.filename }}</p>
+                  <p class="panel-body">
+                    {{ progressTotal(job) ? job.processedCount + ' of ' + progressTotal(job) + ' processed' : 'Detecting questions…' }}
+                  </p>
+                </div>
+              }
             }
           </div>
         }
@@ -63,9 +75,13 @@ import { ImportJob, isImportJobRunning } from '../../core/models/import-job.mode
         box-shadow: var(--shadow-lg); padding: var(--space-md); z-index: 40;
         display: flex; flex-direction: column; gap: var(--space-sm);
       }
+      .job-line { display: block; width: 100%; text-align: left; }
       .job-line + .job-line { padding-top: var(--space-sm); border-top: 1px solid var(--bg-border); }
+      .job-line-action { background: none; border: none; padding: 0; cursor: pointer; border-radius: var(--radius-sm); }
+      .job-line-action:hover { background: var(--bg-subtle); }
       .panel-title { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-primary); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .panel-body { font-size: var(--font-size-sm); color: var(--text-secondary); line-height: 1.45; margin: 2px 0 0; }
+      .panel-action { color: var(--color-purple); font-weight: 600; }
       @keyframes import-pulse {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.4; }
@@ -75,13 +91,25 @@ import { ImportJob, isImportJobRunning } from '../../core/models/import-job.mode
 })
 export class ImportStatusPillComponent {
   private readonly importService = inject(ImportExamService);
+  private readonly router = inject(Router);
 
   protected readonly panelOpen = signal(false);
-  readonly processingJobs = computed(() => this.importService.jobs().filter((j) => isImportJobRunning(j)));
+  readonly visibleJobs = computed(() =>
+    this.importService.jobs().filter((j) => isImportJobRunning(j) || j.status === 'AWAITING_REVIEW'),
+  );
+  readonly anyRunning = computed(() => this.importService.jobs().some((j) => isImportJobRunning(j)));
 
   readonly ariaLabel = computed(() => {
-    const n = this.processingJobs().length;
-    return `Exam import: processing ${n} file${n === 1 ? '' : 's'}`;
+    const jobs = this.visibleJobs();
+    const awaitingReview = jobs.filter((j) => j.status === 'AWAITING_REVIEW').length;
+    const running = jobs.length - awaitingReview;
+    if (awaitingReview > 0 && running > 0) {
+      return `Exam import: ${running} processing, ${awaitingReview} ready to review`;
+    }
+    if (awaitingReview > 0) {
+      return `Exam import: ${awaitingReview} file${awaitingReview === 1 ? '' : 's'} ready to review`;
+    }
+    return `Exam import: processing ${running} file${running === 1 ? '' : 's'}`;
   });
 
   progressTotal(job: Pick<ImportJob, 'status' | 'totalQuestions' | 'explainTotal'>): number | null {
@@ -101,5 +129,10 @@ export class ImportStatusPillComponent {
 
   onClick(): void {
     this.panelOpen.update((open) => !open);
+  }
+
+  onReview(job: ImportJob): void {
+    this.panelOpen.set(false);
+    void this.router.navigate(['/questions', job.packId, 'import', job.id]);
   }
 }

@@ -25,16 +25,15 @@ import { ImportExamComponent } from './import-exam.component';
   `,
   styles: [
     `
+      // See import-review-page.component.ts's own :host comment — same
+      // fix, same reason (a routed page's :host needs its own min-width: 0
+      // escape from .app-main's mobile 1fr grid track, mirrored from
+      // AppComponent's .column-full utility class since a rule written
+      // there can't reach a router-inserted sibling).
       :host {
         display: block;
         grid-column: 1 / -1;
-      }
-      @media (min-width: 768px) {
-        :host {
-          max-width: 960px;
-          margin: 0 auto;
-          width: 100%;
-        }
+        min-width: 0;
       }
       .page-card {
         display: flex;
@@ -44,6 +43,8 @@ import { ImportExamComponent } from './import-exam.component';
         background: var(--bg-surface);
         border-radius: var(--radius-lg);
         box-shadow: var(--shadow-sm);
+        max-width: 960px;
+        margin: 0 auto;
       }
       .card-header h2 {
         font-size: var(--font-size-xl);

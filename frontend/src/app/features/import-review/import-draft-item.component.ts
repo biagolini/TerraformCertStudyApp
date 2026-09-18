@@ -6,6 +6,7 @@ import {
   ImportDraftQuestion,
 } from '../../core/models/import-draft.model';
 import { ImageAssetService } from '../../core/services/image-asset.service';
+import { ImportReviewService } from '../../core/services/import-review.service';
 import { DomainBadgeComponent } from '../../shared/components/domain-badge.component';
 import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
 import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.component';
@@ -56,24 +57,30 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="row" [class.failed]="isFailed()">
-      <label class="check" [attr.aria-label]="checkboxLabel()">
-        <input
-          type="checkbox"
-          [checked]="selected()"
-          [disabled]="isFailed()"
-          (change)="selectionToggled.emit()"
-        />
-        <span class="check-box" aria-hidden="true"></span>
-      </label>
-
       <div class="content">
         <div class="title-row">
-          @if (isFailed() && !editing()) {
+          @if (isFailed() && !draft().title && !editing()) {
             <span class="title failed-title">Extraction failed — question {{ draft().index + 1 }}</span>
           } @else if (!editing()) {
-            <span class="title">{{ draft().title | truncate: 120 }}</span>
+            <span class="title" [class.failed-title]="isFailed()">{{ draft().title | truncate: 120 }}</span>
           } @else {
             <input type="text" class="title-input" [(ngModel)]="editTitle" placeholder="Title" />
+            <button
+              type="button"
+              class="reextract-btn"
+              [disabled]="!editStem.trim() || generatingTitle()"
+              (click)="$event.stopPropagation(); onGenerateTitle()"
+              [attr.aria-label]="'Generate title with AI'"
+              title="Generate title with AI"
+            >
+              @if (generatingTitle()) {
+                …
+              } @else {
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                  <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8" />
+                </svg>
+              }
+            </button>
           }
           @if (!editing()) {
             <button
@@ -85,6 +92,17 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
                 <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z" />
                 <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M13.5 6.5l4 4" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="reextract-btn delete-btn"
+              [disabled]="busy()"
+              (click)="$event.stopPropagation(); deleteRequested.emit()"
+              [attr.aria-label]="'Delete question ' + (draft().index + 1)"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M5 7h14M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0v13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V7" />
               </svg>
             </button>
             <button
@@ -112,6 +130,9 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
 
         @if (editing()) {
           <div class="edit-form" (click)="$event.stopPropagation()">
+            @if (titleGenerationError()) {
+              <p class="error-line">{{ titleGenerationError() }}</p>
+            }
             <label class="edit-label">
               <span>Domain</span>
               <input type="text" class="edit-domain-input" [(ngModel)]="editDomain" placeholder="Domain" />
@@ -199,74 +220,76 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
               <button type="button" class="btn-cancel" [disabled]="busy()" (click)="cancelEdit()">Cancel</button>
             </div>
           </div>
-        } @else if (isFailed()) {
-          <p class="error-line">{{ draft().error }}</p>
-          @if (draft().preview) {
-            <p class="preview-line">{{ draft().preview }}</p>
-          }
         } @else {
-          <div class="stem">
-            <app-markdown-renderer [source]="draft().stem ?? ''" />
-            @for (img of imagesFor('stem'); track img.key) {
-              <app-markdown-renderer [source]="'![diagram](' + img.key + ')'" />
-            }
-          </div>
-
-          <div class="alternatives">
-            @for (alt of draft().alternatives; track alt.letter) {
-              <div class="option-card" [class.correct]="alt.isCorrect">
-                <span class="option-letter">{{ alt.letter }}</span>
-                <div class="option-body">
-                  <div class="option-text">
-                    <app-markdown-renderer [source]="alt.text" />
-                    @for (img of imagesFor('alternativeText', alt.letter); track img.key) {
-                      <app-markdown-renderer [source]="'![diagram](' + img.key + ')'" />
-                    }
-                  </div>
-                  @if (alt.sourceComment || imagesFor('alternativeComment', alt.letter).length > 0) {
-                    <div class="source-comment">
-                      <p class="source-label">Source explanation (unverified):</p>
-                      @if (alt.sourceComment) {
-                        <app-markdown-renderer [source]="alt.sourceComment" />
-                      }
-                      @for (img of imagesFor('alternativeComment', alt.letter); track img.key) {
-                        <app-markdown-renderer [source]="'![diagram](' + img.key + ')'" />
-                      }
-                    </div>
-                  }
-                </div>
-                @if (alt.isCorrect) {
-                  <span class="option-status" aria-label="Correct">
-                    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                      <path fill="none" stroke="var(--color-green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7" />
-                    </svg>
-                  </span>
-                }
-              </div>
-            }
-          </div>
-
-          @if (draft().sourceGeneralComment || imagesFor('generalComment').length > 0) {
-            <div class="source-comment">
-              <p class="source-label">Overall source explanation (unverified):</p>
-              @if (draft().sourceGeneralComment) {
-                <app-markdown-renderer [source]="draft().sourceGeneralComment!" />
-              }
-              @for (img of imagesFor('generalComment'); track img.key) {
+          @if (isFailed()) {
+            <p class="error-line">{{ draft().error }}</p>
+          }
+          @if (draft().stem) {
+            <div class="stem">
+              <app-markdown-renderer [source]="draft().stem ?? ''" />
+              @for (img of imagesFor('stem'); track img.key) {
                 <app-markdown-renderer [source]="'![diagram](' + img.key + ')'" />
               }
             </div>
-          }
 
-          @if (imagesFor('unplaced').length > 0) {
-            <div class="reference-images">
-              <p class="reference-label">Other image(s) from this question (not placed — edit to assign one):</p>
-              <div class="reference-grid">
-                @for (img of imagesFor('unplaced'); track img.key) {
-                  <app-markdown-renderer [source]="'![reference image](' + img.key + ')'" />
+            <div class="alternatives">
+              @for (alt of draft().alternatives; track alt.letter) {
+                <div class="option-card" [class.correct]="alt.isCorrect">
+                  <span class="option-letter">{{ alt.letter }}</span>
+                  <div class="option-body">
+                    <div class="option-text">
+                      <app-markdown-renderer [source]="alt.text" />
+                      @for (img of imagesFor('alternativeText', alt.letter); track img.key) {
+                        <app-markdown-renderer [source]="'![diagram](' + img.key + ')'" />
+                      }
+                    </div>
+                    @if (alt.sourceComment || imagesFor('alternativeComment', alt.letter).length > 0) {
+                      <div class="source-comment">
+                        <p class="source-label">Source explanation (unverified):</p>
+                        @if (alt.sourceComment) {
+                          <app-markdown-renderer [source]="alt.sourceComment" />
+                        }
+                        @for (img of imagesFor('alternativeComment', alt.letter); track img.key) {
+                          <app-markdown-renderer [source]="'![diagram](' + img.key + ')'" />
+                        }
+                      </div>
+                    }
+                  </div>
+                  @if (alt.isCorrect) {
+                    <span class="option-status" aria-label="Correct">
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                        <path fill="none" stroke="var(--color-green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7" />
+                      </svg>
+                    </span>
+                  }
+                </div>
+              }
+            </div>
+
+            @if (draft().sourceGeneralComment || imagesFor('generalComment').length > 0) {
+              <div class="source-comment">
+                <p class="source-label">Overall source explanation (unverified):</p>
+                @if (draft().sourceGeneralComment) {
+                  <app-markdown-renderer [source]="draft().sourceGeneralComment!" />
+                }
+                @for (img of imagesFor('generalComment'); track img.key) {
+                  <app-markdown-renderer [source]="'![diagram](' + img.key + ')'" />
                 }
               </div>
-            </div>
+            }
+
+            @if (imagesFor('unplaced').length > 0) {
+              <div class="reference-images">
+                <p class="reference-label">Other image(s) from this question (not placed — edit to assign one):</p>
+                <div class="reference-grid">
+                  @for (img of imagesFor('unplaced'); track img.key) {
+                    <app-markdown-renderer [source]="'![reference image](' + img.key + ')'" />
+                  }
+                </div>
+              </div>
+            }
+          } @else if (draft().preview) {
+            <p class="preview-line">{{ draft().preview }}</p>
           }
 
           <div class="domain-row">
@@ -302,10 +325,6 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
         display: block;
       }
       .row {
-        display: grid;
-        grid-template-columns: auto 1fr;
-        align-items: start;
-        gap: var(--space-sm);
         padding: var(--space-md);
         background: var(--bg-surface);
         border-radius: var(--radius-md);
@@ -322,51 +341,8 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
         gap: var(--space-sm);
         padding: var(--space-xs) 0;
       }
-      .check {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: var(--touch-min);
-        height: var(--touch-min);
-        cursor: pointer;
-        position: relative;
-      }
-      .check input {
-        position: absolute;
-        opacity: 0;
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        cursor: pointer;
-      }
-      .check input:disabled {
-        cursor: not-allowed;
-      }
-      .check-box {
-        width: 20px;
-        height: 20px;
-        border-radius: var(--radius-sm);
-        border: 1.5px solid var(--bg-border);
-        background: var(--bg-input);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        transition: background var(--transition-fast), border-color var(--transition-fast);
-      }
-      .check input:checked + .check-box {
-        background: var(--color-purple);
-        border-color: var(--color-purple);
-      }
-      .check input:checked + .check-box::after {
-        content: '';
-        width: 10px;
-        height: 6px;
-        border-left: 2px solid #ffffff;
-        border-bottom: 2px solid #ffffff;
-        transform: rotate(-45deg) translate(0, -2px);
-      }
-      .check input:disabled + .check-box {
-        opacity: 0.5;
+      .delete-btn:hover:not(:disabled) {
+        color: var(--color-red);
       }
       .title-row {
         display: flex;
@@ -719,12 +695,13 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
 })
 export class ImportDraftItemComponent {
   private readonly imageAssets = inject(ImageAssetService);
+  private readonly reviewService = inject(ImportReviewService);
 
   readonly draft = input.required<ImportDraftQuestion>();
-  readonly selected = input.required<boolean>();
+  readonly jobId = input.required<string>();
   readonly busy = input<boolean>(false);
 
-  readonly selectionToggled = output<void>();
+  readonly deleteRequested = output<void>();
   readonly reExtractRequested = output<string | undefined>();
   readonly editSaved = output<
     Pick<ImportDraftQuestion, 'title' | 'domain' | 'stem' | 'alternatives' | 'sourceGeneralComment' | 'images'>
@@ -733,7 +710,11 @@ export class ImportDraftItemComponent {
   protected readonly hintOpen = signal(false);
   protected hintText = '';
 
-  protected readonly editing = signal(false);
+  // Public (not `protected`) — the review page reads this via a viewChild
+  // query to gate navigating away from an in-progress edit, see
+  // import-review-page.component.ts's tryNavigate.
+  private readonly editingState = signal(false);
+  readonly editing = this.editingState.asReadonly();
   protected editTitle = '';
   protected editDomain = '';
   protected editStem = '';
@@ -742,6 +723,8 @@ export class ImportDraftItemComponent {
   protected readonly editImages = signal<ImportDraftImage[]>([]);
   protected readonly uploadingImage = signal(false);
   protected readonly imageUploadError = signal<string | null>(null);
+  protected readonly generatingTitle = signal(false);
+  protected readonly titleGenerationError = signal<string | null>(null);
 
   readonly isFailed = computed(() => this.draft().extractStatus === 'FAILED');
 
@@ -753,10 +736,6 @@ export class ImportDraftItemComponent {
   }
 
   protected readonly encodeTarget = encodeImageTarget;
-
-  readonly checkboxLabel = computed(() =>
-    this.selected() ? `Deselect question ${this.draft().index + 1}` : `Select question ${this.draft().index + 1}`,
-  );
 
   toggleHint(): void {
     this.hintOpen.update((open) => !open);
@@ -785,12 +764,30 @@ export class ImportDraftItemComponent {
     );
     this.editImages.set((d.images ?? []).map((img) => ({ ...img })));
     this.imageUploadError.set(null);
+    this.titleGenerationError.set(null);
     this.hintOpen.set(false);
-    this.editing.set(true);
+    this.editingState.set(true);
+  }
+
+  async onGenerateTitle(): Promise<void> {
+    const stem = this.editStem.trim();
+    if (!stem) return;
+    this.generatingTitle.set(true);
+    this.titleGenerationError.set(null);
+    try {
+      const result = await this.reviewService.generateTitle(this.jobId(), this.draft().index, stem, this.editAlternatives());
+      if (result.error) {
+        this.titleGenerationError.set(result.error);
+        return;
+      }
+      this.editTitle = result.title ?? this.editTitle;
+    } finally {
+      this.generatingTitle.set(false);
+    }
   }
 
   cancelEdit(): void {
-    this.editing.set(false);
+    this.editingState.set(false);
   }
 
   toggleEditCorrect(letter: string): void {
@@ -866,6 +863,6 @@ export class ImportDraftItemComponent {
     // no callback path to know when it resolves; a failure surfaces via the
     // page's shared error banner (same pattern re-extract already uses),
     // and the user can just click edit again to retry.
-    this.editing.set(false);
+    this.editingState.set(false);
   }
 }

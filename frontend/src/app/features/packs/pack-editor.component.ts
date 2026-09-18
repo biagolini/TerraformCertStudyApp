@@ -9,6 +9,7 @@ import {
   isAcceptablePackColor,
   isValidHexColor,
   isValidPackColor,
+  packDisplayLabel,
 } from '../../core/models/pack.model';
 import { PacksService } from '../../core/services/packs.service';
 import { QuestionsService } from '../../core/services/questions.service';
@@ -45,6 +46,98 @@ import { ChatService } from '../../core/services/chat.service';
         </header>
 
         <div class="card-body">
+          <div class="field">
+            <span class="field-label">Quick start (optional)</span>
+            <span class="field-hint">Auto-fill every field below from a file, pasted JSON, a built-in template, or another pack in your account — then adjust anything you like.</span>
+            <div class="autofill-grid">
+              <button type="button" class="btn-import-json" (click)="triggerJsonImport()" aria-label="Import pack from JSON file">
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                  <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+                </svg>
+                Import file
+              </button>
+              <button type="button" class="btn-import-json" (click)="toggleJsonPaste()" aria-label="Paste JSON text">
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                  <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/>
+                </svg>
+                Paste JSON
+              </button>
+              <button type="button" class="btn-import-json btn-templates" (click)="toggleTemplates()" aria-label="Load from pre-defined exam templates">
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                  <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+                Templates
+              </button>
+              <button type="button" class="btn-import-json btn-templates" (click)="toggleCopyFromPack()" aria-label="Copy fields from another pack in your account">
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                  <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M8 8V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-3M8 8H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-3M8 8h8v8"/>
+                </svg>
+                Copy from pack
+              </button>
+              <input
+                #jsonFileInput
+                type="file"
+                accept=".json,application/json"
+                class="file-input-hidden"
+                aria-hidden="true"
+                (change)="onJsonFileSelected($event)"
+              />
+            </div>
+            @if (jsonPasteOpen()) {
+              <div class="json-paste-area">
+                <textarea
+                  class="text-input textarea json-paste-textarea"
+                  [(ngModel)]="jsonPasteDraft"
+                  placeholder="Paste your JSON here..."
+                  aria-label="Paste JSON content"
+                  rows="6"
+                ></textarea>
+                <div class="json-paste-actions">
+                  <button type="button" class="btn btn-primary btn-sm" (click)="applyJsonPaste()">Apply</button>
+                  <button type="button" class="btn btn-ghost btn-sm" (click)="toggleJsonPaste()">Cancel</button>
+                </div>
+              </div>
+            }
+            @if (templatesOpen()) {
+              <div class="templates-panel">
+                <p class="templates-title">Pre-defined exam packs</p>
+                <ul class="templates-list">
+                  @for (tpl of templates; track tpl.file) {
+                    <li>
+                      <button type="button" class="template-item" (click)="loadTemplate(tpl.file)">
+                        {{ tpl.label }}
+                      </button>
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
+            @if (copyFromPackOpen()) {
+              <div class="templates-panel">
+                <p class="templates-title">Your packs</p>
+                @if (copyablePacks().length === 0) {
+                  <p class="templates-empty">No other packs in your account yet.</p>
+                } @else {
+                  <ul class="templates-list">
+                    @for (p of copyablePacks(); track p.id) {
+                      <li>
+                        <button type="button" class="template-item template-item-pack" (click)="copyFromPack(p)">
+                          <span class="template-item-swatch" [style.background]="p.color"></span>
+                          {{ packLabel(p) }}
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+            }
+            @if (jsonImportMessage()) {
+              <p class="import-msg" [class.import-ok]="jsonImportOk()" [class.import-err]="!jsonImportOk()">
+                {{ jsonImportMessage() }}
+              </p>
+            }
+          </div>
+
           <label class="field">
             <span class="field-label">Name</span>
             <input
@@ -128,87 +221,10 @@ import { ChatService } from '../../core/services/chat.service';
           </div>
 
           <div class="field">
-            <div class="field-label-row">
-              <span class="field-label">Knowledge Domains</span>
-              <button
-                type="button"
-                class="btn-import-json"
-                (click)="triggerJsonImport()"
-                aria-label="Import pack from JSON file"
-              >
-                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                  <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
-                </svg>
-                Import file
-              </button>
-              <button
-                type="button"
-                class="btn-import-json"
-                (click)="toggleJsonPaste()"
-                aria-label="Paste JSON text"
-              >
-                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                  <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/>
-                </svg>
-                Paste JSON
-              </button>
-              <button
-                type="button"
-                class="btn-import-json btn-templates"
-                (click)="toggleTemplates()"
-                aria-label="Load from pre-defined exam templates"
-              >
-                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                  <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
-                </svg>
-                Templates
-              </button>
-              <input
-                #jsonFileInput
-                type="file"
-                accept=".json,application/json"
-                class="file-input-hidden"
-                aria-hidden="true"
-                (change)="onJsonFileSelected($event)"
-              />
-            </div>
-            @if (jsonPasteOpen()) {
-              <div class="json-paste-area">
-                <textarea
-                  class="text-input textarea json-paste-textarea"
-                  [(ngModel)]="jsonPasteDraft"
-                  placeholder="Paste your JSON here..."
-                  aria-label="Paste JSON content"
-                  rows="6"
-                ></textarea>
-                <div class="json-paste-actions">
-                  <button type="button" class="btn btn-primary btn-sm" (click)="applyJsonPaste()">Apply</button>
-                  <button type="button" class="btn btn-ghost btn-sm" (click)="toggleJsonPaste()">Cancel</button>
-                </div>
-              </div>
-            }
-            @if (templatesOpen()) {
-              <div class="templates-panel">
-                <p class="templates-title">Pre-defined exam packs</p>
-                <ul class="templates-list">
-                  @for (tpl of templates; track tpl.file) {
-                    <li>
-                      <button type="button" class="template-item" (click)="loadTemplate(tpl.file)">
-                        {{ tpl.label }}
-                      </button>
-                    </li>
-                  }
-                </ul>
-              </div>
-            }
+            <span class="field-label">Knowledge Domains</span>
             <span class="field-hint">
               The AI classifies each question into one of these. Leave empty to label every question as General.
             </span>
-            @if (jsonImportMessage()) {
-              <p class="import-msg" [class.import-ok]="jsonImportOk()" [class.import-err]="!jsonImportOk()">
-                {{ jsonImportMessage() }}
-              </p>
-            }
             <div class="domain-add-group">
               <div class="domain-input">
                 <input
@@ -649,16 +665,18 @@ import { ChatService } from '../../core/services/chat.service';
         color: var(--text-muted);
         font-family: var(--font-mono);
       }
-      .field-label-row {
-        display: flex;
-        align-items: center;
-        gap: var(--space-sm);
+      .autofill-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--space-xs);
       }
       .btn-import-json {
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 4px;
-        padding: 3px var(--space-sm);
+        min-height: var(--touch-min);
+        padding: var(--space-sm);
         border-radius: var(--radius-md);
         border: 1px solid var(--bg-border);
         background: var(--bg-elevated);
@@ -713,6 +731,22 @@ import { ChatService } from '../../core/services/chat.service';
       .template-item:hover {
         background: rgba(108, 92, 231, 0.1);
         color: var(--color-purple);
+      }
+      .template-item-pack {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+      }
+      .template-item-swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: var(--radius-sm);
+        flex-shrink: 0;
+      }
+      .templates-empty {
+        font-size: var(--font-size-sm);
+        color: var(--text-faint);
+        padding: var(--space-xs) var(--space-sm);
       }
       .file-input-hidden {
         display: none;
@@ -1012,6 +1046,7 @@ export class PackEditorComponent {
   protected readonly jsonImportOk = signal(false);
   protected readonly jsonPasteOpen = signal(false);
   protected readonly templatesOpen = signal(false);
+  protected readonly copyFromPackOpen = signal(false);
   protected jsonPasteDraft = '';
   protected readonly editingDomain = signal<string | null>(null);
   protected editNameDraft = '';
@@ -1028,6 +1063,13 @@ export class PackEditorComponent {
   readonly questionsInPack = computed(() => {
     const p = this.pack();
     return p ? this.questionsService.allQuestions().filter((q) => q.packId === p.id).length : 0;
+  });
+  /** Every other pack in the account — excludes the one currently being
+   * edited (copying a pack onto itself is meaningless), never the "new
+   * pack" case since there's no self to exclude then. */
+  readonly copyablePacks = computed(() => {
+    const currentId = this.pack()?.id;
+    return this.packs.packs().filter((p) => p.id !== currentId);
   });
 
   constructor() {
@@ -1064,12 +1106,53 @@ export class PackEditorComponent {
   toggleJsonPaste(): void {
     this.jsonPasteOpen.update((v) => !v);
     if (!this.jsonPasteOpen()) this.jsonPasteDraft = '';
-    if (this.jsonPasteOpen()) this.templatesOpen.set(false);
+    if (this.jsonPasteOpen()) {
+      this.templatesOpen.set(false);
+      this.copyFromPackOpen.set(false);
+    }
   }
 
   toggleTemplates(): void {
     this.templatesOpen.update((v) => !v);
-    if (this.templatesOpen()) this.jsonPasteOpen.set(false);
+    if (this.templatesOpen()) {
+      this.jsonPasteOpen.set(false);
+      this.copyFromPackOpen.set(false);
+    }
+  }
+
+  toggleCopyFromPack(): void {
+    this.copyFromPackOpen.update((v) => !v);
+    if (this.copyFromPackOpen()) {
+      this.jsonPasteOpen.set(false);
+      this.templatesOpen.set(false);
+    }
+  }
+
+  packLabel(pack: Pack): string {
+    return packDisplayLabel(pack);
+  }
+
+  /** Copies every field this dialog actually edits from another pack in
+   * the account — a superset of what applyJsonText can cover, since it
+   * reads the real Pack object directly rather than round-tripping
+   * through JSON (so timing/partial-credit fields come along too, not
+   * just the subset a hand-authored JSON file would include). */
+  copyFromPack(source: Pack): void {
+    this.nameDraft = source.name;
+    this.versionDraft = source.version ?? '';
+    this.descriptionDraft = source.description ?? '';
+    this.colorDraft.set(source.color);
+    this.domainsDraft.set([...source.domains]);
+    this.exportIntroQuestionsDraft = source.exportIntroQuestions ?? '';
+    this.exportIntroTranscriptsDraft = source.exportIntroTranscripts ?? '';
+    this.exportIntroChatDraft = source.exportIntroChat ?? '';
+    this.allowPartialCreditDraft.set(source.allowPartialCredit ?? false);
+    this.examTotalQuestionsDraft = source.examTotalQuestions ?? null;
+    this.examDurationMinutesDraft = source.examDurationMinutes ?? null;
+    this.accommodationMinutesDraft = source.accommodationMinutes ?? null;
+    this.copyFromPackOpen.set(false);
+    this.jsonImportOk.set(true);
+    this.jsonImportMessage.set(`Copied every field from "${packDisplayLabel(source)}" — adjust anything you like before saving.`);
   }
 
   async loadTemplate(file: string): Promise<void> {

@@ -1,9 +1,13 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
 import { ImportDraftQuestion } from '../../core/models/import-draft.model';
 import { ImportReviewService } from '../../core/services/import-review.service';
 import { ImportExamService } from '../../core/services/import-exam.service';
+import { StorageService } from '../../core/services/storage.service';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
+import { ConfirmDeleteDialogComponent } from '../../shared/components/confirm-delete-dialog.component';
+import { DiscardChangesDialogComponent } from '../../shared/components/discard-changes-dialog.component';
 import { ImportDraftItemComponent } from './import-draft-item.component';
 
 /** Routed at /questions/:packId/import/:jobId — reached from
@@ -14,10 +18,15 @@ import { ImportDraftItemComponent } from './import-draft-item.component';
  * layout (centered `.runner` card, `.runner-body` main+palette split,
  * numbered palette dots) rather than a long scrolling list, since this
  * screen serves the exact same purpose as the quiz runner from the user's
- * perspective: go through N items one at a time, marking each. A palette
- * dot's state reuses the same visual vocabulary: filled = approved
- * (selected for Phase 2, like "answered"), a warning dot overlay = failed
- * extraction (like "flagged"), a blue ring = current. */
+ * perspective: go through N items one at a time. A palette dot's state:
+ * a warning overlay = failed extraction ("needs attention"), a blue ring
+ * = current.
+ *
+ * No per-question selection any more — extraction is reliable enough now
+ * that batching "only the ones I checked" stopped being the common case.
+ * The two bulk actions below act on every approved (successfully-
+ * extracted, not yet promoted) draft; excluding one from a batch means
+ * deleting it, not unchecking it. */
 @Component({
   selector: 'app-import-review-page',
   standalone: true,
@@ -55,10 +64,11 @@ import { ImportDraftItemComponent } from './import-draft-item.component';
         <div class="runner-body">
           <div class="question-main">
             <app-import-draft-item
+              #draftItem
               [draft]="draft"
-              [selected]="isSelected(draft.index)"
+              [jobId]="jobId()"
               [busy]="isBusy(draft.index)"
-              (selectionToggled)="toggleSelected(draft.index)"
+              (deleteRequested)="onDeleteDraft(draft)"
               (reExtractRequested)="onReExtract(draft.index, $event)"
               (editSaved)="onEditSaved(draft.index, $event)"
             />
@@ -80,16 +90,20 @@ import { ImportDraftItemComponent } from './import-draft-item.component';
               <button
                 type="button"
                 class="generate-btn secondary"
-                [disabled]="selectedIndices().size === 0 || submitting()"
-                (click)="onProcessSelected()"
-              >Process selected ({{ selectedIndices().size }})</button>
+                [disabled]="approvableCount() === 0 || submitting()"
+                (click)="onSaveAsIs()"
+              >{{ submitting() ? 'Saving…' : 'Save as is (' + approvableCount() + ')' }}</button>
               <button
                 type="button"
                 class="generate-btn"
                 [disabled]="approvableCount() === 0 || submitting()"
-                (click)="onProcessAll()"
-              >Process all ({{ approvableCount() }})</button>
+                (click)="onRefineWithAI()"
+              >{{ submitting() ? 'Starting…' : 'Refine extraction with AI (' + approvableCount() + ')' }}</button>
             </div>
+            <p class="status-line">
+              "Save as is" keeps each alternative's source explanation exactly as extracted, no AI call.
+              "Refine extraction with AI" rewrites and verifies each explanation instead.
+            </p>
           </div>
 
           <aside class="palette">
@@ -99,7 +113,6 @@ import { ImportDraftItemComponent } from './import-draft-item.component';
                 <button
                   type="button"
                   class="palette-dot"
-                  [class.answered]="isSelected(d.index)"
                   [class.current]="i === cursor()"
                   (click)="goTo(i)"
                 >
@@ -108,13 +121,14 @@ import { ImportDraftItemComponent } from './import-draft-item.component';
                 </button>
               }
             </div>
+            <button type="button" class="add-question-btn" [disabled]="addingQuestion()" (click)="onAddQuestion()">
+              {{ addingQuestion() ? 'Adding…' : '+ Add question' }}
+            </button>
             <div class="palette-legend">
               <div class="legend-row"><span class="legend-swatch current"></span> Current item</div>
-              <div class="legend-row"><span class="legend-swatch" style="background:var(--color-purple)"></span> Approved</div>
-              <div class="legend-row"><span class="legend-swatch outline"></span> Not yet approved</div>
-              <div class="legend-row"><span class="legend-swatch outline"><span class="flag-dot" aria-hidden="true"></span></span> Extraction failed</div>
+              <div class="legend-row"><span class="legend-swatch outline"><span class="flag-dot" aria-hidden="true"></span></span> Extraction failed / needs attention</div>
             </div>
-            <p class="palette-summary">{{ selectedIndices().size }} of {{ pendingDrafts().length }} approved</p>
+            <p class="palette-summary">{{ pendingDrafts().length }} question(s) pending review</p>
           </aside>
         </div>
 
@@ -126,19 +140,27 @@ import { ImportDraftItemComponent } from './import-draft-item.component';
   `,
   styles: [
     `
+      // min-width: 0 matches AppComponent's own .column-full utility class
+      // (app.component.scss) — a routed page lands as router-outlet's
+      // sibling, not a child AppComponent's stylesheet can reach, so this
+      // has to be repeated in every full-width routed page's own :host.
+      // Without it, .app-main's mobile grid-template-columns: 1fr track
+      // won't shrink below this subtree's content min-width (CSS Grid's
+      // default track min-size is auto, not 0) — invisible as long as
+      // everything inside wraps normally, but a wide extracted image or
+      // table (this page's raw, not-yet-reviewed content, unlike quiz's
+      // already-cleaned questions) forces the whole grid track wider than
+      // the viewport instead of just scrolling within its own box.
       :host {
         display: block;
         grid-column: 1 / -1;
-      }
-      @media (min-width: 768px) {
-        :host {
-          max-width: 960px;
-          margin: 0 auto;
-          width: 100%;
-        }
+        min-width: 0;
       }
 
-      .runner { display: flex; flex-direction: column; gap: var(--space-lg); background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: var(--space-lg); }
+      // max-width/centering lives on .runner itself, unconditionally —
+      // mirrors quiz-runner.component.ts's own .runner rule exactly,
+      // rather than gating it behind a min-width media query on :host.
+      .runner { display: flex; flex-direction: column; gap: var(--space-lg); background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: var(--space-lg); max-width: 960px; margin: 0 auto; }
       .runner-header { display: flex; align-items: center; gap: var(--space-md); }
       .back-btn {
         flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
@@ -188,9 +210,20 @@ import { ImportDraftItemComponent } from './import-draft-item.component';
       .palette h4 { margin: 0 0 var(--space-sm); font-size: var(--font-size-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
       .palette-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
       .palette-dot { position: relative; width: 28px; height: 28px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: var(--font-size-xs); font-weight: 600; background: var(--bg-input); border: 1.5px solid var(--bg-border); color: var(--text-muted); cursor: pointer; font-family: var(--font-family); }
-      .palette-dot.answered { background: var(--color-purple); border-color: var(--color-purple); color: #fff; }
       .palette-dot.current { box-shadow: 0 0 0 2px var(--color-blue) inset; }
       .palette-dot .flag-dot { position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--color-red); }
+      .add-question-btn {
+        margin-top: var(--space-sm);
+        width: 100%;
+        height: 32px;
+        border-radius: var(--radius-md);
+        border: 1px dashed var(--bg-border);
+        background: transparent;
+        color: var(--text-secondary);
+        font-size: var(--font-size-sm);
+      }
+      .add-question-btn:hover:not(:disabled) { border-color: var(--color-purple); color: var(--text-primary); }
+      .add-question-btn:disabled { opacity: 0.5; cursor: not-allowed; }
       .palette-legend { margin-top: var(--space-md); display: flex; flex-direction: column; gap: 6px; font-size: var(--font-size-xs); color: var(--text-muted); }
       .legend-row { display: flex; align-items: center; gap: 6px; }
       .legend-swatch { position: relative; width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
@@ -209,17 +242,20 @@ import { ImportDraftItemComponent } from './import-draft-item.component';
 export class ImportReviewPageComponent implements OnInit {
   private readonly reviewService = inject(ImportReviewService);
   private readonly importExamService = inject(ImportExamService);
+  private readonly storage = inject(StorageService);
   private readonly router = inject(Router);
+  private readonly dialog = inject(MatDialog);
+  private readonly draftItem = viewChild<ImportDraftItemComponent>('draftItem');
 
   readonly packId = input.required<string>();
   readonly jobId = input.required<string>();
 
   protected readonly loading = this.reviewService.loading;
   protected readonly drafts = this.reviewService.drafts;
-  protected readonly selectedIndices = signal<ReadonlySet<number>>(new Set());
   protected readonly busyIndices = signal<ReadonlySet<number>>(new Set());
   protected readonly error = signal<string | null>(null);
   protected readonly submitting = signal(false);
+  protected readonly addingQuestion = signal(false);
   protected readonly cursor = signal(0);
 
   protected readonly job = computed(() => this.importExamService.jobs().find((j) => j.id === this.jobId()));
@@ -247,31 +283,42 @@ export class ImportReviewPageComponent implements OnInit {
     void this.reviewService.loadDrafts(this.jobId());
   }
 
-  isSelected(index: number): boolean {
-    return this.selectedIndices().has(index);
-  }
-
   isBusy(index: number): boolean {
     return this.busyIndices().has(index);
   }
 
-  toggleSelected(index: number): void {
-    const next = new Set(this.selectedIndices());
-    if (next.has(index)) next.delete(index);
-    else next.add(index);
-    this.selectedIndices.set(next);
-  }
-
   goTo(pos: number): void {
-    this.cursor.set(pos);
+    if (pos === this.cursor()) return;
+    this.tryNavigate(() => this.cursor.set(pos));
   }
 
   next(): void {
-    this.cursor.update((pos) => Math.min(pos + 1, this.pendingDrafts().length - 1));
+    this.tryNavigate(() => this.cursor.update((pos) => Math.min(pos + 1, this.pendingDrafts().length - 1)));
   }
 
   prev(): void {
-    this.cursor.update((pos) => Math.max(pos - 1, 0));
+    this.tryNavigate(() => this.cursor.update((pos) => Math.max(pos - 1, 0)));
+  }
+
+  /** Switching questions used to leave the edit form stuck showing the
+   * PREVIOUS question's fields while `draft` silently pointed at a new
+   * one underneath — this gates that: if the current question is being
+   * edited, confirm before navigating (an unsaved edit would otherwise be
+   * discarded with no warning at all). */
+  private tryNavigate(apply: () => void): void {
+    const item = this.draftItem();
+    if (!item?.editing()) {
+      apply();
+      return;
+    }
+    this.dialog
+      .open(DiscardChangesDialogComponent, { width: '400px' })
+      .afterClosed()
+      .subscribe((result) => {
+        if (result !== 'discard') return;
+        item.cancelEdit();
+        apply();
+      });
   }
 
   async onReExtract(index: number, hint: string | undefined): Promise<void> {
@@ -306,33 +353,73 @@ export class ImportReviewPageComponent implements OnInit {
     }
   }
 
-  async onProcessSelected(): Promise<void> {
-    const indices = [...this.selectedIndices()];
-    if (indices.length === 0) return;
-    await this.submit(indices);
+  async onRefineWithAI(): Promise<void> {
+    await this.submit(() => this.reviewService.startExplanations(this.jobId()));
   }
 
-  async onProcessAll(): Promise<void> {
-    const indices = this.pendingDrafts()
-      .filter((d) => d.extractStatus === 'SUCCEEDED')
-      .map((d) => d.index);
-    if (indices.length === 0) return;
-    await this.submit(indices);
+  async onSaveAsIs(): Promise<void> {
+    await this.submit(() => this.reviewService.saveAsIs(this.jobId()), { refreshQuestions: true });
   }
 
-  private async submit(indices: number[]): Promise<void> {
+  private async submit(
+    action: () => Promise<{ error?: string }>,
+    options?: { refreshQuestions?: boolean },
+  ): Promise<void> {
     this.error.set(null);
     this.submitting.set(true);
     try {
-      const result = await this.reviewService.startExplanations(this.jobId(), indices);
+      const result = await action();
       if (result.error) {
         this.error.set(result.error);
         return;
       }
       await this.importExamService.refreshJobs();
+      // "Save as is" writes the new Questions synchronously and completes
+      // the job in this same call — unlike "Refine extraction with AI"
+      // (Step Functions, still running when we get here), there's no later
+      // poller transition to trigger StorageService's own refresh, so it
+      // has to happen here or the new questions just don't show up yet.
+      if (options?.refreshQuestions) {
+        await this.storage.refresh();
+      }
       this.onBack();
     } finally {
       this.submitting.set(false);
+    }
+  }
+
+  onDeleteDraft(draft: ImportDraftQuestion): void {
+    const dialogRef = this.dialog.open(ConfirmDeleteDialogComponent, {
+      data: { title: draft.title || `Question ${draft.index + 1}` },
+      width: '400px',
+    });
+    dialogRef.afterClosed().subscribe(async (result) => {
+      if (result !== 'confirm') return;
+      this.error.set(null);
+      const delResult = await this.reviewService.deleteDraft(this.jobId(), draft.index);
+      if (delResult.error) {
+        this.error.set(delResult.error);
+        return;
+      }
+      this.cursor.update((pos) => Math.min(pos, Math.max(0, this.pendingDrafts().length - 1)));
+    });
+  }
+
+  /** Appends a blank question and jumps straight to it — gated by the same
+   * discard-changes check as any other navigation, since it moves the
+   * cursor away from whatever's currently being edited. */
+  async onAddQuestion(): Promise<void> {
+    this.error.set(null);
+    this.addingQuestion.set(true);
+    try {
+      const result = await this.reviewService.addDraft(this.jobId());
+      if (result.error) {
+        this.error.set(result.error);
+        return;
+      }
+      this.tryNavigate(() => this.cursor.set(Math.max(0, this.pendingDrafts().length - 1)));
+    } finally {
+      this.addingQuestion.set(false);
     }
   }
 

@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { StudyMethod } from '../models/method.model';
-import { NAV_ITEMS, NavTabId } from '../models/nav-item.model';
+import { DEFAULT_NAV_ORDER, NAV_ITEMS, NavTabId, resolveNavOrder } from '../models/nav-item.model';
 import { AppSettings, DEFAULT_SETTINGS, ReviewMode, ThemeMode } from '../models/settings.model';
 import { StorageService } from './storage.service';
 
@@ -22,6 +22,9 @@ export class SettingsService {
   readonly defaultTrackTime = computed(() => this.state().defaultTrackTime);
   readonly defaultUseAccommodation = computed(() => this.state().defaultUseAccommodation);
   readonly hiddenNavTabs = computed(() => this.state().hiddenNavTabs);
+  /** Every current nav item, in the user's chosen display order — see
+   * resolveNavOrder for how a stale/incomplete stored order is handled. */
+  readonly orderedNavItems = computed(() => resolveNavOrder(this.state().navOrder ?? DEFAULT_NAV_ORDER));
 
   constructor() {
     effect(() => {
@@ -89,6 +92,19 @@ export class SettingsService {
     if (!hidden && current.length >= NAV_ITEMS.length - 1) return;
     const next = hidden ? current.filter((t) => t !== id) : [...current, id];
     this.update((s) => ({ ...s, hiddenNavTabs: next }));
+  }
+
+  /** Swaps `id` with its neighbor in the given direction — operates on the
+   * already-resolved, complete ordering (orderedNavItems), not the raw
+   * (possibly stale/incomplete) stored navOrder, so this always produces a
+   * full, valid order regardless of what was there before. */
+  moveNavTab(id: NavTabId, direction: 'up' | 'down'): void {
+    const order = this.orderedNavItems().map((item) => item.id);
+    const index = order.indexOf(id);
+    const swapWith = direction === 'up' ? index - 1 : index + 1;
+    if (index === -1 || swapWith < 0 || swapWith >= order.length) return;
+    [order[index], order[swapWith]] = [order[swapWith], order[index]];
+    this.update((s) => ({ ...s, navOrder: order }));
   }
 
   private update(updater: (current: AppSettings) => AppSettings): void {

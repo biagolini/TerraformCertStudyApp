@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { NAV_ITEMS } from './core/models/nav-item.model';
 import { PacksService } from './core/services/packs.service';
 import { QuestionsService } from './core/services/questions.service';
 import { AuthService } from './core/services/auth.service';
@@ -117,7 +116,7 @@ export class AppComponent {
 
   readonly visibleNavItems = computed(() => {
     const hidden = this.settingsService.hiddenNavTabs();
-    return NAV_ITEMS.filter((item) => !hidden.includes(item.id));
+    return this.settingsService.orderedNavItems().filter((item) => !hidden.includes(item.id));
   });
 
   readonly activePackName = computed(() => this.packs.activePack().name);

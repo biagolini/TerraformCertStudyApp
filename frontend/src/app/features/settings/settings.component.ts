@@ -198,23 +198,49 @@ import { StorageService } from '../../core/services/storage.service';
           <header class="section-header">
             <h3>Bottom navigation</h3>
             <p class="helper">
-              Choose which tabs appear in the bottom navigation bar. At least one must stay visible.
+              Choose which tabs appear in the bottom navigation bar, and reorder them with the arrows. At least one must stay visible.
             </p>
           </header>
-          @for (item of navItems; track item.id) {
-            <label class="switch-row">
-              <button
-                type="button"
-                class="switch"
-                [class.on]="!hiddenNavTabs().includes(item.id)"
-                [disabled]="isLastVisibleNavTab(item.id)"
-                (click)="onToggleNavTab(item.id)"
-                role="switch"
-                [attr.aria-checked]="!hiddenNavTabs().includes(item.id)"
-                [attr.aria-label]="'Show ' + item.label + ' in bottom navigation'"
-              ><span class="thumb"></span></button>
-              <span>{{ item.label }}</span>
-            </label>
+          @for (item of orderedNavItems(); track item.id; let i = $index, count = $count) {
+            <div class="nav-order-row">
+              <div class="reorder-buttons">
+                <button
+                  type="button"
+                  class="reorder-btn"
+                  [disabled]="i === 0"
+                  (click)="onMoveNavTab(item.id, 'up')"
+                  [attr.aria-label]="'Move ' + item.label + ' up'"
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                    <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 15l6-6 6 6" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="reorder-btn"
+                  [disabled]="i === count - 1"
+                  (click)="onMoveNavTab(item.id, 'down')"
+                  [attr.aria-label]="'Move ' + item.label + ' down'"
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                    <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+              </div>
+              <label class="switch-row">
+                <button
+                  type="button"
+                  class="switch"
+                  [class.on]="!hiddenNavTabs().includes(item.id)"
+                  [disabled]="isLastVisibleNavTab(item.id)"
+                  (click)="onToggleNavTab(item.id)"
+                  role="switch"
+                  [attr.aria-checked]="!hiddenNavTabs().includes(item.id)"
+                  [attr.aria-label]="'Show ' + item.label + ' in bottom navigation'"
+                ><span class="thumb"></span></button>
+                <span>{{ item.label }}</span>
+              </label>
+            </div>
           }
         </section>
 
@@ -393,6 +419,37 @@ import { StorageService } from '../../core/services/storage.service';
         font-size: var(--font-size-sm);
         color: var(--text-secondary);
       }
+      .nav-order-row {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+      }
+      .reorder-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        flex-shrink: 0;
+      }
+      .reorder-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 16px;
+        padding: 0;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--bg-border);
+        background: transparent;
+        color: var(--text-muted);
+      }
+      .reorder-btn:hover:not(:disabled) {
+        border-color: var(--color-purple);
+        color: var(--color-purple);
+      }
+      .reorder-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
       .switch {
         width: 38px;
         height: 22px;
@@ -466,6 +523,7 @@ export class SettingsComponent {
   protected readonly clearResult = signal<{ deleted: number; failed: number } | null>(null);
   protected readonly outputLanguages = OUTPUT_LANGUAGES;
   protected readonly navItems = NAV_ITEMS;
+  protected readonly orderedNavItems = this.settings.orderedNavItems;
 
   readonly closed = output<void>();
 
@@ -545,6 +603,10 @@ export class SettingsComponent {
 
   onToggleNavTab(id: NavTabId): void {
     this.settings.toggleNavTab(id);
+  }
+
+  onMoveNavTab(id: NavTabId, direction: 'up' | 'down'): void {
+    this.settings.moveNavTab(id, direction);
   }
 
   isLastVisibleNavTab(id: NavTabId): boolean {

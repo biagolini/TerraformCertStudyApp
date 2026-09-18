@@ -184,17 +184,15 @@ function toCommaList(value: string): string[] {
 
             <div class="stem"><app-markdown-renderer [source]="question.stem" /></div>
 
-            @if (!showCorrectInReview()) {
-              <button type="button" class="reveal-btn" (click)="onToggleReveal()">
-                @if (revealed()) {
-                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.9 5.1A10.9 10.9 0 0112 5c7 0 11 7 11 7a13.2 13.2 0 01-3.1 3.6M6.2 6.2A13.3 13.3 0 001 12s4 7 11 7a10.6 10.6 0 004.7-1.1"/></svg>
-                  <span>Hide correct answer &amp; comments</span>
-                } @else {
-                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
-                  <span>Reveal correct answer &amp; comments</span>
-                }
-              </button>
-            }
+            <button type="button" class="reveal-btn" (click)="onToggleReveal()">
+              @if (revealed()) {
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.9 5.1A10.9 10.9 0 0112 5c7 0 11 7 11 7a13.2 13.2 0 01-3.1 3.6M6.2 6.2A13.3 13.3 0 001 12s4 7 11 7a10.6 10.6 0 004.7-1.1"/></svg>
+                <span>Hide correct answer &amp; comments</span>
+              } @else {
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+                <span>Reveal correct answer &amp; comments</span>
+              }
+            </button>
 
             <div class="alternatives">
               @for (opt of question.alternatives; track opt.letter) {
@@ -447,8 +445,14 @@ export class ReviewViewerComponent {
   private refineController: AbortController | null = null;
 
   readonly showCorrectInReview = this.settings.showCorrectInReview;
+  // Starts at whatever the "highlight correct alternative" setting says for
+  // a freshly-opened question (see the constructor's effect), then is a
+  // plain toggle from there — previously this was `showCorrectInReview() ||
+  // revealed()`, which meant the button could only ever turn answers ON
+  // when the setting defaulted to shown: an OR can't go back to false once
+  // one side is true, so there was no way to hide them again.
   protected readonly revealed = signal(false);
-  readonly revealAnswers = computed(() => this.showCorrectInReview() || this.revealed());
+  readonly revealAnswers = computed(() => this.revealed());
 
   readonly domainOptions = computed(() => {
     const defined = this.packs.activeDomains().map((d) => d.name);
@@ -468,7 +472,7 @@ export class ReviewViewerComponent {
       this.refineDraft = '';
       this.refineError.set(null);
       this.editError.set(null);
-      this.revealed.set(false);
+      this.revealed.set(this.showCorrectInReview());
     });
   }
 

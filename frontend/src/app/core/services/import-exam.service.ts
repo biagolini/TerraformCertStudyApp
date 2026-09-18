@@ -135,6 +135,22 @@ export class ImportExamService {
     return {};
   }
 
+  /** Presigned GET for the exact file the user uploaded — only works
+   * within the uploads/ prefix's 2-day lifecycle window; past that the
+   * backend returns a clear "no longer available" error instead. */
+  async getOriginalFileUrl(jobId: string): Promise<{ url?: string; error?: string }> {
+    const token = await this.auth.getValidToken();
+    const res = await fetch(`${this.apiUrl}/data/imports/${jobId}/original-url`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}) as { error?: string });
+      return { error: body.error || 'Failed to open the original file.' };
+    }
+    const body = (await res.json()) as { url: string };
+    return { url: body.url };
+  }
+
   /** Removes job history entries only — never touches questions already
    * extracted from them (those live independently once saved) or their
    * images. Used by "Clear history" for terminal (done) jobs. */
