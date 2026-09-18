@@ -1,7 +1,7 @@
 {
   "github.copilot.chat.commitMessageGeneration.instructions": [
     {
-      "text": "Write a single concise commit subject line in imperative mood, max 72 characters. Do not add a body, bullet points, or explanatory paragraphs. Do not add a Co-Authored-By footer or any trailer. Summarize only the essence of the change. Only add a short body if the change is genuinely complex and cannot be conveyed in the subject alone."
+      "text": "Write a single concise commit subject line in imperative mood, max 72 characters. Always start with a Conventional Commits type prefix followed by a colon and a space. Allowed types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert. Optionally add a scope in parentheses to indicate which top-level part of the monorepo changed. Valid scopes: frontend (the Angular app), backend (the Terraform infrastructure and Lambda code under backend/), design-system, docs. Do not treat 'infra' and 'terraform' as separate scopes: the Terraform code under backend/ is the infrastructure, so use backend for both. When a single commit changes more than one area, join the scopes with a plus sign, e.g. feat(frontend+backend):. Do not add a body, bullet points, or explanatory paragraphs. Do not add a Co-Authored-By footer or any trailer. Summarize only the essence of the change. Only add a short body if the change is genuinely complex and cannot be conveyed in the subject alone."
     }
   ]
 }
