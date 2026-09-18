@@ -1,0 +1,7 @@
+{
+  "github.copilot.chat.commitMessageGeneration.instructions": [
+    {
+      "text": "Write a single concise commit subject line in imperative mood, max 72 characters. Do not add a body, bullet points, or explanatory paragraphs. Do not add a Co-Authored-By footer or any trailer. Summarize only the essence of the change. Only add a short body if the change is genuinely complex and cannot be conveyed in the subject alone."
+    }
+  ]
+}
