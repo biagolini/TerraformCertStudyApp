@@ -1,7 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-
-const DEFAULT_MESSAGE =
-  'AI can produce inaccurate or fabricated information. Always verify against official sources before relying on it.';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-ai-disclaimer',
@@ -43,8 +41,10 @@ const DEFAULT_MESSAGE =
   ],
 })
 export class AiDisclaimerComponent {
+  private readonly i18n = inject(I18nService);
+
   readonly message = input<string | null>(null);
   readonly tight = input<boolean>(false);
 
-  readonly text = computed(() => this.message() ?? DEFAULT_MESSAGE);
+  readonly text = computed(() => this.message() ?? this.i18n.t('aiDisclaimer.default'));
 }

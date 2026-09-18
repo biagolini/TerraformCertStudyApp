@@ -8,6 +8,7 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
 import { QuizAnnotatedTextComponent } from './quiz-annotated-text.component';
 import { formatClock, QuizService } from '../../core/services/quiz.service';
 import { QuestionsService } from '../../core/services/questions.service';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-quiz-runner',
@@ -19,7 +20,7 @@ import { QuestionsService } from '../../core/services/questions.service';
       <section class="runner">
         <header class="runner-header">
           <div class="progress-track"><div class="progress-fill" [style.width.%]="progressPct()"></div></div>
-          <span class="progress-text">Question {{ progress().index + 1 }} of {{ progress().total }}</span>
+          <span class="progress-text">{{ i18n.t('importReview.questionOf', { current: progress().index + 1, total: progress().total }) }}</span>
           @if (clock(); as c) {
             <span class="clock-pill" [class.overtime]="c.overtime">
               <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -27,7 +28,7 @@ import { QuestionsService } from '../../core/services/questions.service';
             </span>
           }
           @if (isInstant()) {
-            <span class="score-pill">Score {{ score().correct }}/{{ score().answered }}</span>
+            <span class="score-pill">{{ i18n.t('quizRunner.score', { correct: score().correct, answered: score().answered }) }}</span>
           }
         </header>
 
@@ -41,7 +42,7 @@ import { QuestionsService } from '../../core/services/questions.service';
             (click)="onHighlightClick()"
           >
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9 11l6-6 4 4-6 6m-4-4l-3 7 7-3m-4-4l4 4"/></svg>
-            <span>Highlight</span>
+            <span>{{ i18n.t('quizRunner.highlight') }}</span>
           </button>
           <button
             type="button"
@@ -52,21 +53,21 @@ import { QuestionsService } from '../../core/services/questions.service';
             (click)="onStrikethroughClick()"
           >
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 12h16M8 12c0-2 1.5-4 4-4s4 1 4 2M8 12c0 2 1.5 5 4 5 2.5 0 3.5-1.3 4-2.5"/></svg>
-            <span>Strikethrough</span>
+            <span>{{ i18n.t('quizRunner.strikethrough') }}</span>
           </button>
           <button
             type="button"
             class="tool-btn"
             [disabled]="!quiz.hasCurrentMarks()"
             (click)="onClearMarksClick()"
-            aria-label="Clear all highlights and strikethroughs on this question"
+            [attr.aria-label]="i18n.t('quizRunner.clearMarksAriaLabel')"
           >
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M20 20H9l-6-6a2 2 0 010-2.8L12.6 2.6a2 2 0 012.8 0l5.7 5.7a2 2 0 010 2.8L14 18"/></svg>
-            <span>Clear marks</span>
+            <span>{{ i18n.t('quizRunner.clearMarks') }}</span>
           </button>
           <button type="button" class="tool-btn" [class.active]="noteOpen()" (click)="onNoteToggleClick()">
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 5h16v11H8l-4 4V5z"/></svg>
-            <span>Note</span>
+            <span>{{ i18n.t('quizRunner.note') }}</span>
           </button>
         </div>
         @if (noteOpen()) {
@@ -74,17 +75,17 @@ import { QuestionsService } from '../../core/services/questions.service';
             class="note-textarea"
             [ngModel]="annotations().note"
             (ngModelChange)="quiz.setNote($event)"
-            placeholder="Write a note for reviewing this question later..."
+            [placeholder]="i18n.t('quizRunner.notePlaceholder')"
             rows="3"
           ></textarea>
         }
 
         @if (showTimeUpDialog()) {
           <div class="time-up-banner">
-            <p><strong>Time's up.</strong> Do you want to end the exam now, or keep going?</p>
+            <p><strong>{{ i18n.t('quizRunner.timesUp') }}</strong> {{ i18n.t('quizRunner.timesUpQuestion') }}</p>
             <div class="time-up-actions">
-              <button type="button" class="btn btn-ghost" (click)="onContinuePastTime()">Continue</button>
-              <button type="button" class="btn btn-primary" (click)="quiz.finish()">End exam now</button>
+              <button type="button" class="btn btn-ghost" (click)="onContinuePastTime()">{{ i18n.t('quizRunner.continue') }}</button>
+              <button type="button" class="btn btn-primary" (click)="quiz.finish()">{{ i18n.t('quizRunner.endExamNow') }}</button>
             </div>
           </div>
         }
@@ -98,7 +99,7 @@ import { QuestionsService } from '../../core/services/questions.service';
                 class="star-btn"
                 [class.active]="isQuestionStarred()"
                 (click)="onToggleStar(q.id)"
-                [attr.aria-label]="isQuestionStarred() ? 'Unstar this question' : 'Star this question for later review'"
+                [attr.aria-label]="isQuestionStarred() ? i18n.t('questionItem.unstar') : i18n.t('questionItem.star')"
                 [attr.aria-pressed]="isQuestionStarred()"
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
@@ -115,7 +116,7 @@ import { QuestionsService } from '../../core/services/questions.service';
               />
             </div>
             @if (isMultiSelect()) {
-              <p class="multi-hint">Select {{ requiredCount() }} answers.</p>
+              <p class="multi-hint">{{ i18n.t('quizRunner.selectAnswers', { count: requiredCount() }) }}</p>
             }
 
             @for (opt of q.alternatives; track opt.letter) {
@@ -141,7 +142,7 @@ import { QuestionsService } from '../../core/services/questions.service';
                     <div class="option-comment">
                       <div class="option-comment-label">
                         <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
-                        <span>Comment</span>
+                        <span>{{ i18n.t('reviewViewer.comment') }}</span>
                       </div>
                       <app-markdown-renderer [source]="opt.comment" />
                     </div>
@@ -163,7 +164,7 @@ import { QuestionsService } from '../../core/services/questions.service';
               <div class="general-comment">
                 <div class="option-comment-label">
                   <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
-                  <span>General comment</span>
+                  <span>{{ i18n.t('reviewViewer.generalComment') }}</span>
                 </div>
                 <app-markdown-renderer [source]="q.generalComment" />
               </div>
@@ -172,15 +173,15 @@ import { QuestionsService } from '../../core/services/questions.service';
             @if (showFeedback()) {
               <app-ai-disclaimer
                 [tight]="true"
-                message="This content was generated by AI and may contain errors. Treat it as study support, not as an authoritative source."
+                [message]="i18n.t('reviewViewer.aiDisclaimerReview')"
               />
             }
 
             <div class="runner-actions">
-              <button type="button" class="btn btn-ghost" [disabled]="progress().index === 0" (click)="quiz.previous()">Previous</button>
+              <button type="button" class="btn btn-ghost" [disabled]="progress().index === 0" (click)="quiz.previous()">{{ i18n.t('importReview.previous') }}</button>
               <button type="button" class="btn btn-ghost flag-btn" [class.active]="quiz.isCurrentFlagged()" (click)="quiz.toggleReviewFlag()">
                 <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M6 3v18M6 4h11l-3 4 3 4H6"/></svg>
-                <span>{{ quiz.isCurrentFlagged() ? 'Unmark' : 'Mark for review' }}</span>
+                <span>{{ quiz.isCurrentFlagged() ? i18n.t('quizRunner.unmark') : i18n.t('quizRunner.markForReview') }}</span>
               </button>
               <span class="spacer"></span>
               @if (isInstant()) {
@@ -190,24 +191,24 @@ import { QuestionsService } from '../../core/services/questions.service';
                     class="btn btn-ghost"
                     [disabled]="answer().selected.length === 0"
                     (click)="quiz.checkAnswer()"
-                  >Check answer</button>
+                  >{{ i18n.t('quizRunner.checkAnswer') }}</button>
                   @if (!isLast()) {
-                    <button type="button" class="btn btn-ghost" (click)="quiz.next()">Next</button>
+                    <button type="button" class="btn btn-ghost" (click)="quiz.next()">{{ i18n.t('importReview.next') }}</button>
                   }
                 } @else {
                   <button type="button" class="btn btn-primary" (click)="onNextInstant()">
-                    {{ isLast() ? 'See results' : 'Next question' }}
+                    {{ isLast() ? i18n.t('quizRunner.seeResults') : i18n.t('quizRunner.nextQuestion') }}
                   </button>
                 }
               } @else if (!isLast()) {
-                <button type="button" class="btn btn-ghost" (click)="quiz.next()">Next</button>
+                <button type="button" class="btn btn-ghost" (click)="quiz.next()">{{ i18n.t('importReview.next') }}</button>
               }
-              <button type="button" class="btn btn-danger-outline" (click)="quiz.finish()">End exam</button>
+              <button type="button" class="btn btn-danger-outline" (click)="quiz.finish()">{{ i18n.t('quizRunner.endExam') }}</button>
             </div>
           </div>
 
           <aside class="palette">
-            <h4>Item Navigator</h4>
+            <h4>{{ i18n.t('importReview.itemNavigator') }}</h4>
             <div class="palette-grid">
               @for (flag of answeredFlags(); track $index) {
                 <button
@@ -223,14 +224,14 @@ import { QuestionsService } from '../../core/services/questions.service';
               }
             </div>
             <div class="palette-legend">
-              <div class="legend-row"><span class="legend-swatch current"></span> Current item</div>
-              <div class="legend-row"><span class="legend-swatch" style="background:var(--color-purple)"></span> Answered</div>
-              <div class="legend-row"><span class="legend-swatch outline"></span> Unanswered</div>
-              <div class="legend-row"><span class="legend-swatch outline"><span class="flag-dot" aria-hidden="true"></span></span> Marked for review</div>
+              <div class="legend-row"><span class="legend-swatch current"></span> {{ i18n.t('importReview.currentItem') }}</div>
+              <div class="legend-row"><span class="legend-swatch" style="background:var(--color-purple)"></span> {{ i18n.t('quizRunner.answered') }}</div>
+              <div class="legend-row"><span class="legend-swatch outline"></span> {{ i18n.t('quizRunner.unanswered') }}</div>
+              <div class="legend-row"><span class="legend-swatch outline"><span class="flag-dot" aria-hidden="true"></span></span> {{ i18n.t('quizRunner.markedForReview') }}</div>
             </div>
-            <p class="palette-summary">{{ answeredCount() }} of {{ progress().total }} answered</p>
+            <p class="palette-summary">{{ i18n.t('quizRunner.answeredOfTotal', { answered: answeredCount(), total: progress().total }) }}</p>
             @if (quiz.flaggedCount() > 0) {
-              <p class="palette-summary">{{ quiz.flaggedCount() }} marked for review</p>
+              <p class="palette-summary">{{ i18n.t('quizRunner.flaggedCount', { count: quiz.flaggedCount() }) }}</p>
             }
           </aside>
         </div>
@@ -362,6 +363,7 @@ import { QuestionsService } from '../../core/services/questions.service';
 export class QuizRunnerComponent {
   protected readonly quiz = inject(QuizService);
   private readonly questionsService = inject(QuestionsService);
+  protected readonly i18n = inject(I18nService);
 
   protected readonly question = this.quiz.currentQuestion;
   protected readonly isQuestionStarred = computed(() => {

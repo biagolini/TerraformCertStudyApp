@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { PacksService } from '../../core/services/packs.service';
 import { ImportExamComponent } from './import-exam.component';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 /** Routed at /import — its own top-level nav item (alongside Questions,
  * Quiz, Transcripts, Chat, Export), not a tab buried inside "New Question"
@@ -17,8 +18,8 @@ import { ImportExamComponent } from './import-exam.component';
   template: `
     <section class="page-card">
       <header class="card-header">
-        <h2>Import Exam</h2>
-        <p class="subtitle">Upload a whole exam file and let AI extract every question in it.</p>
+        <h2>{{ i18n.t('importExam.pageTitle') }}</h2>
+        <p class="subtitle">{{ i18n.t('importExam.pageSubtitle') }}</p>
       </header>
       <app-import-exam [packId]="packs.activePack().id" />
     </section>
@@ -61,4 +62,5 @@ import { ImportExamComponent } from './import-exam.component';
 })
 export class ImportExamPageComponent {
   protected readonly packs = inject(PacksService);
+  protected readonly i18n = inject(I18nService);
 }

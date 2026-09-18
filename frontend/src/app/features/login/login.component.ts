@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-login',
@@ -11,7 +12,7 @@ import { AuthService } from '../../core/services/auth.service';
     <div class="login-page">
       <div class="login-card">
         <h1>Cert Study Assistant</h1>
-        <p class="subtitle">AI-powered certification exam preparation</p>
+        <p class="subtitle">{{ i18n.t('login.subtitle') }}</p>
 
         @if (error()) {
           <div class="error">{{ error() }}</div>
@@ -20,22 +21,22 @@ import { AuthService } from '../../core/services/auth.service';
         @if (!needsNewPassword()) {
           <form (ngSubmit)="onLogin()" action="." method="post">
             <input type="email" [(ngModel)]="email" name="email"
-              placeholder="Email" autocomplete="username" required />
+              [placeholder]="i18n.t('login.email')" autocomplete="username" required />
             <input type="password" [(ngModel)]="password" name="password"
-              placeholder="Password" autocomplete="current-password" required />
+              [placeholder]="i18n.t('login.password')" autocomplete="current-password" required />
             <button type="submit" [disabled]="loading()">
-              {{ loading() ? 'Signing in...' : 'Sign In' }}
+              {{ loading() ? i18n.t('login.signingIn') : i18n.t('login.signIn') }}
             </button>
           </form>
         } @else {
-          <p class="info">Please set a new password</p>
+          <p class="info">{{ i18n.t('login.setNewPassword') }}</p>
           <form (ngSubmit)="onNewPassword()">
             <input type="password" [(ngModel)]="newPassword" name="newPassword"
-              placeholder="New password" autocomplete="new-password" required />
+              [placeholder]="i18n.t('login.newPassword')" autocomplete="new-password" required />
             <input type="password" [(ngModel)]="confirmPassword" name="confirmPassword"
-              placeholder="Confirm password" autocomplete="new-password" required />
+              [placeholder]="i18n.t('login.confirmPassword')" autocomplete="new-password" required />
             <button type="submit" [disabled]="loading()">
-              {{ loading() ? 'Setting...' : 'Set Password' }}
+              {{ loading() ? i18n.t('login.settingPassword') : i18n.t('login.setPassword') }}
             </button>
           </form>
         }
@@ -45,38 +46,40 @@ import { AuthService } from '../../core/services/auth.service';
   styles: [`
     .login-page {
       display: flex; align-items: center; justify-content: center;
-      min-height: 100vh; background: #1a1a2e;
+      min-height: 100vh; background: var(--bg-base);
     }
     .login-card {
-      background: #fff; border-radius: 16px; padding: 48px 40px;
+      background: var(--bg-surface); border-radius: var(--radius-lg); padding: 48px 40px;
       width: 400px; max-width: 90vw; text-align: center;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+      box-shadow: var(--shadow-lg);
     }
-    h1 { margin: 0 0 8px; font-size: 24px; color: #1a1a2e; }
-    .subtitle { color: #666; font-size: 14px; margin: 0 0 24px; }
-    .info { color: #333; font-size: 14px; margin: 0 0 16px; }
+    h1 { margin: 0 0 8px; font-size: 24px; color: var(--text-primary); }
+    .subtitle { color: var(--text-muted); font-size: var(--font-size-base); margin: 0 0 24px; }
+    .info { color: var(--text-secondary); font-size: var(--font-size-base); margin: 0 0 16px; }
     .error {
-      background: #fee; color: #c00; padding: 10px; border-radius: 8px;
-      font-size: 13px; margin-bottom: 16px;
+      background: rgba(214, 48, 49, 0.1); color: var(--color-red); padding: var(--space-sm);
+      border-radius: var(--radius-md); font-size: var(--font-size-sm); margin-bottom: var(--space-md);
     }
-    form { display: flex; flex-direction: column; gap: 12px; }
+    form { display: flex; flex-direction: column; gap: var(--space-sm); }
     input {
-      padding: 12px 16px; border: 1px solid #ddd; border-radius: 8px;
-      font-size: 15px; outline: none;
+      padding: var(--space-sm) var(--space-md); border: 1px solid var(--bg-border);
+      border-radius: var(--radius-md); background: var(--bg-input); color: var(--text-primary);
+      font-size: var(--font-size-lg); outline: none;
     }
-    input:focus { border-color: #4b64ff; }
+    input:focus { border-color: var(--color-blue); }
     button {
-      padding: 12px; font-size: 16px; font-weight: 600;
-      background: #4b64ff; color: #fff; border: none; border-radius: 8px;
-      cursor: pointer;
+      padding: var(--space-sm); font-size: var(--font-size-lg); font-weight: 600;
+      background: var(--color-blue); color: #fff; border: none; border-radius: var(--radius-md);
+      cursor: pointer; min-height: var(--touch-min);
     }
-    button:hover:not(:disabled) { background: #3a50d9; }
+    button:hover:not(:disabled) { filter: brightness(0.92); }
     button:disabled { opacity: 0.6; cursor: not-allowed; }
   `],
 })
 export class LoginComponent {
   private auth = inject(AuthService);
   private router = inject(Router);
+  protected readonly i18n = inject(I18nService);
 
   email = '';
   password = '';
@@ -106,7 +109,7 @@ export class LoginComponent {
 
   async onNewPassword(): Promise<void> {
     if (this.newPassword !== this.confirmPassword) {
-      this.error.set('Passwords do not match');
+      this.error.set(this.i18n.t('login.passwordsDoNotMatch'));
       return;
     }
     this.error.set('');

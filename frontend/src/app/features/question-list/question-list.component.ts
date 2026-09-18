@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Question } from '../../core/models/question.model';
 import { QuestionsService } from '../../core/services/questions.service';
 import { QuestionItemComponent } from './question-item.component';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-question-list',
@@ -13,14 +14,14 @@ import { QuestionItemComponent } from './question-item.component';
     <section class="list-card">
       <header class="card-header">
         <div class="title-row">
-          <h2>Reviewed Questions</h2>
+          <h2>{{ i18n.t('questionList.title') }}</h2>
           <span class="count">{{ count() }}</span>
         </div>
         @if (count() > 0) {
           <div class="actions">
-            <button type="button" class="link" (click)="onSelectAll()">Select all</button>
+            <button type="button" class="link" (click)="onSelectAll()">{{ i18n.t('questionList.selectAll') }}</button>
             <span class="dot" aria-hidden="true">·</span>
-            <button type="button" class="link" (click)="onDeselectAll()">Deselect all</button>
+            <button type="button" class="link" (click)="onDeselectAll()">{{ i18n.t('questionList.deselectAll') }}</button>
           </div>
         }
       </header>
@@ -32,13 +33,13 @@ import { QuestionItemComponent } from './question-item.component';
         <input
           type="text"
           class="search-input"
-          placeholder="Search questions..."
+          [placeholder]="i18n.t('questionList.searchPlaceholder')"
           [ngModel]="questionsService.searchQuery()"
           (ngModelChange)="onSearchChange($event)"
-          aria-label="Search questions"
+          [attr.aria-label]="i18n.t('questionList.searchPlaceholder')"
         />
         @if (questionsService.searchQuery()) {
-          <button type="button" class="search-clear" (click)="onSearchClear()" aria-label="Clear search">
+          <button type="button" class="search-clear" (click)="onSearchClear()" [attr.aria-label]="i18n.t('questionList.clearSearch')">
             <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
               <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/>
             </svg>
@@ -52,17 +53,17 @@ import { QuestionItemComponent } from './question-item.component';
             [ngModel]="questionsService.searchAllPacks()"
             (ngModelChange)="onToggleAllPacks($event)"
           />
-          <span>Search all packs</span>
+          <span>{{ i18n.t('questionList.searchAllPacks') }}</span>
         </label>
       }
 
       @if (count() === 0 && !questionsService.isSearching()) {
         <div class="empty">
-          <p class="empty-title">No questions yet.</p>
-          <p class="empty-body">Paste a question in the Input tab to generate your first review.</p>
+          <p class="empty-title">{{ i18n.t('questionList.noQuestionsYet') }}</p>
+          <p class="empty-body">{{ i18n.t('questionList.noQuestionsHint') }}</p>
         </div>
       } @else if (questionsService.isSearching() && displayQuestions().length === 0) {
-        <p class="no-results">No questions match your search.</p>
+        <p class="no-results">{{ i18n.t('questionList.noResults') }}</p>
       } @else {
         <ul class="list">
           @for (question of displayQuestions(); track question.id) {
@@ -229,6 +230,7 @@ import { QuestionItemComponent } from './question-item.component';
 })
 export class QuestionListComponent {
   readonly questionsService = inject(QuestionsService);
+  protected readonly i18n = inject(I18nService);
 
   readonly questions = this.questionsService.questions;
   readonly count = this.questionsService.count;

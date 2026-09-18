@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { QuizAttemptsService } from '../../core/services/quiz-attempts.service';
 import { formatClock, QuizService } from '../../core/services/quiz.service';
 import { QuizAnnotatedTextComponent } from './quiz-annotated-text.component';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-quiz-history',
@@ -12,16 +13,16 @@ import { QuizAnnotatedTextComponent } from './quiz-annotated-text.component';
     <section class="history-card">
       <header class="card-header">
         <div>
-          <h2>Quiz history</h2>
-          <p class="subtitle">Every finished practice quiz, most recent first.</p>
+          <h2>{{ i18n.t('quizHistory.title') }}</h2>
+          <p class="subtitle">{{ i18n.t('quizHistory.subtitle') }}</p>
         </div>
-        <button type="button" class="btn btn-ghost" (click)="quiz.reset()">Back to setup</button>
+        <button type="button" class="btn btn-ghost" (click)="quiz.reset()">{{ i18n.t('quizHistory.backToSetup') }}</button>
       </header>
 
       @if (attemptsService.loading()) {
-        <p class="empty-hint">Loading…</p>
+        <p class="empty-hint">{{ i18n.t('common.loading') }}</p>
       } @else if (attempts().length === 0) {
-        <p class="empty-hint">No quiz attempts yet. Finish a practice quiz to see it here.</p>
+        <p class="empty-hint">{{ i18n.t('quizHistory.noAttemptsYet') }}</p>
       } @else {
         <div class="attempt-list">
           @for (attempt of attempts(); track attempt.id) {
@@ -30,10 +31,10 @@ import { QuizAnnotatedTextComponent } from './quiz-annotated-text.component';
                 <div class="attempt-main">
                   <span class="attempt-exam">{{ attempt.examName }}</span>
                   <span class="attempt-meta">
-                    {{ attempt.mode === 'instant' ? 'Instant feedback' : 'Exam simulation' }}
-                    · {{ attempt.answers.length }} question{{ attempt.answers.length === 1 ? '' : 's' }}
+                    {{ attempt.mode === 'instant' ? i18n.t('quizSetup.instantFeedback') : i18n.t('quizSetup.examSimulation') }}
+                    · {{ i18n.t('quizHistory.questionCount', { count: attempt.answers.length }) }}
                     · {{ formatDate(attempt.finishedAt ?? attempt.startedAt) }}
-                    @if (attempt.partialCredit) { · partial credit }
+                    @if (attempt.partialCredit) { · {{ i18n.t('quizHistory.partialCredit') }} }
                   </span>
                 </div>
                 <span class="attempt-score">{{ attempt.scorePercent.toFixed(2) }}%</span>
@@ -54,7 +55,7 @@ import { QuizAnnotatedTextComponent } from './quiz-annotated-text.component';
                         <span class="answer-meta">
                           {{ a.domain }}
                           @if (a.timeSpentSeconds > 0) { · {{ formatClockValue(a.timeSpentSeconds) }} }
-                          · Score {{ formatScore(a.score) }}
+                          · {{ i18n.t('quizHistory.scoreValue', { score: formatScore(a.score) }) }}
                         </span>
                         <svg class="chevron" viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
                       </button>
@@ -82,7 +83,7 @@ import { QuizAnnotatedTextComponent } from './quiz-annotated-text.component';
                             </div>
                           }
                           @if (a.note) {
-                            <div class="hist-note"><strong>Note:</strong> {{ a.note }}</div>
+                            <div class="hist-note"><strong>{{ i18n.t('quizHistory.note') }}</strong> {{ a.note }}</div>
                           }
                         </div>
                       }
@@ -153,6 +154,7 @@ import { QuizAnnotatedTextComponent } from './quiz-annotated-text.component';
 export class QuizHistoryComponent {
   protected readonly quiz = inject(QuizService);
   protected readonly attemptsService = inject(QuizAttemptsService);
+  protected readonly i18n = inject(I18nService);
 
   protected readonly attempts = this.attemptsService.finishedAttempts;
   protected readonly expandedId = signal<string | null>(null);

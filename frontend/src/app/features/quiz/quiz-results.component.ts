@@ -4,6 +4,7 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
 import { Question } from '../../core/models/question.model';
 import { QuizAnswer } from '../../core/models/quiz.model';
 import { attemptScoreAtTimeLimit, formatClock, QuizService } from '../../core/services/quiz.service';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 interface ReviewItem {
   question: Question;
@@ -18,19 +19,19 @@ interface ReviewItem {
   template: `
     <section class="results-card">
       <header class="card-header">
-        <h2>Quiz results</h2>
+        <h2>{{ i18n.t('quizResults.title') }}</h2>
         <p class="subtitle">{{ summary() }}</p>
       </header>
 
       <div class="score-hero">
         <div class="score-ring" [style.--pct]="scorePercent()">
-          <div class="score-ring-inner"><strong>{{ scorePercent().toFixed(2) }}%</strong><span>score</span></div>
+          <div class="score-ring-inner"><strong>{{ scorePercent().toFixed(2) }}%</strong><span>{{ i18n.t('quizResults.score') }}</span></div>
         </div>
         <div class="score-meta">
-          <p><strong>{{ formatScore(score().correct) }}</strong> correct out of <strong>{{ score().total }}</strong></p>
-          @if (partialCredit()) { <p>This exam allows partial credit on multi-select questions.</p> }
+          <p>{{ i18n.t('quizResults.correctOutOf') }} <strong>{{ formatScore(score().correct) }}</strong> / <strong>{{ score().total }}</strong></p>
+          @if (partialCredit()) { <p>{{ i18n.t('quizResults.partialCreditNote') }}</p> }
           @if (weakestDomain(); as w) {
-            <p>Weakest domain: <strong>{{ w.domain }}</strong> ({{ formatScore(w.correct) }}/{{ w.total }})</p>
+            <p>{{ i18n.t('quizResults.weakestDomain') }} <strong>{{ w.domain }}</strong> ({{ formatScore(w.correct) }}/{{ w.total }})</p>
           }
         </div>
       </div>
@@ -38,19 +39,16 @@ interface ReviewItem {
       @if (timeLimitScore(); as t) {
         <div class="time-limit-block">
           <button type="button" class="btn-ghost-sm" (click)="showTimeLimitScore.set(!showTimeLimitScore())">
-            {{ showTimeLimitScore() ? 'Hide' : 'See' }} score if I'd stopped at the time limit
+            {{ showTimeLimitScore() ? i18n.t('quizResults.hideTimeLimitScore') : i18n.t('quizResults.seeTimeLimitScore') }}
           </button>
           @if (showTimeLimitScore()) {
-            <p class="time-limit-value">
-              You would have scored <strong>{{ t.scorePercent.toFixed(2) }}%</strong> if you had stopped
-              answering the moment time ran out (answers changed after that don't count).
-            </p>
+            <p class="time-limit-value">{{ i18n.t('quizResults.timeLimitScoreExplain', { pct: t.scorePercent.toFixed(2) }) }}</p>
           }
         </div>
       }
 
       @if (domainBreakdown().length > 1) {
-        <span class="field-label">By domain</span>
+        <span class="field-label">{{ i18n.t('quizResults.byDomain') }}</span>
         @for (d of domainBreakdown(); track d.domain) {
           <div class="domain-row">
             <span class="domain-name">{{ d.domain }}</span>
@@ -59,13 +57,13 @@ interface ReviewItem {
             </div>
             <span class="domain-fraction">{{ formatScore(d.correct) }}/{{ d.total }}</span>
             @if (d.timeSeconds > 0) {
-              <span class="domain-time">avg {{ formatClockValue(d.timeSeconds / d.total) }}</span>
+              <span class="domain-time">{{ i18n.t('quizResults.avgTime', { time: formatClockValue(d.timeSeconds / d.total) }) }}</span>
             }
           </div>
         }
       }
 
-      <span class="field-label">All questions</span>
+      <span class="field-label">{{ i18n.t('quizResults.allQuestions') }}</span>
       <div class="result-list">
         @for (row of reviewItems(); track row.question.id; let i = $index) {
           <div class="result-row" [class.correct]="row.answer.correct" [class.incorrect]="!row.answer.correct" [class.expanded]="expandedId() === row.question.id">
@@ -77,7 +75,7 @@ interface ReviewItem {
                   <svg viewBox="0 0 24 24" width="12" height="12"><path fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
                 }
               </span>
-              <span class="result-row-title">Q{{ i + 1 }} — {{ row.question.title }}</span>
+              <span class="result-row-title">{{ i18n.t('quizResults.questionNumber', { number: i + 1, title: row.question.title }) }}</span>
               <app-domain-badge [domain]="row.question.domain" />
               <svg class="chevron" viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
             </button>
@@ -92,7 +90,7 @@ interface ReviewItem {
                         <div class="alt-comment">
                           <div class="alt-comment-label">
                             <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
-                            <span>Comment</span>
+                            <span>{{ i18n.t('reviewViewer.comment') }}</span>
                           </div>
                           <app-markdown-renderer [source]="opt.comment" />
                         </div>
@@ -107,7 +105,7 @@ interface ReviewItem {
       </div>
 
       <div class="results-actions">
-        <button type="button" class="btn btn-primary" (click)="quiz.reset()">New quiz</button>
+        <button type="button" class="btn btn-primary" (click)="quiz.reset()">{{ i18n.t('quizResults.newQuiz') }}</button>
       </div>
     </section>
   `,
@@ -170,6 +168,7 @@ interface ReviewItem {
 })
 export class QuizResultsComponent {
   protected readonly quiz = inject(QuizService);
+  protected readonly i18n = inject(I18nService);
 
   protected readonly score = this.quiz.score;
   protected readonly domainBreakdown = this.quiz.domainBreakdown;
@@ -207,8 +206,8 @@ export class QuizResultsComponent {
 
   protected readonly summary = computed(() => {
     const settings = this.quiz.settings();
-    const modeLabel = settings.mode === 'instant' ? 'Instant feedback' : 'Exam simulation';
-    return `${modeLabel} · ${this.quiz.questions().length} questions`;
+    const modeLabel = settings.mode === 'instant' ? this.i18n.t('quizSetup.instantFeedback') : this.i18n.t('quizSetup.examSimulation');
+    return this.i18n.t('quizResults.summaryLine', { mode: modeLabel, count: this.quiz.questions().length });
   });
 
   toggle(questionId: string): void {

@@ -14,6 +14,7 @@ import { parseTitleFromResponse, stripInferredMetadata } from '../../core/utils/
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
 import { ConfirmDeleteDialogComponent } from '../../shared/components/confirm-delete-dialog.component';
 import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.component';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-chat-conversation',
@@ -25,11 +26,11 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
       @if (session(); as s) {
         <header class="viewer-header">
           @if (showBackButton()) {
-            <button type="button" class="back-btn" (click)="back.emit()" aria-label="Back to conversation list">
+            <button type="button" class="back-btn" (click)="back.emit()" [attr.aria-label]="i18n.t('chatConversation.backToList')">
               <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                 <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M15 6l-6 6 6 6"/>
               </svg>
-              <span>Back</span>
+              <span>{{ i18n.t('common.back') }}</span>
             </button>
           }
           @if (editingTitle()) {
@@ -39,10 +40,10 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
               [(ngModel)]="titleDraft"
               (blur)="onSaveTitle(s)"
               (keydown.enter)="onSaveTitle(s)"
-              aria-label="Conversation title"
+              [attr.aria-label]="i18n.t('chatConversation.conversationTitle')"
             />
           } @else {
-            <button type="button" class="title-btn" (click)="onEditTitle(s)" aria-label="Edit conversation title">
+            <button type="button" class="title-btn" (click)="onEditTitle(s)" [attr.aria-label]="i18n.t('chatConversation.editTitle')">
               <h2 class="title">{{ s.title }}</h2>
             </button>
           }
@@ -51,7 +52,7 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
               type="button"
               class="icon-btn delete-btn"
               (click)="onDelete(s)"
-              aria-label="Delete this conversation"
+              [attr.aria-label]="i18n.t('chatConversation.deleteThisConversation')"
               [disabled]="deleting()"
             >
               @if (deleting()) {
@@ -68,8 +69,8 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
         <div class="viewer-body">
           @if (s.messages.length === 0) {
             <div class="empty-chat">
-              <p class="empty-title">Start the conversation.</p>
-              <p class="empty-body">Ask anything related to this certification's topics.</p>
+              <p class="empty-title">{{ i18n.t('chatConversation.startTheConversation') }}</p>
+              <p class="empty-body">{{ i18n.t('chatConversation.startHint') }}</p>
             </div>
           } @else {
             <div class="messages">
@@ -87,7 +88,7 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
             </div>
             <app-ai-disclaimer
               [tight]="true"
-              message="Responses are AI-generated and may contain errors. Verify important facts before relying on them."
+              [message]="i18n.t('chatConversation.aiDisclaimerMessages')"
             />
           }
 
@@ -100,34 +101,34 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
               class="composer-textarea"
               [(ngModel)]="draft"
               rows="3"
-              placeholder="Ask a question or continue the conversation..."
+              [placeholder]="i18n.t('chatConversation.messagePlaceholder')"
               [disabled]="sending()"
               (keydown.enter)="onComposerEnter($event)"
-              aria-label="Message"
+              [attr.aria-label]="i18n.t('chatConversation.message')"
             ></textarea>
             <div class="composer-row">
               <label class="model-row">
-                <span class="model-label">Model</span>
+                <span class="model-label">{{ i18n.t('questionInput.model') }}</span>
                 <select
                   class="model-select"
                   [ngModel]="selectedModel()"
                   (ngModelChange)="onSelectModel($event)"
                   [disabled]="sending()"
-                  aria-label="Model for chat"
+                  [attr.aria-label]="i18n.t('chatConversation.modelForChat')"
                 >
                   @for (model of availableModels(); track model.id) {
-                    <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (reasoning)' : '' }} — {{ model.tier }}</option>
+                    <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (' + i18n.t('settings.reasoning') + ')' : '' }} — {{ model.tier }}</option>
                   }
                 </select>
               </label>
               @if (sending()) {
                 <button type="button" class="btn btn-stop" (click)="onStopSend()">
                   <span class="stop-icon" aria-hidden="true"></span>
-                  <span>Stop</span>
+                  <span>{{ i18n.t('questionInput.stop') }}</span>
                 </button>
               } @else {
                 <button type="button" class="btn btn-primary" (click)="onSend(s)" [disabled]="!draft.trim()">
-                  Send
+                  {{ i18n.t('chatConversation.send') }}
                 </button>
               }
             </div>
@@ -136,14 +137,14 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
           <section class="summary-panel">
             <header class="summary-header">
               <div class="summary-header-row">
-                <h3>NotebookLM summary</h3>
+                <h3>{{ i18n.t('chatConversation.notebookLmSummary') }}</h3>
                 @if (s.summary && !summarizing()) {
                   <button
                     type="button"
                     class="icon-btn"
                     (click)="onToggleEditSummary(s)"
                     [class.active]="editingSummary()"
-                    [attr.aria-label]="editingSummary() ? 'Exit edit mode' : 'Edit summary'"
+                    [attr.aria-label]="editingSummary() ? i18n.t('reviewViewer.exitEditMode') : i18n.t('chatConversation.editSummary')"
                   >
                     <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
                       <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4l10-10-4-4L4 16v4zM14 6l4 4"/>
@@ -151,9 +152,7 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
                   </button>
                 }
               </div>
-              <p class="summary-hint">
-                Generate a structured technical summary of this conversation, ready to feed into NotebookLM as a podcast source.
-              </p>
+              <p class="summary-hint">{{ i18n.t('chatConversation.summaryHint') }}</p>
             </header>
 
             @if (s.summary) {
@@ -161,25 +160,25 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
                 <textarea
                   class="edit-summary-textarea"
                   [(ngModel)]="summaryDraft"
-                  aria-label="Edit summary markdown"
+                  [attr.aria-label]="i18n.t('chatConversation.editSummaryMarkdown')"
                 ></textarea>
                 <div class="summary-edit-actions">
-                  <button type="button" class="btn btn-ghost" (click)="onCancelEditSummary(s)">Cancel</button>
+                  <button type="button" class="btn btn-ghost" (click)="onCancelEditSummary(s)">{{ i18n.t('common.cancel') }}</button>
                   <button
                     type="button"
                     class="btn btn-primary"
                     (click)="onSaveEditSummary(s)"
                     [disabled]="!summaryDraft.trim()"
-                  >Save</button>
+                  >{{ i18n.t('common.save') }}</button>
                 </div>
               } @else {
                 <app-markdown-renderer [source]="s.summary" />
                 @if (s.summaryUpdatedAt) {
-                  <p class="summary-meta">Last updated: {{ s.summaryUpdatedAt | date: 'medium' }}</p>
+                  <p class="summary-meta">{{ i18n.t('chatConversation.lastUpdated', { date: (s.summaryUpdatedAt | date: 'medium') ?? '' }) }}</p>
                 }
                 <app-ai-disclaimer
                   [tight]="true"
-                  message="This summary is AI-generated from the conversation above. Review it before sharing or narrating it."
+                  [message]="i18n.t('chatConversation.aiDisclaimerSummary')"
                 />
               }
             }
@@ -192,7 +191,7 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
               @if (summarizing()) {
                 <button type="button" class="btn btn-stop" (click)="onStopSummary()">
                   <span class="stop-icon" aria-hidden="true"></span>
-                  <span>Stop</span>
+                  <span>{{ i18n.t('questionInput.stop') }}</span>
                 </button>
               } @else {
                 <button
@@ -201,12 +200,12 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
                   (click)="onGenerateSummary(s)"
                   [disabled]="s.messages.length === 0"
                 >
-                  {{ s.summary ? 'Update summary' : 'Generate summary' }}
+                  {{ s.summary ? i18n.t('chatConversation.updateSummary') : i18n.t('chatConversation.generateSummary') }}
                 </button>
               }
               @if (s.summary && !summarizing()) {
                 <button type="button" class="btn btn-ghost" (click)="onDownloadSummary(s)">
-                  Download
+                  {{ i18n.t('chatConversation.download') }}
                 </button>
               }
             </div>
@@ -214,8 +213,8 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
         </div>
       } @else {
         <div class="viewer-empty">
-          <p class="empty-title">No conversation selected.</p>
-          <p class="empty-body">Start a new conversation or pick one from the list to view it here.</p>
+          <p class="empty-title">{{ i18n.t('chatConversation.noConversationSelected') }}</p>
+          <p class="empty-body">{{ i18n.t('chatConversation.noConversationSelectedHint') }}</p>
         </div>
       }
     </section>
@@ -540,6 +539,7 @@ export class ChatConversationComponent {
   private readonly packs = inject(PacksService);
   private readonly exportService = inject(ExportService);
   private readonly dialog = inject(MatDialog);
+  protected readonly i18n = inject(I18nService);
 
   readonly session = input<ChatSession | null>(null);
   readonly showBackButton = input<boolean>(false);
@@ -636,7 +636,7 @@ export class ChatConversationComponent {
     } catch (err) {
       const aborted = (err as Error)?.name === 'AbortError' || controller.signal.aborted;
       if (!aborted) {
-        this.chatError.set(err instanceof Error ? err.message : 'Failed to get a response.');
+        this.chatError.set(err instanceof Error ? err.message : this.i18n.t('chatConversation.failedToGetResponse'));
       }
     } finally {
       this.sending.set(false);
@@ -695,10 +695,10 @@ export class ChatConversationComponent {
           this.chatService.setSummary(session.id, stripInferredMetadata(accumulated));
         } else {
           this.chatService.setSummary(session.id, existingSummary);
-          this.summaryError.set(err instanceof Error ? err.message : 'Summary generation failed.');
+          this.summaryError.set(err instanceof Error ? err.message : this.i18n.t('chatConversation.summaryGenerationFailed'));
         }
       } else if (!aborted) {
-        this.summaryError.set(err instanceof Error ? err.message : 'Summary generation failed.');
+        this.summaryError.set(err instanceof Error ? err.message : this.i18n.t('chatConversation.summaryGenerationFailed'));
       }
     } finally {
       this.summarizing.set(false);

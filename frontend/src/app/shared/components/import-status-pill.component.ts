@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { Router } from '@angular/router';
 import { ImportExamService } from '../../core/services/import-exam.service';
 import { ImportJob, isImportJobRunning } from '../../core/models/import-job.model';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 /** Keeps any bulk exam import visible in the header — both while its Step
  * Functions pipeline is actively running (so progress isn't lost just
@@ -35,18 +36,18 @@ import { ImportJob, isImportJobRunning } from '../../core/models/import-job.mode
         </button>
 
         @if (panelOpen()) {
-          <div class="import-panel" role="dialog" aria-label="Exam import status">
+          <div class="import-panel" role="dialog" [attr.aria-label]="i18n.t('importPill.dialogLabel')">
             @for (job of visibleJobs(); track job.id) {
               @if (job.status === 'AWAITING_REVIEW') {
                 <button type="button" class="job-line job-line-action" (click)="onReview(job)">
                   <p class="panel-title">{{ job.filename }}</p>
-                  <p class="panel-body panel-action">{{ job.totalQuestions }} question(s) ready to review →</p>
+                  <p class="panel-body panel-action">{{ i18n.t('importPill.readyToReview', { count: job.totalQuestions }) }}</p>
                 </button>
               } @else {
                 <div class="job-line">
                   <p class="panel-title">{{ job.filename }}</p>
                   <p class="panel-body">
-                    {{ progressTotal(job) ? job.processedCount + ' of ' + progressTotal(job) + ' processed' : 'Detecting questions…' }}
+                    {{ progressTotal(job) ? i18n.t('importPill.processedOf', { processed: job.processedCount, total: progressTotal(job) }) : i18n.t('importPill.detecting') }}
                   </p>
                 </div>
               }
@@ -92,6 +93,7 @@ import { ImportJob, isImportJobRunning } from '../../core/models/import-job.mode
 export class ImportStatusPillComponent {
   private readonly importService = inject(ImportExamService);
   private readonly router = inject(Router);
+  protected readonly i18n = inject(I18nService);
 
   protected readonly panelOpen = signal(false);
   readonly visibleJobs = computed(() =>
@@ -104,12 +106,12 @@ export class ImportStatusPillComponent {
     const awaitingReview = jobs.filter((j) => j.status === 'AWAITING_REVIEW').length;
     const running = jobs.length - awaitingReview;
     if (awaitingReview > 0 && running > 0) {
-      return `Exam import: ${running} processing, ${awaitingReview} ready to review`;
+      return this.i18n.t('importPill.bothStates', { running, review: awaitingReview });
     }
     if (awaitingReview > 0) {
-      return `Exam import: ${awaitingReview} file${awaitingReview === 1 ? '' : 's'} ready to review`;
+      return this.i18n.t('importPill.reviewOnly', { count: awaitingReview });
     }
-    return `Exam import: processing ${running} file${running === 1 ? '' : 's'}`;
+    return this.i18n.t('importPill.processingOnly', { count: running });
   });
 
   progressTotal(job: Pick<ImportJob, 'status' | 'totalQuestions' | 'explainTotal'>): number | null {

@@ -9,6 +9,7 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
 import { ConfirmDeleteDialogComponent } from '../../shared/components/confirm-delete-dialog.component';
 import { DiscardChangesDialogComponent } from '../../shared/components/discard-changes-dialog.component';
 import { ImportDraftItemComponent } from './import-draft-item.component';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 /** Routed at /questions/:packId/import/:jobId — reached from
  * import-exam.component.ts's "Review N questions" link, never directly
@@ -34,27 +35,27 @@ import { ImportDraftItemComponent } from './import-draft-item.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (loading()) {
-      <p class="status-line">Loading…</p>
+      <p class="status-line">{{ i18n.t('common.loading') }}</p>
     } @else if (pendingDrafts().length === 0) {
       <section class="runner empty-runner">
         <div class="empty">
-          <p class="empty-title">Nothing left to review.</p>
+          <p class="empty-title">{{ i18n.t('importReview.nothingLeftToReview') }}</p>
           @if (promotedCount() > 0) {
-            <p class="empty-body">{{ promotedCount() }} question(s) from this job already have explanations.</p>
+            <p class="empty-body">{{ i18n.t('importReview.alreadyHaveExplanations', { count: promotedCount() }) }}</p>
           }
-          <button type="button" class="btn-ghost-sm" (click)="onBack()">Back to questions</button>
+          <button type="button" class="btn-ghost-sm" (click)="onBack()">{{ i18n.t('importReview.backToQuestions') }}</button>
         </div>
       </section>
     } @else if (currentDraft(); as draft) {
       <section class="runner">
         <header class="runner-header">
-          <button type="button" class="back-btn" (click)="onBack()" aria-label="Back to questions">
+          <button type="button" class="back-btn" (click)="onBack()" [attr.aria-label]="i18n.t('importReview.backToQuestions')">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
               <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6" />
             </svg>
           </button>
           <div class="progress-track"><div class="progress-fill" [style.width.%]="progressPct()"></div></div>
-          <span class="progress-text">Question {{ cursor() + 1 }} of {{ pendingDrafts().length }}</span>
+          <span class="progress-text">{{ i18n.t('importReview.questionOf', { current: cursor() + 1, total: pendingDrafts().length }) }}</span>
         </header>
 
         @if (mismatchWarning(); as warning) {
@@ -74,12 +75,12 @@ import { ImportDraftItemComponent } from './import-draft-item.component';
             />
 
             <div class="nav-buttons">
-              <button type="button" class="btn-ghost-sm" [disabled]="cursor() === 0" (click)="prev()">Previous</button>
-              <button type="button" class="btn-ghost-sm" [disabled]="isLast()" (click)="next()">Next</button>
+              <button type="button" class="btn-ghost-sm" [disabled]="cursor() === 0" (click)="prev()">{{ i18n.t('importReview.previous') }}</button>
+              <button type="button" class="btn-ghost-sm" [disabled]="isLast()" (click)="next()">{{ i18n.t('importReview.next') }}</button>
             </div>
 
             @if (promotedCount() > 0) {
-              <p class="status-line">{{ promotedCount() }} question(s) already generated in an earlier pass.</p>
+              <p class="status-line">{{ i18n.t('importReview.alreadyGenerated', { count: promotedCount() }) }}</p>
             }
 
             @if (error()) {
@@ -92,22 +93,19 @@ import { ImportDraftItemComponent } from './import-draft-item.component';
                 class="generate-btn secondary"
                 [disabled]="approvableCount() === 0 || submitting()"
                 (click)="onSaveAsIs()"
-              >{{ submitting() ? 'Saving…' : 'Save as is (' + approvableCount() + ')' }}</button>
+              >{{ submitting() ? i18n.t('importReview.saving') : i18n.t('importReview.saveAsIs', { count: approvableCount() }) }}</button>
               <button
                 type="button"
                 class="generate-btn"
                 [disabled]="approvableCount() === 0 || submitting()"
                 (click)="onRefineWithAI()"
-              >{{ submitting() ? 'Starting…' : 'Refine extraction with AI (' + approvableCount() + ')' }}</button>
+              >{{ submitting() ? i18n.t('importReview.starting') : i18n.t('importReview.refineWithAiCount', { count: approvableCount() }) }}</button>
             </div>
-            <p class="status-line">
-              "Save as is" keeps each alternative's source explanation exactly as extracted, no AI call.
-              "Refine extraction with AI" rewrites and verifies each explanation instead.
-            </p>
+            <p class="status-line">{{ i18n.t('importReview.saveAsIsExplain') }}</p>
           </div>
 
           <aside class="palette">
-            <h4>Item Navigator</h4>
+            <h4>{{ i18n.t('importReview.itemNavigator') }}</h4>
             <div class="palette-grid">
               @for (d of pendingDrafts(); track d.index; let i = $index) {
                 <button
@@ -122,18 +120,18 @@ import { ImportDraftItemComponent } from './import-draft-item.component';
               }
             </div>
             <button type="button" class="add-question-btn" [disabled]="addingQuestion()" (click)="onAddQuestion()">
-              {{ addingQuestion() ? 'Adding…' : '+ Add question' }}
+              {{ addingQuestion() ? i18n.t('importReview.adding') : i18n.t('importReview.addQuestion') }}
             </button>
             <div class="palette-legend">
-              <div class="legend-row"><span class="legend-swatch current"></span> Current item</div>
-              <div class="legend-row"><span class="legend-swatch outline"><span class="flag-dot" aria-hidden="true"></span></span> Extraction failed / needs attention</div>
+              <div class="legend-row"><span class="legend-swatch current"></span> {{ i18n.t('importReview.currentItem') }}</div>
+              <div class="legend-row"><span class="legend-swatch outline"><span class="flag-dot" aria-hidden="true"></span></span> {{ i18n.t('importReview.extractionFailed') }}</div>
             </div>
-            <p class="palette-summary">{{ pendingDrafts().length }} question(s) pending review</p>
+            <p class="palette-summary">{{ i18n.t('importReview.pendingReview', { count: pendingDrafts().length }) }}</p>
           </aside>
         </div>
 
         <app-ai-disclaimer
-          message="Extraction is performed by AI and may misread a question or its correct answer. Review each one before generating its explanation."
+          [message]="i18n.t('importReview.aiDisclaimer')"
         />
       </section>
     }
@@ -246,6 +244,7 @@ export class ImportReviewPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private readonly draftItem = viewChild<ImportDraftItemComponent>('draftItem');
+  protected readonly i18n = inject(I18nService);
 
   readonly packId = input.required<string>();
   readonly jobId = input.required<string>();
@@ -276,7 +275,7 @@ export class ImportReviewPageComponent implements OnInit {
     const j = this.job();
     if (!j || j.totalQuestions == null || j.expectedQuestions == null) return null;
     if (j.totalQuestions === j.expectedQuestions) return null;
-    return `Expected ${j.expectedQuestions} question(s), found ${j.totalQuestions} — check whether any were missed before approving.`;
+    return this.i18n.t('importReview.mismatchWarning', { expected: j.expectedQuestions, found: j.totalQuestions });
   });
 
   ngOnInit(): void {
@@ -390,7 +389,7 @@ export class ImportReviewPageComponent implements OnInit {
 
   onDeleteDraft(draft: ImportDraftQuestion): void {
     const dialogRef = this.dialog.open(ConfirmDeleteDialogComponent, {
-      data: { title: draft.title || `Question ${draft.index + 1}` },
+      data: { title: draft.title || this.i18n.t('importReview.questionNumber', { number: draft.index + 1 }) },
       width: '400px',
     });
     dialogRef.afterClosed().subscribe(async (result) => {

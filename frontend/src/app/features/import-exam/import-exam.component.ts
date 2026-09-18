@@ -8,6 +8,7 @@ import { DEFAULT_PACK_COLOR, Pack, packDisplayLabel } from '../../core/models/pa
 import { ImportJob, isImportJobTerminal } from '../../core/models/import-job.model';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
 import { ConfirmDeleteDialogComponent } from '../../shared/components/confirm-delete-dialog.component';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
 const CREATE_NEW_PACK = '__create_new_pack__';
@@ -19,56 +20,52 @@ const CREATE_NEW_PACK = '__create_new_pack__';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="import-card">
-      <p class="subtitle">
-        Upload one or more exam files (PDF, Markdown, or a ZIP with a
-        Markdown file + an <code>img/</code> folder). Nothing is extracted
-        until you pick which uploaded files to process.
-      </p>
+      <p class="subtitle">{{ i18n.t('importExam.subtitle') }}</p>
 
       <label class="field">
-        <span class="field-label">Target pack</span>
+        <span class="field-label">{{ i18n.t('importExam.targetPack') }}</span>
         @if (creatingPack()) {
           <div class="pack-create-row">
             <input
               type="text"
               class="select-input"
               [(ngModel)]="newPackName"
-              placeholder="New pack name"
-              aria-label="New pack name"
+              [placeholder]="i18n.t('importExam.newPackName')"
+              [attr.aria-label]="i18n.t('importExam.newPackName')"
               (keydown.enter)="onCreatePack()"
             />
-            <button type="button" class="btn-ghost-sm" [disabled]="!newPackName.trim()" (click)="onCreatePack()">Create</button>
-            <button type="button" class="btn-ghost-sm" (click)="creatingPack.set(false)">Cancel</button>
+            <button type="button" class="btn-ghost-sm" [disabled]="!newPackName.trim()" (click)="onCreatePack()">{{ i18n.t('importExam.create') }}</button>
+            <button type="button" class="btn-ghost-sm" (click)="creatingPack.set(false)">{{ i18n.t('common.cancel') }}</button>
           </div>
         } @else {
           <select
             class="select-input"
             [ngModel]="selectedPackId()"
             (ngModelChange)="onSelectPack($event)"
-            aria-label="Target pack for imported questions"
+            [attr.aria-label]="i18n.t('importExam.targetPackForImported')"
           >
             @for (pack of packs(); track pack.id) {
               <option [value]="pack.id">{{ packLabel(pack) }}</option>
             }
-            <option [value]="CREATE_NEW_PACK">+ Create new pack…</option>
+            <option [value]="CREATE_NEW_PACK">{{ i18n.t('importExam.createNewPack') }}</option>
           </select>
         }
       </label>
 
       <label class="field">
-        <span class="field-label">Add exam file</span>
+        <span class="field-label">{{ i18n.t('importExam.addExamFile') }}</span>
         <input
           #fileInput
           type="file"
           class="file-input"
           accept=".pdf,.md,.zip,.html,.htm"
           (change)="onFileSelected($event)"
-          aria-label="Exam file to upload"
+          [attr.aria-label]="i18n.t('importExam.examFileToUpload')"
         />
       </label>
 
       <label class="field">
-        <span class="field-label">Expected number of questions (optional)</span>
+        <span class="field-label">{{ i18n.t('importExam.expectedQuestionsOptional') }}</span>
         <input
           type="number"
           class="select-input"
@@ -76,13 +73,13 @@ const CREATE_NEW_PACK = '__create_new_pack__';
           placeholder="e.g. 75"
           [ngModel]="expectedQuestions()"
           (ngModelChange)="expectedQuestions.set($event)"
-          aria-label="Expected number of questions — shown back as a mismatch warning, never enforced"
+          [attr.aria-label]="i18n.t('importExam.expectedQuestionsAriaLabel')"
         />
       </label>
 
       @if (uploadProgress(); as up) {
         <div class="upload-progress">
-          <p class="progress-line">Uploading {{ up.filename }}… {{ up.pct }}%</p>
+          <p class="progress-line">{{ i18n.t('importExam.uploading', { filename: up.filename, pct: up.pct }) }}</p>
           <div class="progress-track"><div class="progress-fill" [style.width.%]="up.pct"></div></div>
         </div>
       } @else {
@@ -91,7 +88,7 @@ const CREATE_NEW_PACK = '__create_new_pack__';
           class="generate-btn"
           (click)="onUpload(fileInput)"
           [disabled]="!selectedFile() || !selectedPackId()"
-        >Upload file</button>
+        >{{ i18n.t('importExam.uploadFile') }}</button>
       }
 
       @if (error()) {
@@ -100,7 +97,7 @@ const CREATE_NEW_PACK = '__create_new_pack__';
 
       @if (readyJobs().length > 0) {
         <div class="job-section">
-          <h3>Ready to process</h3>
+          <h3>{{ i18n.t('importExam.readyToProcess') }}</h3>
           @for (job of readyJobs(); track job.id) {
             <div class="job-check-row">
               <label class="job-check-label">
@@ -111,8 +108,8 @@ const CREATE_NEW_PACK = '__create_new_pack__';
                 type="number"
                 class="job-expected-input"
                 min="1"
-                placeholder="expected #"
-                [attr.aria-label]="'Expected number of questions in ' + job.filename"
+                [placeholder]="i18n.t('importExam.expectedHash')"
+                [attr.aria-label]="i18n.t('importExam.expectedQuestionsIn', { filename: job.filename })"
                 [ngModel]="job.expectedQuestions"
                 (change)="onUpdateExpectedQuestions(job.id, $event)"
               />
@@ -123,24 +120,24 @@ const CREATE_NEW_PACK = '__create_new_pack__';
             class="generate-btn"
             (click)="onProcessSelected()"
             [disabled]="checkedJobIds().size === 0"
-          >Process selected ({{ checkedJobIds().size }})</button>
+          >{{ i18n.t('importExam.processSelected', { count: checkedJobIds().size }) }}</button>
         </div>
       }
 
       @if (activeJobs().length > 0) {
         <div class="job-section">
-          <h3>Processing</h3>
+          <h3>{{ i18n.t('importExam.processing') }}</h3>
           @for (job of activeJobs(); track job.id) {
             <div class="job-status processing">
               <div class="job-status-header">
                 <span class="job-filename">{{ job.filename }}</span>
-                <span class="job-badge">{{ job.status === 'GENERATING' ? 'Generating explanations' : 'Extracting' }}</span>
+                <span class="job-badge">{{ job.status === 'GENERATING' ? i18n.t('importExam.generatingExplanations') : i18n.t('importExam.extracting') }}</span>
               </div>
               @if (progressTotal(job)) {
                 <div class="progress-track"><div class="progress-fill" [style.width.%]="progressPct(job)"></div></div>
-                <p class="progress-line">{{ job.processedCount }} of {{ progressTotal(job) }} processed</p>
+                <p class="progress-line">{{ i18n.t('importExam.processedOf', { processed: job.processedCount, total: progressTotal(job) }) }}</p>
               } @else {
-                <p class="progress-line">Starting — detecting questions…</p>
+                <p class="progress-line">{{ i18n.t('importExam.startingDetecting') }}</p>
               }
             </div>
           }
@@ -149,22 +146,22 @@ const CREATE_NEW_PACK = '__create_new_pack__';
 
       @if (awaitingReviewJobs().length > 0) {
         <div class="job-section">
-          <h3>Ready to review</h3>
+          <h3>{{ i18n.t('importExam.readyToReview') }}</h3>
           @for (job of awaitingReviewJobs(); track job.id) {
             <div class="job-status">
               <div class="job-status-header">
                 <span class="job-filename">{{ job.filename }}</span>
-                <span class="job-badge">{{ job.totalQuestions }} extracted</span>
+                <span class="job-badge">{{ i18n.t('importExam.extractedCount', { count: job.totalQuestions }) }}</span>
               </div>
               @if (job.failedCount > 0) {
-                <p class="warn-line">{{ job.failedCount }} question(s) need attention — see the review screen.</p>
+                <p class="warn-line">{{ i18n.t('importExam.needAttention', { count: job.failedCount }) }}</p>
               }
               <div class="job-actions">
-                <button type="button" class="btn-ghost-sm" (click)="onReview(job)">Review {{ job.totalQuestions }} question(s)</button>
+                <button type="button" class="btn-ghost-sm" (click)="onReview(job)">{{ i18n.t('importExam.reviewCount', { count: job.totalQuestions }) }}</button>
                 <button type="button" class="btn-ghost-sm" [disabled]="openingOriginal() === job.id" (click)="onViewOriginal(job)">
-                  {{ openingOriginal() === job.id ? 'Opening…' : 'View original ↗' }}
+                  {{ openingOriginal() === job.id ? i18n.t('importExam.opening') : i18n.t('importExam.viewOriginal') }}
                 </button>
-                <button type="button" class="btn-ghost-sm" (click)="onDeleteJob(job)">Delete</button>
+                <button type="button" class="btn-ghost-sm" (click)="onDeleteJob(job)">{{ i18n.t('common.delete') }}</button>
               </div>
               @if (originalFileError()?.jobId === job.id) {
                 <p class="error-line">{{ originalFileError()!.message }}</p>
@@ -177,8 +174,8 @@ const CREATE_NEW_PACK = '__create_new_pack__';
       @if (doneJobs().length > 0) {
         <div class="job-section">
           <div class="job-section-header">
-            <h3>Recent</h3>
-            <button type="button" class="btn-ghost-sm" (click)="onClearHistory()">Clear history</button>
+            <h3>{{ i18n.t('importExam.recent') }}</h3>
+            <button type="button" class="btn-ghost-sm" (click)="onClearHistory()">{{ i18n.t('importExam.clearHistory') }}</button>
           </div>
           @for (job of doneJobs(); track job.id) {
             <div class="job-status" [class]="job.status.toLowerCase()">
@@ -187,19 +184,19 @@ const CREATE_NEW_PACK = '__create_new_pack__';
                 <span class="job-badge">{{ statusLabel(job.status) }}</span>
               </div>
               @if (job.failedCount > 0) {
-                <p class="warn-line">{{ job.failedCount }} question(s) failed to generate an explanation for.</p>
+                <p class="warn-line">{{ i18n.t('importExam.failedToGenerate', { count: job.failedCount }) }}</p>
               }
               @if (job.error) {
                 <p class="error-line">{{ job.error }}</p>
               }
               <div class="job-actions">
                 @if (canReview(job)) {
-                  <button type="button" class="btn-ghost-sm" (click)="onReview(job)">Review questions</button>
+                  <button type="button" class="btn-ghost-sm" (click)="onReview(job)">{{ i18n.t('importExam.reviewQuestions') }}</button>
                 } @else if (job.status === 'FAILED') {
-                  <button type="button" class="btn-ghost-sm" (click)="onRetry(job.id)">Retry</button>
+                  <button type="button" class="btn-ghost-sm" (click)="onRetry(job.id)">{{ i18n.t('common.retry') }}</button>
                 }
                 @if (job.failures && job.failures.length > 0) {
-                  <button type="button" class="btn-ghost-sm" (click)="onDownloadReport(job)">Download report</button>
+                  <button type="button" class="btn-ghost-sm" (click)="onDownloadReport(job)">{{ i18n.t('importExam.downloadReport') }}</button>
                 }
               </div>
             </div>
@@ -208,7 +205,7 @@ const CREATE_NEW_PACK = '__create_new_pack__';
       }
 
       <app-ai-disclaimer
-        message="Extraction is performed by AI and may misread a question or its correct answer. Review imported questions before relying on them."
+        [message]="i18n.t('importExam.aiDisclaimer')"
       />
     </section>
   `,
@@ -290,6 +287,7 @@ export class ImportExamComponent {
   private readonly packsService = inject(PacksService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
+  protected readonly i18n = inject(I18nService);
 
   readonly packId = input.required<string>();
 
@@ -367,7 +365,7 @@ export class ImportExamComponent {
     const file = input.files?.[0] ?? null;
     this.error.set(null);
     if (file && !ACCEPTED_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext))) {
-      this.error.set('File must be a .pdf, .md, .html, or .zip file.');
+      this.error.set(this.i18n.t('importExam.fileMustBeType'));
       this.selectedFile.set(null);
       return;
     }
@@ -514,11 +512,11 @@ export class ImportExamComponent {
   statusLabel(status: string): string {
     switch (status) {
       case 'SUCCEEDED':
-        return 'Done';
+        return this.i18n.t('importExam.statusDone');
       case 'PARTIAL':
-        return 'Done (partial)';
+        return this.i18n.t('importExam.statusDonePartial');
       case 'FAILED':
-        return 'Failed';
+        return this.i18n.t('importExam.statusFailed');
       default:
         return status;
     }

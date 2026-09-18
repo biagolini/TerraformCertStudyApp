@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { SettingsService } from '../../core/services/settings.service';
 import { ThemeService } from '../../core/services/theme.service';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-theme-toggle',
@@ -62,10 +63,11 @@ import { ThemeService } from '../../core/services/theme.service';
 export class ThemeToggleComponent {
   private readonly settings = inject(SettingsService);
   private readonly themeService = inject(ThemeService);
+  private readonly i18n = inject(I18nService);
 
   readonly isDark = computed(() => this.settings.theme() === 'dark');
   readonly ariaLabel = computed(() =>
-    this.isDark() ? 'Switch to light mode' : 'Switch to dark mode',
+    this.isDark() ? this.i18n.t('theme.switchToLight') : this.i18n.t('theme.switchToDark'),
   );
 
   onToggle(): void {

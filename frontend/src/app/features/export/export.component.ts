@@ -7,6 +7,7 @@ import { Question } from '../../core/models/question.model';
 import { slugify } from '../../core/utils/file-splitter.util';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
 import { DomainBadgeComponent } from '../../shared/components/domain-badge.component';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-export',
@@ -16,19 +17,19 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
   template: `
     <section class="export">
       <header class="card-header">
-        <h2>Export</h2>
-        <p class="subtitle">Download selected questions as Markdown files ready for NotebookLM.</p>
+        <h2>{{ i18n.t('exportPage.title') }}</h2>
+        <p class="subtitle">{{ i18n.t('exportPage.subtitle') }}</p>
         <app-ai-disclaimer
-          message="Exported files contain AI-generated reviews. Verify content before sharing or using them as study material for others."
+          [message]="i18n.t('exportPage.aiDisclaimer')"
         />
       </header>
 
       <div class="card">
-        <h3>Selection</h3>
+        <h3>{{ i18n.t('exportPage.selection') }}</h3>
         <p class="selection-line">
-          <strong>{{ selectedCount() }}</strong> question{{ selectedCount() === 1 ? '' : 's' }} selected
+          {{ i18n.t('exportPage.selectedCount', { count: selectedCount() }) }}
           @if (totalCount() > 0) {
-            <span class="of"> of {{ totalCount() }}</span>
+            <span class="of"> {{ i18n.t('exportPage.ofTotal', { count: totalCount() }) }}</span>
           }
         </p>
         @if (breakdown().length > 0) {
@@ -44,24 +45,24 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
       </div>
 
       <div class="card">
-        <h3>Batch settings</h3>
+        <h3>{{ i18n.t('exportPage.batchSettings') }}</h3>
         <label class="split-toggle">
           <input
             type="checkbox"
             [(ngModel)]="splitEnabled"
           />
-          <span>Split into multiple files</span>
+          <span>{{ i18n.t('exportPage.splitIntoMultiple') }}</span>
         </label>
         @if (splitEnabled) {
           <label class="field">
-            <span class="label">Max questions per file</span>
+            <span class="label">{{ i18n.t('exportPage.maxQuestionsPerFile') }}</span>
             <input
               type="number"
               min="1"
               max="500"
               [(ngModel)]="maxPerFile"
               class="number-input"
-              aria-label="Max questions per file"
+              [attr.aria-label]="i18n.t('exportPage.maxQuestionsPerFile')"
             />
           </label>
           <p class="helper">{{ helperLine() }}</p>
@@ -75,8 +76,8 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
           (click)="downloadSelected()"
           [disabled]="selectedCount() === 0"
         >
-          <span class="action-label">Download selected</span>
-          <span class="action-sub">{{ splitEnabled ? 'Split into balanced batches of ~' + maxPerFile : 'Single file with all selected questions' }}</span>
+          <span class="action-label">{{ i18n.t('exportPage.downloadSelected') }}</span>
+          <span class="action-sub">{{ splitEnabled ? i18n.t('exportPage.splitBatchesOf', { max: maxPerFile }) : i18n.t('exportPage.singleFileSelected') }}</span>
         </button>
 
         <button
@@ -85,8 +86,8 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
           (click)="downloadAll()"
           [disabled]="totalCount() === 0"
         >
-          <span class="action-label">Download all</span>
-          <span class="action-sub">{{ splitEnabled ? 'Split into balanced batches of ~' + maxPerFile : 'Every reviewed question in a single file' }}</span>
+          <span class="action-label">{{ i18n.t('exportPage.downloadAll') }}</span>
+          <span class="action-sub">{{ splitEnabled ? i18n.t('exportPage.splitBatchesOf', { max: maxPerFile }) : i18n.t('exportPage.singleFileAll') }}</span>
         </button>
 
         <button
@@ -95,17 +96,17 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
           (click)="downloadStarred()"
           [disabled]="starredCount() === 0"
         >
-          <span class="action-label">Export starred</span>
+          <span class="action-label">{{ i18n.t('exportPage.exportStarred') }}</span>
           <span class="action-sub">
-            {{ starredCount() }} starred question{{ starredCount() === 1 ? '' : 's' }} —
-            {{ splitEnabled ? 'split into balanced batches of ~' + maxPerFile : 'single file' }}
+            {{ i18n.t('exportPage.starredQuestionCount', { count: starredCount() }) }} —
+            {{ splitEnabled ? i18n.t('exportPage.splitBatchesOfLower', { max: maxPerFile }) : i18n.t('exportPage.singleFile') }}
           </span>
         </button>
       </div>
 
       @if (selectedBreakdown().length > 0) {
         <div class="card">
-          <h3>By domain (selected)</h3>
+          <h3>{{ i18n.t('exportPage.byDomainSelected') }}</h3>
           <ul class="domain-grid">
             @for (entry of selectedBreakdown(); track entry.domain) {
               <li>
@@ -115,7 +116,7 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
                   (click)="downloadDomain(entry.domain)"
                 >
                   <span class="domain-name">{{ entry.domain }}</span>
-                  <span class="domain-total">{{ entry.total }} selected</span>
+                  <span class="domain-total">{{ i18n.t('exportPage.selectedCountShort', { count: entry.total }) }}</span>
                 </button>
               </li>
             }
@@ -125,8 +126,8 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
 
       @if (allDomains().length > 0) {
         <div class="card">
-          <h3>By domain (all questions)</h3>
-          <p class="helper">Select one or more domains to download all questions from those domains, regardless of selection above.</p>
+          <h3>{{ i18n.t('exportPage.byDomainAll') }}</h3>
+          <p class="helper">{{ i18n.t('exportPage.byDomainAllHint') }}</p>
           <ul class="domain-check-grid">
             @for (entry of allDomains(); track entry.domain) {
               <li class="domain-check-item">
@@ -149,7 +150,7 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
               (click)="downloadCheckedDomains()"
               [disabled]="checkedDomains().size === 0"
             >
-              <span class="action-label">Download checked domains</span>
+              <span class="action-label">{{ i18n.t('exportPage.downloadCheckedDomains') }}</span>
               <span class="action-sub">{{ checkedDomainsHelper() }}</span>
             </button>
           </div>
@@ -372,6 +373,7 @@ export class ExportComponent {
   private readonly exportService = inject(ExportService);
   private readonly questionsService = inject(QuestionsService);
   private readonly packs = inject(PacksService);
+  protected readonly i18n = inject(I18nService);
 
   protected splitEnabled = false;
   protected maxPerFile = 10;
@@ -410,9 +412,9 @@ export class ExportComponent {
 
   checkedDomainsHelper(): string {
     const domains = this.checkedDomains();
-    if (domains.size === 0) return 'Check at least one domain';
+    if (domains.size === 0) return this.i18n.t('exportPage.checkAtLeastOneDomain');
     const questions = this.questionsService.questions().filter((q) => domains.has(q.domain));
-    return `${questions.length} question${questions.length === 1 ? '' : 's'} across ${domains.size} domain${domains.size === 1 ? '' : 's'}`;
+    return this.i18n.t('exportPage.questionsAcrossDomains', { count: questions.length, domains: domains.size });
   }
 
   downloadCheckedDomains(): void {
@@ -434,10 +436,10 @@ export class ExportComponent {
   helperLine(): string {
     const total = this.selectedCount();
     const max = this.maxPerFile;
-    if (total === 0 || max <= 0) return 'Select questions to enable export.';
+    if (total === 0 || max <= 0) return this.i18n.t('exportPage.selectQuestionsToEnable');
     const files = Math.max(1, Math.ceil(total / max));
     const avg = Math.round(total / files);
-    return `${total} questions → ${files} file${files === 1 ? '' : 's'} of ~${avg} each`;
+    return this.i18n.t('exportPage.filesBreakdown', { total, files, avg });
   }
 
   downloadSelected(): void {

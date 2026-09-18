@@ -7,6 +7,7 @@ import { QuizAttemptsService } from '../../core/services/quiz-attempts.service';
 import { QuizService } from '../../core/services/quiz.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { slugify } from '../../core/utils/file-splitter.util';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-quiz-setup',
@@ -16,10 +17,10 @@ import { slugify } from '../../core/utils/file-splitter.util';
     <section class="setup-card">
       <header class="card-header">
         <div>
-          <h2>Start a practice quiz</h2>
-          <p class="subtitle">Answer your own reviewed questions as a quiz.</p>
+          <h2>{{ i18n.t('quizSetup.title') }}</h2>
+          <p class="subtitle">{{ i18n.t('quizSetup.subtitle') }}</p>
         </div>
-        <button type="button" class="history-link" (click)="quiz.viewHistory()">History</button>
+        <button type="button" class="history-link" (click)="quiz.viewHistory()">{{ i18n.t('quizSetup.history') }}</button>
       </header>
 
       @if (inProgress().length > 0) {
@@ -29,13 +30,13 @@ import { slugify } from '../../core/utils/file-splitter.util';
               <div class="resume-meta">
                 <span class="resume-exam">{{ attempt.examName }}</span>
                 <span class="resume-sub">
-                  {{ attempt.mode === 'instant' ? 'Instant feedback' : 'Exam simulation' }}
-                  · {{ answeredCount(attempt) }}/{{ attempt.answers.length }} answered
+                  {{ attempt.mode === 'instant' ? i18n.t('quizSetup.instantFeedback') : i18n.t('quizSetup.examSimulation') }}
+                  · {{ i18n.t('quizSetup.answeredOf', { answered: answeredCount(attempt), total: attempt.answers.length }) }}
                 </span>
               </div>
               <div class="resume-actions">
-                <button type="button" class="btn-ghost-sm" (click)="onDiscard(attempt)">Discard</button>
-                <button type="button" class="btn-resume" (click)="onResume(attempt)">Resume</button>
+                <button type="button" class="btn-ghost-sm" (click)="onDiscard(attempt)">{{ i18n.t('quizSetup.discard') }}</button>
+                <button type="button" class="btn-resume" (click)="onResume(attempt)">{{ i18n.t('quizSetup.resume') }}</button>
               </div>
             </div>
           }
@@ -44,15 +45,15 @@ import { slugify } from '../../core/utils/file-splitter.util';
 
       @if (pendingConflict(); as conflict) {
         <div class="conflict-banner">
-          <p>You have an unfinished session for this exam ({{ answeredCount(conflict) }}/{{ conflict.answers.length }} answered). Starting a new quiz will discard it.</p>
+          <p>{{ i18n.t('quizSetup.conflictWarning', { answered: answeredCount(conflict), total: conflict.answers.length }) }}</p>
           <div class="conflict-actions">
-            <button type="button" class="btn-ghost-sm" (click)="pendingConflict.set(null)">Cancel</button>
-            <button type="button" class="btn-resume" (click)="onDiscardAndStart(conflict)">Discard &amp; start new</button>
+            <button type="button" class="btn-ghost-sm" (click)="pendingConflict.set(null)">{{ i18n.t('common.cancel') }}</button>
+            <button type="button" class="btn-resume" (click)="onDiscardAndStart(conflict)">{{ i18n.t('quizSetup.discardAndStartNew') }}</button>
           </div>
         </div>
       }
 
-      <span class="field-label">Scope</span>
+      <span class="field-label">{{ i18n.t('quizSetup.scope') }}</span>
       <div class="scope-group">
         <button
           type="button"
@@ -60,7 +61,7 @@ import { slugify } from '../../core/utils/file-splitter.util';
           [class.selected]="scope() === 'pack'"
           (click)="onSelectScope('pack')"
         >
-          <span class="scope-title">This pack</span>
+          <span class="scope-title">{{ i18n.t('quizSetup.thisPack') }}</span>
           <span class="scope-count">{{ activePackLabel() }} — {{ readyLabel('pack') }}</span>
         </button>
         <button
@@ -69,7 +70,7 @@ import { slugify } from '../../core/utils/file-splitter.util';
           [class.selected]="scope() === 'exam'"
           (click)="onSelectScope('exam')"
         >
-          <span class="scope-title">All packs for this exam</span>
+          <span class="scope-title">{{ i18n.t('quizSetup.allPacksForExam') }}</span>
           <span class="scope-count">{{ examLabel() }} — {{ readyLabel('exam') }}</span>
         </button>
         <button
@@ -78,13 +79,13 @@ import { slugify } from '../../core/utils/file-splitter.util';
           [class.selected]="scope() === 'all'"
           (click)="onSelectScope('all')"
         >
-          <span class="scope-title">All packs</span>
-          <span class="scope-count">Every certification you track — {{ readyLabel('all') }}</span>
+          <span class="scope-title">{{ i18n.t('quizSetup.allPacks') }}</span>
+          <span class="scope-count">{{ i18n.t('quizSetup.everyCertification') }} — {{ readyLabel('all') }}</span>
         </button>
       </div>
 
-      <span class="field-label">Mode</span>
-      <div class="mode-toggle" role="tablist" aria-label="Quiz mode">
+      <span class="field-label">{{ i18n.t('quizSetup.mode') }}</span>
+      <div class="mode-toggle" role="tablist" [attr.aria-label]="i18n.t('quizSetup.quizMode')">
         <button
           type="button"
           class="mode-btn"
@@ -92,7 +93,7 @@ import { slugify } from '../../core/utils/file-splitter.util';
           (click)="mode.set('instant')"
           role="tab"
           [attr.aria-selected]="mode() === 'instant'"
-        >Instant feedback</button>
+        >{{ i18n.t('quizSetup.instantFeedback') }}</button>
         <button
           type="button"
           class="mode-btn"
@@ -100,11 +101,11 @@ import { slugify } from '../../core/utils/file-splitter.util';
           (click)="mode.set('exam')"
           role="tab"
           [attr.aria-selected]="mode() === 'exam'"
-        >Exam simulation</button>
+        >{{ i18n.t('quizSetup.examSimulation') }}</button>
       </div>
 
       @if (domainsList().length > 0) {
-        <span class="field-label">Filter by domain (optional)</span>
+        <span class="field-label">{{ i18n.t('quizSetup.filterByDomain') }}</span>
         <div class="filters-row">
           @for (d of domainsList(); track d.name) {
             <button
@@ -118,13 +119,13 @@ import { slugify } from '../../core/utils/file-splitter.util';
       }
 
       <div class="filters-row">
-        <span class="switch-label">Questions</span>
+        <span class="switch-label">{{ i18n.t('quizSetup.questions') }}</span>
         <div class="stepper">
           <button type="button" (click)="onChangeCount(-5)" [disabled]="effectiveCount() <= 1">−</button>
           <span>{{ effectiveCount() }}</span>
           <button type="button" (click)="onChangeCount(5)" [disabled]="effectiveCount() >= filteredCount()">+</button>
         </div>
-        <span class="hint-text">of {{ filteredCount() }} available</span>
+        <span class="hint-text">{{ i18n.t('quizSetup.ofAvailable', { count: filteredCount() }) }}</span>
       </div>
 
       <div class="filters-row">
@@ -135,9 +136,9 @@ import { slugify } from '../../core/utils/file-splitter.util';
           (click)="shuffle.set(!shuffle())"
           role="switch"
           [attr.aria-checked]="shuffle()"
-          aria-label="Shuffle order"
+          [attr.aria-label]="i18n.t('quizSetup.shuffleOrder')"
         ><span class="thumb"></span></button>
-        <span class="switch-label">Shuffle order</span>
+        <span class="switch-label">{{ i18n.t('quizSetup.shuffleOrder') }}</span>
       </div>
 
       @if (quiz.timerAvailable()) {
@@ -149,9 +150,9 @@ import { slugify } from '../../core/utils/file-splitter.util';
             (click)="trackTime.set(!trackTime())"
             role="switch"
             [attr.aria-checked]="trackTime()"
-            aria-label="Track time"
+            [attr.aria-label]="i18n.t('quizSetup.trackTime')"
           ><span class="thumb"></span></button>
-          <span class="switch-label">Track time ({{ examDurationLabel() }})</span>
+          <span class="switch-label">{{ i18n.t('quizSetup.trackTimeWithLabel', { label: examDurationLabel() }) }}</span>
         </div>
         @if (accommodationMinutes() > 0) {
           <div class="filters-row">
@@ -163,19 +164,19 @@ import { slugify } from '../../core/utils/file-splitter.util';
               (click)="useAccommodation.set(!useAccommodation())"
               role="switch"
               [attr.aria-checked]="useAccommodation()"
-              aria-label="Use accommodation"
+              [attr.aria-label]="i18n.t('quizSetup.useAccommodation')"
             ><span class="thumb"></span></button>
-            <span class="switch-label">Use accommodation (+{{ accommodationMinutes() }} min)</span>
+            <span class="switch-label">{{ i18n.t('quizSetup.useAccommodationMin', { minutes: accommodationMinutes() }) }}</span>
           </div>
         }
       }
 
       @if (filteredCount() === 0) {
-        <p class="empty-hint">No questions in this scope yet — add some from the Create tab first.</p>
+        <p class="empty-hint">{{ i18n.t('quizSetup.noQuestionsInScope') }}</p>
       }
 
       <button type="button" class="start-btn" [disabled]="filteredCount() === 0" (click)="onStart()">
-        Start quiz
+        {{ i18n.t('quizSetup.startQuiz') }}
       </button>
     </section>
   `,
@@ -290,6 +291,7 @@ export class QuizSetupComponent {
   private readonly packs = inject(PacksService);
   private readonly settings = inject(SettingsService);
   private readonly attemptsService = inject(QuizAttemptsService);
+  protected readonly i18n = inject(I18nService);
 
   protected readonly inProgress = this.attemptsService.inProgressAttempts;
   protected readonly pendingConflict = signal<QuizAttempt | null>(null);
@@ -309,7 +311,7 @@ export class QuizSetupComponent {
   protected readonly accommodationMinutes = computed(() => this.packs.activePack().accommodationMinutes ?? 0);
   protected readonly examDurationLabel = computed(() => {
     const pack = this.packs.activePack();
-    return `${pack.examDurationMinutes} min, ${pack.examTotalQuestions} questions`;
+    return this.i18n.t('quizSetup.durationLabel', { minutes: pack.examDurationMinutes, count: pack.examTotalQuestions });
   });
 
   protected readonly activePackLabel = computed(() => packDisplayLabel(this.packs.activePack()));
@@ -338,7 +340,7 @@ export class QuizSetupComponent {
 
   readyLabel(scope: QuizScope): string {
     const count = this.quiz.scopePools().counts[scope];
-    return count === 1 ? '1 question' : `${count} questions`;
+    return this.i18n.t('quizSetup.questionCount', { count });
   }
 
   onSelectScope(scope: QuizScope): void {

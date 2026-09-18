@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { MatDialogModule, MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 export interface ConfirmDeleteData {
   title: string;
@@ -12,17 +13,17 @@ export interface ConfirmDeleteData {
   standalone: true,
   imports: [MatDialogModule, MatButtonModule, MatProgressSpinnerModule],
   template: `
-    <h2 mat-dialog-title>Delete question</h2>
+    <h2 mat-dialog-title>{{ i18n.t('confirmDelete.title') }}</h2>
     <mat-dialog-content>
-      <p>Are you sure you want to delete <strong>{{ data.title }}</strong>?</p>
-      <p class="warn">This action cannot be undone.</p>
+      <p>{{ i18n.t('confirmDelete.bodyPrefix') }} <strong>{{ data.title }}</strong>{{ i18n.t('confirmDelete.bodySuffix') }}</p>
+      <p class="warn">{{ i18n.t('confirmDelete.cannotUndo') }}</p>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       @if (loading) {
         <mat-spinner diameter="24"></mat-spinner>
       } @else {
-        <button mat-button mat-dialog-close>Cancel</button>
-        <button mat-flat-button color="warn" (click)="confirm()">Delete</button>
+        <button mat-button mat-dialog-close>{{ i18n.t('common.cancel') }}</button>
+        <button mat-flat-button color="warn" (click)="confirm()">{{ i18n.t('common.delete') }}</button>
       }
     </mat-dialog-actions>
   `,
@@ -51,6 +52,7 @@ export interface ConfirmDeleteData {
 export class ConfirmDeleteDialogComponent {
   readonly data = inject<ConfirmDeleteData>(MAT_DIALOG_DATA);
   private readonly dialogRef = inject(MatDialogRef<ConfirmDeleteDialogComponent>);
+  protected readonly i18n = inject(I18nService);
   loading = false;
 
   confirm(): void {

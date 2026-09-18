@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input, output } from '@angular/core';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-eye-toggle',
@@ -9,7 +10,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       type="button"
       class="eye"
       (click)="toggle.emit()"
-      [attr.aria-label]="visible() ? 'Hide value' : 'Show value'"
+      [attr.aria-label]="visible() ? i18n.t('eyeToggle.hide') : i18n.t('eyeToggle.show')"
       [attr.aria-pressed]="visible()"
     >
       @if (visible()) {
@@ -61,6 +62,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
   ],
 })
 export class EyeToggleComponent {
+  protected readonly i18n = inject(I18nService);
   readonly visible = input.required<boolean>();
   readonly toggle = output<void>();
 }

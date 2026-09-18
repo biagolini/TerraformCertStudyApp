@@ -4,6 +4,7 @@ import { Pack, packDisplayLabel } from '../../core/models/pack.model';
 import { PacksService } from '../../core/services/packs.service';
 import { QuestionsService } from '../../core/services/questions.service';
 import { PackEditorComponent } from './pack-editor.component';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-packs-drawer',
@@ -13,12 +14,12 @@ import { PackEditorComponent } from './pack-editor.component';
   template: `
     <div class="drawer">
       <header class="drawer-header">
-        <h2>Exam Packs</h2>
+        <h2>{{ i18n.t('packs.examPacks') }}</h2>
         <button
           type="button"
           class="close-btn"
           (click)="closed.emit()"
-          aria-label="Close packs"
+          [attr.aria-label]="i18n.t('packs.closePacks')"
         >
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
             <path
@@ -33,9 +34,7 @@ import { PackEditorComponent } from './pack-editor.component';
       </header>
 
       <div class="drawer-body">
-        <p class="hint">
-          Each pack is its own collection of reviewed questions, domains, and color. Switch packs to keep different certifications or simulado batches separated.
-        </p>
+        <p class="hint">{{ i18n.t('packs.hint') }}</p>
 
         <ul class="pack-list">
           @for (pack of packs(); track pack.id) {
@@ -49,7 +48,7 @@ import { PackEditorComponent } from './pack-editor.component';
                 class="select-btn"
                 (click)="onSelect(pack)"
                 [attr.aria-pressed]="pack.id === activeId()"
-                [attr.aria-label]="'Switch to ' + label(pack)"
+                [attr.aria-label]="i18n.t('packs.switchTo', { name: label(pack) })"
               >
                 <span class="dot" [style.background]="pack.color" aria-hidden="true"></span>
                 <span class="meta">
@@ -57,7 +56,7 @@ import { PackEditorComponent } from './pack-editor.component';
                   @if (pack.version) {
                     <span class="version">{{ pack.version }}</span>
                   }
-                  <span class="count">{{ countFor(pack.id) }} question{{ countFor(pack.id) === 1 ? '' : 's' }}</span>
+                  <span class="count">{{ i18n.t('packs.questionCount', { count: countFor(pack.id) }) }}</span>
                 </span>
                 @if (pack.id === activeId()) {
                   <span class="check" aria-hidden="true">
@@ -71,7 +70,7 @@ import { PackEditorComponent } from './pack-editor.component';
                 type="button"
                 class="edit-btn"
                 (click)="openEdit(pack)"
-                [attr.aria-label]="'Edit ' + label(pack)"
+                [attr.aria-label]="i18n.t('packs.editName', { name: label(pack) })"
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
                   <path
@@ -90,7 +89,7 @@ import { PackEditorComponent } from './pack-editor.component';
                   class="reorder-btn"
                   (click)="onMoveUp(pack)"
                   [disabled]="isFirst(pack)"
-                  [attr.aria-label]="'Move ' + label(pack) + ' up'"
+                  [attr.aria-label]="i18n.t('settings.moveUp', { name: label(pack) })"
                 >
                   <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
                     <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 15l6-6 6 6"/>
@@ -101,7 +100,7 @@ import { PackEditorComponent } from './pack-editor.component';
                   class="reorder-btn"
                   (click)="onMoveDown(pack)"
                   [disabled]="isLast(pack)"
-                  [attr.aria-label]="'Move ' + label(pack) + ' down'"
+                  [attr.aria-label]="i18n.t('settings.moveDown', { name: label(pack) })"
                 >
                   <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
                     <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/>
@@ -116,7 +115,7 @@ import { PackEditorComponent } from './pack-editor.component';
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
             <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 5v14M5 12h14"/>
           </svg>
-          <span>New pack</span>
+          <span>{{ i18n.t('packs.newPack') }}</span>
         </button>
       </div>
 
@@ -308,6 +307,7 @@ export class PacksDrawerComponent {
   private readonly packsService = inject(PacksService);
   private readonly questionsService = inject(QuestionsService);
   private readonly router = inject(Router);
+  protected readonly i18n = inject(I18nService);
 
   readonly closed = output<void>();
 

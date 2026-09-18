@@ -12,6 +12,7 @@ import { QuizAttempt } from '../models/quiz-attempt.model';
 import { AppSettings, DEFAULT_SETTINGS, isReviewMode } from '../models/settings.model';
 import { isStudyMethod } from '../models/method.model';
 import { NAV_ITEMS, NavTabId } from '../models/nav-item.model';
+import { isInterfaceLanguage } from '../models/i18n.model';
 import { environment } from '../../../environments/environment';
 
 function deserializeDomain(raw: unknown): PackDomain | null {
@@ -160,17 +161,7 @@ export class StorageService {
   async refresh(): Promise<void> {
     if (!this.token || this.syncStatus() === 'syncing') return;
 
-    if (this.syncTimer) {
-      clearTimeout(this.syncTimer);
-      this.syncTimer = null;
-      await this.pushAll({
-        packs: this._packs(),
-        questions: this._questions(),
-        scripts: this._scripts(),
-        chats: this._chats(),
-        settings: this._settings(),
-      });
-    }
+    await this.flushPendingSync();
 
     this.syncStatus.set('syncing');
     try {
@@ -210,13 +201,15 @@ export class StorageService {
   }
 
   saveQuestions(questions: Question[]): void {
+    const previous = this._questions();
     this._questions.set(questions);
-    this.syncPutAll();
+    this.diffAndSync('questions', previous, questions, (id) => `${this.apiUrl}/data/questions/${id}`, () => this._questions());
   }
 
   clearQuestions(): void {
+    const previous = this._questions();
     this._questions.set([]);
-    this.syncPutAll();
+    this.diffAndSync('questions', previous, [], (id) => `${this.apiUrl}/data/questions/${id}`, () => this._questions());
   }
 
   getPacks(): Pack[] {
@@ -224,8 +217,9 @@ export class StorageService {
   }
 
   savePacks(packs: Pack[]): void {
+    const previous = this._packs();
     this._packs.set(packs);
-    this.syncPutAll();
+    this.diffAndSync('packs', previous, packs, (id) => `${this.apiUrl}/data/packs/${id}`, () => this._packs());
   }
 
   getScripts(): Script[] {
@@ -233,8 +227,9 @@ export class StorageService {
   }
 
   saveScripts(scripts: Script[]): void {
+    const previous = this._scripts();
     this._scripts.set(scripts);
-    this.syncPutAll();
+    this.diffAndSync('scripts', previous, scripts, (id) => `${this.apiUrl}/data/scripts/${id}`, () => this._scripts());
   }
 
   getChats(): ChatSession[] {
@@ -242,8 +237,9 @@ export class StorageService {
   }
 
   saveChats(chats: ChatSession[]): void {
+    const previous = this._chats();
     this._chats.set(chats);
-    this.syncPutAll();
+    this.diffAndSync('chats', previous, chats, (id) => `${this.apiUrl}/data/chats/${id}`, () => this._chats());
   }
 
   getSettings(): AppSettings {
@@ -423,42 +419,62 @@ export class StorageService {
     }
   }
 
-  /** Debounced full sync — writes all packs, questions, scripts to cloud */
-  private syncTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Debounced per-item sync — see diffAndSync below. Keyed by `${kind}:${id}`
+   * so concurrent edits to different items (or different entity types) debounce
+   * independently instead of coalescing into one another. */
+  private readonly pendingItemWrites = new Map<string, { timer: ReturnType<typeof setTimeout>; run: () => Promise<void> }>();
 
-  private syncPutAll(): void {
-    if (this.syncTimer) clearTimeout(this.syncTimer);
-    this.syncTimer = setTimeout(() => {
-      console.debug('[StorageService] syncPutAll fired, settings:', this._settings());
-      this.pushAll({
-        packs: this._packs(),
-        questions: this._questions(),
-        scripts: this._scripts(),
-        chats: this._chats(),
-        settings: this._settings(),
-      });
+  private schedulePush(key: string, run: () => Promise<void>): void {
+    const existing = this.pendingItemWrites.get(key);
+    if (existing) clearTimeout(existing.timer);
+    const timer = setTimeout(() => {
+      this.pendingItemWrites.delete(key);
+      void run();
     }, 500);
+    this.pendingItemWrites.set(key, { timer, run });
+  }
+
+  /** Pushes only the items that actually changed since the last local
+   * snapshot, one PUT per item, instead of overwriting every pack/question/
+   * script/chat on every edit. This is what closes the stale-snapshot race:
+   * previously, ANY edit anywhere triggered a full-dataset PUT of this
+   * device's local copy, so an unrelated edit on device B could re-send B's
+   * stale copy of an item device A had just changed, silently clobbering it.
+   * With per-item pushes, B only ever touches the item it actually edited.
+   * (Concurrent edits to the exact same item are a harder problem this does
+   * not attempt to solve — last write wins there, same as before.) */
+  private diffAndSync<T extends { id: string }>(
+    kind: string,
+    previous: readonly T[],
+    next: readonly T[],
+    url: (id: string) => string,
+    currentList: () => readonly T[],
+  ): void {
+    const prevById = new Map(previous.map((item) => [item.id, item]));
+    for (const item of next) {
+      const before = prevById.get(item.id);
+      if (before && JSON.stringify(before) === JSON.stringify(item)) continue;
+      this.schedulePush(`${kind}:${item.id}`, async () => {
+        const latest = currentList().find((i) => i.id === item.id);
+        if (latest) await this.fire(url(item.id), 'PUT', latest);
+      });
+    }
   }
 
   /**
-   * Cancels any pending debounced sync and pushes immediately. The 500ms
-   * debounce above exists to coalesce rapid-fire edits (e.g. typing) — but for
-   * a discrete, deliberate action like reordering packs, waiting means a quick
-   * reload right after clicking can silently drop the change (nothing flushes
-   * a pending setTimeout on unload). Call this after actions where that gap
-   * would be surprising.
+   * Cancels every pending debounced per-item write and pushes them all
+   * immediately. The 500ms debounce above exists to coalesce rapid-fire
+   * edits (e.g. typing) — but for a discrete, deliberate action like
+   * reordering packs, waiting means a quick reload right after clicking can
+   * silently drop the change (nothing flushes a pending setTimeout on
+   * unload). Call this after actions where that gap would be surprising.
    */
   async flushPendingSync(): Promise<void> {
-    if (!this.syncTimer) return;
-    clearTimeout(this.syncTimer);
-    this.syncTimer = null;
-    await this.pushAll({
-      packs: this._packs(),
-      questions: this._questions(),
-      scripts: this._scripts(),
-      chats: this._chats(),
-      settings: this._settings(),
-    });
+    const entries = [...this.pendingItemWrites.values()];
+    if (entries.length === 0) return;
+    this.pendingItemWrites.clear();
+    for (const { timer } of entries) clearTimeout(timer);
+    await Promise.all(entries.map((e) => e.run()));
   }
 
   /** Fire-and-forget HTTP request */
@@ -555,6 +571,10 @@ export class StorageService {
           typeof parsed.activeMethod === 'string' && isStudyMethod(parsed.activeMethod)
             ? parsed.activeMethod
             : DEFAULT_SETTINGS.activeMethod,
+        interfaceLanguage:
+          typeof parsed.interfaceLanguage === 'string' && isInterfaceLanguage(parsed.interfaceLanguage)
+            ? parsed.interfaceLanguage
+            : DEFAULT_SETTINGS.interfaceLanguage,
         outputLanguage: typeof parsed.outputLanguage === 'string' ? parsed.outputLanguage : DEFAULT_SETTINGS.outputLanguage,
         defaultReviewMode:
           typeof parsed.defaultReviewMode === 'string' && isReviewMode(parsed.defaultReviewMode)

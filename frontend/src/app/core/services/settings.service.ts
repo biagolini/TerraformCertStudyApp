@@ -2,6 +2,7 @@ import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { StudyMethod } from '../models/method.model';
 import { DEFAULT_NAV_ORDER, NAV_ITEMS, NavTabId, resolveNavOrder } from '../models/nav-item.model';
 import { AppSettings, DEFAULT_SETTINGS, ReviewMode, ThemeMode } from '../models/settings.model';
+import { InterfaceLanguage } from '../models/i18n.model';
 import { StorageService } from './storage.service';
 
 @Injectable({ providedIn: 'root' })
@@ -16,6 +17,7 @@ export class SettingsService {
   readonly importExtractionModel = computed(() => this.state().importExtractionModel);
   readonly activePackId = computed(() => this.state().activePackId);
   readonly activeMethod = computed(() => this.state().activeMethod);
+  readonly interfaceLanguage = computed(() => this.state().interfaceLanguage);
   readonly outputLanguage = computed(() => this.state().outputLanguage);
   readonly defaultReviewMode = computed(() => this.state().defaultReviewMode);
   readonly showCorrectInReview = computed(() => this.state().showCorrectInReview);
@@ -57,6 +59,11 @@ export class SettingsService {
   setActiveMethod(method: StudyMethod): void {
     if (method === this.state().activeMethod) return;
     this.update((s) => ({ ...s, activeMethod: method }));
+  }
+
+  setInterfaceLanguage(value: InterfaceLanguage): void {
+    if (value === this.state().interfaceLanguage) return;
+    this.update((s) => ({ ...s, interfaceLanguage: value }));
   }
 
   setOutputLanguage(value: string): void {

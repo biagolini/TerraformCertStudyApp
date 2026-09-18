@@ -2,6 +2,7 @@ export type ThemeMode = 'light' | 'dark';
 
 import { StudyMethod } from './method.model';
 import { DEFAULT_NAV_ORDER, NavTabId } from './nav-item.model';
+import { InterfaceLanguage } from './i18n.model';
 
 export type ReviewMode = 'generate' | 'manual';
 
@@ -11,6 +12,10 @@ export interface AppSettings {
   importExtractionModel: string;
   activePackId: string;
   activeMethod: StudyMethod;
+  /** Language the app's own UI (buttons, labels, menus) is rendered in —
+   * distinct from outputLanguage below, which only affects AI-generated
+   * text (reviews, explanations, chat replies). */
+  interfaceLanguage: InterfaceLanguage;
   outputLanguage: string;
   defaultReviewMode: ReviewMode;
   showCorrectInReview: boolean;
@@ -39,6 +44,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   importExtractionModel: DEFAULT_IMPORT_EXTRACTION_MODEL,
   activePackId: '',
   activeMethod: 'question',
+  interfaceLanguage: 'en',
   outputLanguage: '',
   defaultReviewMode: 'generate',
   showCorrectInReview: true,

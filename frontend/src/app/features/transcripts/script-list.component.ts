@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, output } f
 import { Script } from '../../core/models/script.model';
 import { ScriptsService } from '../../core/services/scripts.service';
 import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-script-list',
@@ -12,14 +13,14 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
     <section class="list-card">
       <header class="card-header">
         <div class="title-row">
-          <h2>Saved scripts</h2>
+          <h2>{{ i18n.t('scriptList.savedScripts') }}</h2>
           <span class="count">{{ count() }}</span>
         </div>
       </header>
       @if (count() === 0) {
         <div class="empty">
-          <p class="empty-title">No scripts yet.</p>
-          <p class="empty-body">Paste a transcript above and generate your first technical summary.</p>
+          <p class="empty-title">{{ i18n.t('scriptList.noScriptsYet') }}</p>
+          <p class="empty-body">{{ i18n.t('scriptList.noScriptsHint') }}</p>
         </div>
       } @else {
         <ul class="list">
@@ -32,7 +33,7 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
                 (click)="opened.emit(script)"
               >
                 <span class="title">{{ script.title | truncate: 80 }}</span>
-                <span class="meta">{{ script.sources.length }} source{{ script.sources.length === 1 ? '' : 's' }}</span>
+                <span class="meta">{{ i18n.t('scriptList.sourceCount', { count: script.sources.length }) }}</span>
               </button>
             </li>
           }
@@ -96,6 +97,7 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
 })
 export class ScriptListComponent {
   private readonly scriptsService = inject(ScriptsService);
+  protected readonly i18n = inject(I18nService);
   readonly scripts = this.scriptsService.scripts;
   readonly count = this.scriptsService.count;
   readonly activeId = input<string | null>(null);

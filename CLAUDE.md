@@ -86,23 +86,47 @@ Angular 21, standalone components, Signals, `OnPush` everywhere, plain SCSS
   `html.theme-dark` class (`ThemeService`). Never hardcode a hex color or a
   raw pixel value in a component's `styles` — use the existing `--bg-*`,
   `--text-*`, `--color-*`, `--space-*`, `--radius-*` tokens. `LoginComponent`
-  is the one known holdout still using hardcoded colors — fixing that is a
-  tracked, not-yet-done change (see the design canvas below).
-- **i18n**: the interface is English-only today. A 4-language design
-  (English default, Portuguese, Spanish, Italian) — including a new
-  "Interface language" setting distinct from the existing AI-output-language
-  setting — has been designed but **not yet implemented in code**. Don't
-  assume translated strings exist; check `settings.model.ts` /
-  `settings.component.ts` before relying on an interface-language setting.
-- **Sync architecture** (`StorageService`): writes debounce 500ms then
-  `PUT /data` with the *entire* dataset (not a per-item merge, even though
-  the backend exposes per-item endpoints — see `docs/backend.md`). A
+  used to be the one known holdout on this — it's now on tokens too, so there
+  are no remaining exceptions.
+- **i18n**: the interface ships in English, Portuguese, Spanish, and Italian.
+  `core/i18n/i18n.service.ts` (`I18nService`) exposes `lang` (a signal
+  derived from `SettingsService.interfaceLanguage`) and `t(key, params?)`;
+  every component that renders user-facing text injects it and calls
+  `i18n.t('some.key')` directly in the template — never a pipe, since a
+  signal read inside a template expression is what Angular's OnPush change
+  detection tracks, so a language switch re-renders every consuming view
+  automatically. String tables live in `core/i18n/{en,pt,es,it}.ts`, one flat
+  `Record<string, string>` per language keyed by dot-path
+  (`'settings.title'`, `'questionInput.generateReview'`, …); `en.ts` is the
+  authoritative key list — `I18nService.t()` falls back to it for any key
+  missing from the active language, and every key added there must be added
+  to the other three too (nothing enforces that at build time yet). The
+  `Settings` drawer's "Interface language" control is a separate setting
+  from the pre-existing "Output language" one — the first controls the
+  app's own chrome, the second only controls AI-generated text (reviews,
+  explanations, chat replies) and is unaffected by this. Backend/SDK error
+  strings (Cognito auth errors, uncaught exceptions surfaced verbatim from
+  `/data` calls) are intentionally NOT translated — translating only the
+  fallback case while the common case still comes back in English from AWS
+  would be more confusing than leaving both in English.
+- **Sync architecture** (`StorageService`): `saveQuestions`/`savePacks`/
+  `saveScripts`/`saveChats` diff the incoming array against the previous
+  in-memory snapshot (`diffAndSync`) and debounce-PUT (500ms) only the items
+  that actually changed, one `PUT /data/<kind>/<id>` per item — not the old
+  whole-dataset `PUT /data`. This is what closes the race where an unrelated
+  edit on device B re-sent B's stale local copy of an item device A had just
+  changed, clobbering it: B now only ever touches the item it actually
+  edited. `flushPendingSync()` immediately fires every pending per-item
+  write (used before a reorder-triggered save and before `refresh()` pulls
+  remote data, so a pull never discards an unsaved edit); bulk `PUT /data`
+  still exists (`pushAll`) but is now only used for the one-time
+  localStorage→cloud migration on first login. Concurrent edits to the exact
+  same item are still last-write-wins — that's a harder problem (needs
+  versioning/optimistic-concurrency) this pass didn't attempt. A
   `visibilitychange` listener re-pulls `/data` when the tab regains focus
   (throttled to once per 20s) so switching devices doesn't require a full
   reload; `syncStatus` / `lastError` / `lastSyncedAt` signals drive the
-  header's `SyncStatusComponent` and the Settings drawer's sync row. Known
-  limitation, intentionally not fixed: a stale local snapshot pushing at the
-  wrong moment can still clobber a concurrent change from another device.
+  header's `SyncStatusComponent` and the Settings drawer's sync row.
 
 ## Design system
 

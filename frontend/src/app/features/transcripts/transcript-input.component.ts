@@ -10,6 +10,7 @@ import {
   stripInferredMetadata,
 } from '../../core/utils/domain-inference.util';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-transcript-input',
@@ -19,21 +20,21 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
   template: `
     <section class="input-card">
       <header class="card-header">
-        <h2>New transcript script</h2>
-        <p class="subtitle">Paste one or more lesson transcripts. The AI produces a single layered technical summary covering all of them, from foundational to advanced.</p>
+        <h2>{{ i18n.t('transcriptInput.newTranscriptScript') }}</h2>
+        <p class="subtitle">{{ i18n.t('transcriptInput.subtitle') }}</p>
       </header>
 
       <div class="transcripts">
         @for (transcript of transcripts(); track $index; let i = $index) {
           <div class="transcript-block">
             <div class="transcript-head">
-              <label class="transcript-label">Aula {{ i + 1 }}</label>
+              <label class="transcript-label">{{ i18n.t('transcriptInput.sourceLabel', { number: i + 1 }) }}</label>
               @if (transcripts().length > 1) {
                 <button
                   type="button"
                   class="remove-btn"
                   (click)="onRemove(i)"
-                  [attr.aria-label]="'Remove transcript ' + (i + 1)"
+                  [attr.aria-label]="i18n.t('transcriptInput.removeTranscript', { number: i + 1 })"
                   [disabled]="streaming()"
                 >
                   <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
@@ -48,8 +49,8 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
               [ngModel]="transcript"
               (ngModelChange)="onChange(i, $event)"
               [disabled]="streaming()"
-              placeholder="Paste the transcript of this lesson..."
-              [attr.aria-label]="'Transcript ' + (i + 1)"
+              [placeholder]="i18n.t('transcriptInput.transcriptPlaceholder')"
+              [attr.aria-label]="i18n.t('transcriptInput.transcriptAriaLabel', { number: i + 1 })"
             ></textarea>
           </div>
         }
@@ -64,21 +65,21 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
           <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 5v14M5 12h14"/>
         </svg>
-        <span>Add another transcript</span>
+        <span>{{ i18n.t('transcriptInput.addAnotherTranscript') }}</span>
       </button>
 
       <div class="options-row">
         <label class="model-row">
-          <span class="model-label">Model</span>
+          <span class="model-label">{{ i18n.t('questionInput.model') }}</span>
           <select
             class="model-select"
             [ngModel]="selectedModel()"
             (ngModelChange)="onSelectModel($event)"
             [disabled]="streaming()"
-            aria-label="Model for this generation"
+            [attr.aria-label]="i18n.t('questionInput.modelForGeneration')"
           >
             @for (model of availableModels(); track model.id) {
-              <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (reasoning)' : '' }} — {{ model.tier }}</option>
+              <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (' + i18n.t('settings.reasoning') + ')' : '' }} — {{ model.tier }}</option>
             }
           </select>
         </label>
@@ -87,7 +88,7 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
       @if (streaming()) {
         <button type="button" class="stop-btn" (click)="onStop()">
           <span class="stop-icon" aria-hidden="true"></span>
-          <span>Stop</span>
+          <span>{{ i18n.t('questionInput.stop') }}</span>
         </button>
       } @else {
         <button
@@ -96,7 +97,7 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
           (click)="onGenerate()"
           [disabled]="!canGenerate()"
         >
-          Generate technical summary
+          {{ i18n.t('transcriptInput.generateSummary') }}
         </button>
       }
 
@@ -105,7 +106,7 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
       }
 
       <app-ai-disclaimer
-        message="Generated summaries are produced by AI from the transcripts you provide and can contain mistakes. Review the content before treating it as authoritative."
+        [message]="i18n.t('transcriptInput.aiDisclaimer')"
       />
     </section>
   `,
@@ -218,6 +219,7 @@ export class TranscriptInputComponent {
   private readonly settings = inject(SettingsService);
   private readonly modelsService = inject(ModelsService);
   private readonly scripts = inject(ScriptsService);
+  protected readonly i18n = inject(I18nService);
 
   protected readonly transcripts = signal<string[]>(['']);
   protected readonly streaming = signal(false);
@@ -267,7 +269,7 @@ export class TranscriptInputComponent {
       .map((t) => t.trim())
       .filter((t) => t.length > 0);
     if (sources.length === 0) {
-      this.error.set('Add at least one transcript.');
+      this.error.set(this.i18n.t('transcriptInput.addAtLeastOne'));
       return;
     }
 
@@ -289,7 +291,7 @@ export class TranscriptInputComponent {
         if (!script) {
           script = {
             id: crypto.randomUUID(),
-            title: 'Resumo técnico',
+            title: this.i18n.t('transcriptInput.initialTitle'),
             content: chunk,
             sources: [...sources],
             createdAt: Date.now(),
@@ -317,10 +319,10 @@ export class TranscriptInputComponent {
         const finalContent = stripInferredMetadata(accumulated);
         this.scripts.updatePartial(script.id, { title: finalTitle, content: finalContent });
         if (!aborted) {
-          this.error.set(err instanceof Error ? err.message : 'Failed to generate summary.');
+          this.error.set(err instanceof Error ? err.message : this.i18n.t('transcriptInput.failedToGenerate'));
         }
       } else if (!aborted) {
-        this.error.set(err instanceof Error ? err.message : 'Failed to generate summary.');
+        this.error.set(err instanceof Error ? err.message : this.i18n.t('transcriptInput.failedToGenerate'));
       }
     } finally {
       this.streaming.set(false);

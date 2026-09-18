@@ -14,6 +14,7 @@ import {
 import { PacksService } from '../../core/services/packs.service';
 import { QuestionsService } from '../../core/services/questions.service';
 import { ChatService } from '../../core/services/chat.service';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-pack-editor',
@@ -25,13 +26,13 @@ import { ChatService } from '../../core/services/chat.service';
       <div class="card">
         <header class="card-header">
           <h2 id="pack-editor-title">
-            {{ isEditMode() ? 'Edit pack' : 'New pack' }}
+            {{ isEditMode() ? i18n.t('packEditor.editPack') : i18n.t('packEditor.newPack') }}
           </h2>
           <button
             type="button"
             class="close-btn"
             (click)="cancelled.emit()"
-            aria-label="Close editor"
+            [attr.aria-label]="i18n.t('packEditor.closeEditor')"
           >
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
               <path
@@ -47,32 +48,32 @@ import { ChatService } from '../../core/services/chat.service';
 
         <div class="card-body">
           <div class="field">
-            <span class="field-label">Quick start (optional)</span>
-            <span class="field-hint">Auto-fill every field below from a file, pasted JSON, a built-in template, or another pack in your account — then adjust anything you like.</span>
+            <span class="field-label">{{ i18n.t('packEditor.quickStart') }}</span>
+            <span class="field-hint">{{ i18n.t('packEditor.quickStartHint') }}</span>
             <div class="autofill-grid">
-              <button type="button" class="btn-import-json" (click)="triggerJsonImport()" aria-label="Import pack from JSON file">
+              <button type="button" class="btn-import-json" (click)="triggerJsonImport()" [attr.aria-label]="i18n.t('packEditor.importFromJsonFile')">
                 <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
                   <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
                 </svg>
-                Import file
+                {{ i18n.t('packEditor.importFile') }}
               </button>
-              <button type="button" class="btn-import-json" (click)="toggleJsonPaste()" aria-label="Paste JSON text">
+              <button type="button" class="btn-import-json" (click)="toggleJsonPaste()" [attr.aria-label]="i18n.t('packEditor.pasteJsonText')">
                 <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
                   <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/>
                 </svg>
-                Paste JSON
+                {{ i18n.t('packEditor.pasteJson') }}
               </button>
-              <button type="button" class="btn-import-json btn-templates" (click)="toggleTemplates()" aria-label="Load from pre-defined exam templates">
+              <button type="button" class="btn-import-json btn-templates" (click)="toggleTemplates()" [attr.aria-label]="i18n.t('packEditor.loadFromTemplates')">
                 <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
                   <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
                 </svg>
-                Templates
+                {{ i18n.t('packEditor.templates') }}
               </button>
-              <button type="button" class="btn-import-json btn-templates" (click)="toggleCopyFromPack()" aria-label="Copy fields from another pack in your account">
+              <button type="button" class="btn-import-json btn-templates" (click)="toggleCopyFromPack()" [attr.aria-label]="i18n.t('packEditor.copyFromPackAriaLabel')">
                 <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
                   <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M8 8V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-3M8 8H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-3M8 8h8v8"/>
                 </svg>
-                Copy from pack
+                {{ i18n.t('packEditor.copyFromPack') }}
               </button>
               <input
                 #jsonFileInput
@@ -88,19 +89,19 @@ import { ChatService } from '../../core/services/chat.service';
                 <textarea
                   class="text-input textarea json-paste-textarea"
                   [(ngModel)]="jsonPasteDraft"
-                  placeholder="Paste your JSON here..."
-                  aria-label="Paste JSON content"
+                  [placeholder]="i18n.t('packEditor.pasteJsonPlaceholder')"
+                  [attr.aria-label]="i18n.t('packEditor.pasteJsonContent')"
                   rows="6"
                 ></textarea>
                 <div class="json-paste-actions">
-                  <button type="button" class="btn btn-primary btn-sm" (click)="applyJsonPaste()">Apply</button>
-                  <button type="button" class="btn btn-ghost btn-sm" (click)="toggleJsonPaste()">Cancel</button>
+                  <button type="button" class="btn btn-primary btn-sm" (click)="applyJsonPaste()">{{ i18n.t('packEditor.apply') }}</button>
+                  <button type="button" class="btn btn-ghost btn-sm" (click)="toggleJsonPaste()">{{ i18n.t('common.cancel') }}</button>
                 </div>
               </div>
             }
             @if (templatesOpen()) {
               <div class="templates-panel">
-                <p class="templates-title">Pre-defined exam packs</p>
+                <p class="templates-title">{{ i18n.t('packEditor.predefinedExamPacks') }}</p>
                 <ul class="templates-list">
                   @for (tpl of templates; track tpl.file) {
                     <li>
@@ -114,9 +115,9 @@ import { ChatService } from '../../core/services/chat.service';
             }
             @if (copyFromPackOpen()) {
               <div class="templates-panel">
-                <p class="templates-title">Your packs</p>
+                <p class="templates-title">{{ i18n.t('packEditor.yourPacks') }}</p>
                 @if (copyablePacks().length === 0) {
-                  <p class="templates-empty">No other packs in your account yet.</p>
+                  <p class="templates-empty">{{ i18n.t('packEditor.noOtherPacks') }}</p>
                 } @else {
                   <ul class="templates-list">
                     @for (p of copyablePacks(); track p.id) {
@@ -139,50 +140,50 @@ import { ChatService } from '../../core/services/chat.service';
           </div>
 
           <label class="field">
-            <span class="field-label">Name</span>
+            <span class="field-label">{{ i18n.t('packEditor.name') }}</span>
             <input
               class="text-input"
               type="text"
               [(ngModel)]="nameDraft"
-              placeholder="e.g. AWS Solutions Architect SAA-C03"
-              aria-label="Pack name"
+              [placeholder]="i18n.t('packEditor.namePlaceholder')"
+              [attr.aria-label]="i18n.t('packEditor.packName')"
             />
           </label>
 
           <label class="field">
-            <span class="field-label">Version (optional)</span>
+            <span class="field-label">{{ i18n.t('packEditor.versionOptional') }}</span>
             <input
               class="text-input"
               type="text"
               [(ngModel)]="versionDraft"
-              placeholder="e.g. Practice exam 1"
-              aria-label="Pack version"
+              [placeholder]="i18n.t('packEditor.versionPlaceholder')"
+              [attr.aria-label]="i18n.t('packEditor.packVersion')"
             />
-            <span class="field-hint">Shown after the name in the switcher.</span>
+            <span class="field-hint">{{ i18n.t('packEditor.versionHint') }}</span>
           </label>
 
           <label class="field">
-            <span class="field-label">Certification description (optional)</span>
+            <span class="field-label">{{ i18n.t('packEditor.certDescriptionOptional') }}</span>
             <textarea
               class="text-input textarea"
               [(ngModel)]="descriptionDraft"
-              placeholder="Overview of the certification, target audience, exam structure..."
-              aria-label="Certification description"
+              [placeholder]="i18n.t('packEditor.certDescriptionPlaceholder')"
+              [attr.aria-label]="i18n.t('packEditor.certDescriptionOptional')"
               rows="4"
             ></textarea>
-            <span class="field-hint">Injected into the AI prompt to improve classification and explanation quality.</span>
+            <span class="field-hint">{{ i18n.t('packEditor.certDescriptionHint') }}</span>
           </label>
 
           <div class="field">
-            <span class="field-label">Color</span>
-            <div class="color-grid" role="radiogroup" aria-label="Pack color">
+            <span class="field-label">{{ i18n.t('packEditor.color') }}</span>
+            <div class="color-grid" role="radiogroup" [attr.aria-label]="i18n.t('packEditor.packColor')">
               @for (color of colors; track color.id) {
                 <button
                   type="button"
                   class="color-swatch"
                   role="radio"
                   [attr.aria-checked]="colorDraft() === color.value"
-                  [attr.aria-label]="color.name"
+                  [attr.aria-label]="i18n.t('color.' + color.id)"
                   [class.selected]="colorDraft() === color.value"
                   [style.background]="color.value"
                   (click)="setColor(color.value)"
@@ -193,7 +194,7 @@ import { ChatService } from '../../core/services/chat.service';
                 class="color-swatch custom-swatch"
                 role="radio"
                 [attr.aria-checked]="isCustomColor()"
-                aria-label="Custom color"
+                [attr.aria-label]="i18n.t('packEditor.customColor')"
                 [class.selected]="isCustomColor()"
                 [class.has-custom]="isCustomColor()"
                 [style.background]="isCustomColor() ? colorDraft() : null"
@@ -211,20 +212,18 @@ import { ChatService } from '../../core/services/chat.service';
                 class="color-picker-hidden"
                 [value]="isCustomColor() ? colorDraft() : defaultCustomColor"
                 (input)="onCustomColorInput($event)"
-                aria-label="Pick a custom color"
+                [attr.aria-label]="i18n.t('packEditor.pickCustomColor')"
                 tabindex="-1"
               />
             </div>
             @if (isCustomColor()) {
-              <span class="custom-hint">Custom color {{ colorDraft() }}</span>
+              <span class="custom-hint">{{ i18n.t('packEditor.customColorHint', { color: colorDraft() }) }}</span>
             }
           </div>
 
           <div class="field">
-            <span class="field-label">Knowledge Domains</span>
-            <span class="field-hint">
-              The AI classifies each question into one of these. Leave empty to label every question as General.
-            </span>
+            <span class="field-label">{{ i18n.t('packEditor.knowledgeDomains') }}</span>
+            <span class="field-hint">{{ i18n.t('packEditor.knowledgeDomainsHint') }}</span>
             <div class="domain-add-group">
               <div class="domain-input">
                 <input
@@ -233,7 +232,7 @@ import { ChatService } from '../../core/services/chat.service';
                   [(ngModel)]="domainOrderDraft"
                   placeholder="#"
                   [disabled]="domains().length >= maxDomains"
-                  aria-label="Domain number (optional)"
+                  [attr.aria-label]="i18n.t('packEditor.domainNumberOptional')"
                   min="1"
                 />
                 <input
@@ -241,9 +240,9 @@ import { ChatService } from '../../core/services/chat.service';
                   type="text"
                   [(ngModel)]="domainDraft"
                   (keyup.enter)="onAddDomain()"
-                  placeholder="Domain name"
+                  [placeholder]="i18n.t('packEditor.domainNamePlaceholder')"
                   [disabled]="domains().length >= maxDomains"
-                  aria-label="New domain name"
+                  [attr.aria-label]="i18n.t('packEditor.newDomainName')"
                 />
                 <button
                   type="button"
@@ -251,14 +250,14 @@ import { ChatService } from '../../core/services/chat.service';
                   (click)="onAddDomain()"
                   [disabled]="!domainDraft.trim() || domains().length >= maxDomains"
                 >
-                  Add
+                  {{ i18n.t('packEditor.add') }}
                 </button>
               </div>
               <textarea
                 class="text-input textarea domain-desc-input"
                 [(ngModel)]="domainDescDraft"
-                placeholder="Domain description (optional) — tasks, weight, topics..."
-                aria-label="New domain description"
+                [placeholder]="i18n.t('packEditor.domainDescPlaceholder')"
+                [attr.aria-label]="i18n.t('packEditor.newDomainDescription')"
                 rows="2"
                 [disabled]="domains().length >= maxDomains"
               ></textarea>
@@ -266,7 +265,7 @@ import { ChatService } from '../../core/services/chat.service';
             @if (domainError()) {
               <p class="error">{{ domainError() }}</p>
             }
-            <p class="count">{{ domains().length }} / {{ maxDomains }} domains</p>
+            <p class="count">{{ i18n.t('packEditor.domainsCount', { count: domains().length, max: maxDomains }) }}</p>
             @if (domains().length > 0) {
               <ul class="domain-list">
                 @for (domain of domains(); track domain.name) {
@@ -279,14 +278,14 @@ import { ChatService } from '../../core/services/chat.service';
                             type="number"
                             [(ngModel)]="editOrderDraft"
                             placeholder="#"
-                            aria-label="Domain number (optional)"
+                            [attr.aria-label]="i18n.t('packEditor.domainNumberOptional')"
                             min="1"
                           />
                           <input
                             class="text-input"
                             type="text"
                             [(ngModel)]="editNameDraft"
-                            aria-label="Edit domain name"
+                            [attr.aria-label]="i18n.t('packEditor.editDomainName')"
                             (keyup.enter)="saveEditDomain(domain.name)"
                             (keyup.escape)="cancelEditDomain()"
                           />
@@ -294,12 +293,12 @@ import { ChatService } from '../../core/services/chat.service';
                         <textarea
                           class="text-input textarea domain-desc-input"
                           [(ngModel)]="editDescDraft"
-                          aria-label="Edit domain description"
+                          [attr.aria-label]="i18n.t('packEditor.editDomainDescription')"
                           rows="3"
                         ></textarea>
                         <div class="domain-edit-actions">
-                          <button type="button" class="btn btn-primary btn-sm" (click)="saveEditDomain(domain.name)">Save</button>
-                          <button type="button" class="btn btn-ghost btn-sm" (click)="cancelEditDomain()">Cancel</button>
+                          <button type="button" class="btn btn-primary btn-sm" (click)="saveEditDomain(domain.name)">{{ i18n.t('common.save') }}</button>
+                          <button type="button" class="btn btn-ghost btn-sm" (click)="cancelEditDomain()">{{ i18n.t('common.cancel') }}</button>
                         </div>
                       </div>
                     } @else {
@@ -314,7 +313,7 @@ import { ChatService } from '../../core/services/chat.service';
                             class="domain-action-btn"
                             (click)="moveDomain($index, -1)"
                             [disabled]="$index === 0"
-                            [attr.aria-label]="'Move ' + domain.name + ' up'"
+                            [attr.aria-label]="i18n.t('settings.moveUp', { name: domain.name })"
                           >
                             <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
                               <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M5 12l7-7 7 7"/>
@@ -325,7 +324,7 @@ import { ChatService } from '../../core/services/chat.service';
                             class="domain-action-btn"
                             (click)="moveDomain($index, 1)"
                             [disabled]="$index === domains().length - 1"
-                            [attr.aria-label]="'Move ' + domain.name + ' down'"
+                            [attr.aria-label]="i18n.t('settings.moveDown', { name: domain.name })"
                           >
                             <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
                               <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12l7 7 7-7"/>
@@ -335,7 +334,7 @@ import { ChatService } from '../../core/services/chat.service';
                             type="button"
                             class="domain-action-btn"
                             (click)="startEditDomain(domain.name, domain.description, domain.order)"
-                            [attr.aria-label]="'Edit ' + domain.name"
+                            [attr.aria-label]="i18n.t('packs.editName', { name: domain.name })"
                           >
                             <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
                               <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -345,7 +344,7 @@ import { ChatService } from '../../core/services/chat.service';
                             type="button"
                             class="chip-remove"
                             (click)="removeDomain(domain.name)"
-                            [attr.aria-label]="'Remove ' + domain.name"
+                            [attr.aria-label]="i18n.t('packEditor.removeName', { name: domain.name })"
                           >
                             <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
                               <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M5 5l14 14M19 5L5 19"/>
@@ -364,8 +363,8 @@ import { ChatService } from '../../core/services/chat.service';
           </div>
 
           <div class="field">
-            <span class="field-label">Scoring</span>
-            <span class="field-hint">Whether this exam gives partial credit on multi-select questions (some but not all correct alternatives picked). Most certs are all-or-nothing — only turn this on if you know this exam scores partially.</span>
+            <span class="field-label">{{ i18n.t('packEditor.scoring') }}</span>
+            <span class="field-hint">{{ i18n.t('packEditor.scoringHint') }}</span>
             <label class="switch-row">
               <button
                 type="button"
@@ -374,66 +373,66 @@ import { ChatService } from '../../core/services/chat.service';
                 (click)="allowPartialCreditDraft.set(!allowPartialCreditDraft())"
                 role="switch"
                 [attr.aria-checked]="allowPartialCreditDraft()"
-                aria-label="Allow partial credit for multi-select questions"
+                [attr.aria-label]="i18n.t('packEditor.allowPartialCredit')"
               ><span class="thumb"></span></button>
-              <span>Allow partial credit for multi-select questions</span>
+              <span>{{ i18n.t('packEditor.allowPartialCredit') }}</span>
             </label>
           </div>
 
           <div class="field">
-            <span class="field-label">Timing (optional)</span>
-            <span class="field-hint">Fill these in to enable the practice quiz clock for this exam — leave blank to leave the quiz untimed. Use the official exam's numbers (e.g. AWS SAA-C03: 65 questions, 130 minutes, +30 min accommodation).</span>
+            <span class="field-label">{{ i18n.t('packEditor.timingOptional') }}</span>
+            <span class="field-hint">{{ i18n.t('packEditor.timingHint') }}</span>
             <div class="timing-row">
               <label class="timing-field">
-                <span class="timing-label">Exam questions</span>
-                <input class="text-input" type="number" min="1" step="1" [(ngModel)]="examTotalQuestionsDraft" placeholder="e.g. 65" aria-label="Official exam question count" />
+                <span class="timing-label">{{ i18n.t('packEditor.examQuestions') }}</span>
+                <input class="text-input" type="number" min="1" step="1" [(ngModel)]="examTotalQuestionsDraft" placeholder="e.g. 65" [attr.aria-label]="i18n.t('packEditor.officialExamQuestionCount')" />
               </label>
               <label class="timing-field">
-                <span class="timing-label">Duration (min)</span>
-                <input class="text-input" type="number" min="1" step="1" [(ngModel)]="examDurationMinutesDraft" placeholder="e.g. 130" aria-label="Official exam duration in minutes" />
+                <span class="timing-label">{{ i18n.t('packEditor.durationMin') }}</span>
+                <input class="text-input" type="number" min="1" step="1" [(ngModel)]="examDurationMinutesDraft" placeholder="e.g. 130" [attr.aria-label]="i18n.t('packEditor.officialExamDuration')" />
               </label>
               <label class="timing-field">
-                <span class="timing-label">Accommodation (min)</span>
-                <input class="text-input" type="number" min="0" step="1" [(ngModel)]="accommodationMinutesDraft" placeholder="e.g. 30" aria-label="Accommodation extra time in minutes" />
+                <span class="timing-label">{{ i18n.t('packEditor.accommodationMin') }}</span>
+                <input class="text-input" type="number" min="0" step="1" [(ngModel)]="accommodationMinutesDraft" placeholder="e.g. 30" [attr.aria-label]="i18n.t('packEditor.accommodationExtraTime')" />
               </label>
             </div>
           </div>
 
           <div class="field">
-            <span class="field-label">Export intro blocks</span>
-            <span class="field-hint">Markdown inserted at the top of exported files. Provides context for NotebookLM or other readers.</span>
+            <span class="field-label">{{ i18n.t('packEditor.exportIntroBlocks') }}</span>
+            <span class="field-hint">{{ i18n.t('packEditor.exportIntroBlocksHint') }}</span>
           </div>
 
           <label class="field">
-            <span class="field-label">Questions export intro</span>
+            <span class="field-label">{{ i18n.t('packEditor.questionsExportIntro') }}</span>
             <textarea
               class="text-input textarea intro-textarea"
               [(ngModel)]="exportIntroQuestionsDraft"
               rows="6"
               placeholder="## Sobre este documento&#10;&#10;Este documento contém questões de simulado..."
-              aria-label="Questions export intro"
+              [attr.aria-label]="i18n.t('packEditor.questionsExportIntro')"
             ></textarea>
           </label>
 
           <label class="field">
-            <span class="field-label">Transcripts export intro</span>
+            <span class="field-label">{{ i18n.t('packEditor.transcriptsExportIntro') }}</span>
             <textarea
               class="text-input textarea intro-textarea"
               [(ngModel)]="exportIntroTranscriptsDraft"
               rows="6"
               placeholder="## Sobre este documento&#10;&#10;Este documento contém resumos técnicos..."
-              aria-label="Transcripts export intro"
+              [attr.aria-label]="i18n.t('packEditor.transcriptsExportIntro')"
             ></textarea>
           </label>
 
           <label class="field">
-            <span class="field-label">Chat export intro</span>
+            <span class="field-label">{{ i18n.t('packEditor.chatExportIntro') }}</span>
             <textarea
               class="text-input textarea intro-textarea"
               [(ngModel)]="exportIntroChatDraft"
               rows="6"
               placeholder="## Sobre este documento&#10;&#10;Este documento contém conversas de estudo..."
-              aria-label="Chat export intro"
+              [attr.aria-label]="i18n.t('packEditor.chatExportIntro')"
             ></textarea>
           </label>
         </div>
@@ -441,31 +440,29 @@ import { ChatService } from '../../core/services/chat.service';
         <footer class="card-footer">
           @if (isEditMode()) {
             <button type="button" class="btn btn-danger" (click)="onDeleteRequested()">
-              Delete pack
+              {{ i18n.t('packEditor.deletePack') }}
             </button>
           }
           <span class="spacer"></span>
-          <button type="button" class="btn btn-ghost" (click)="cancelled.emit()">Cancel</button>
+          <button type="button" class="btn btn-ghost" (click)="cancelled.emit()">{{ i18n.t('common.cancel') }}</button>
           <button
             type="button"
             class="btn btn-primary"
             (click)="onSave()"
             [disabled]="!nameDraft.trim()"
           >
-            Save
+            {{ i18n.t('common.save') }}
           </button>
         </footer>
 
         @if (confirmingDelete()) {
           <div class="confirm-overlay" role="dialog" aria-modal="true">
             <div class="confirm">
-              <h3>Delete pack?</h3>
-              <p>
-                This deletes <strong>{{ nameDraft || 'this pack' }}</strong> and its {{ questionsInPack() }} question{{ questionsInPack() === 1 ? '' : 's' }} permanently. Other packs are not affected.
-              </p>
+              <h3>{{ i18n.t('packEditor.deletePackConfirmTitle') }}</h3>
+              <p>{{ i18n.t('packEditor.deletePackConfirmBody', { name: nameDraft || i18n.t('packEditor.thisPack'), count: questionsInPack() }) }}</p>
               <div class="confirm-actions">
-                <button type="button" class="btn btn-ghost" (click)="onCancelDelete()">Cancel</button>
-                <button type="button" class="btn btn-danger" (click)="onConfirmDelete()">Delete</button>
+                <button type="button" class="btn btn-ghost" (click)="onCancelDelete()">{{ i18n.t('common.cancel') }}</button>
+                <button type="button" class="btn btn-danger" (click)="onConfirmDelete()">{{ i18n.t('common.delete') }}</button>
               </div>
             </div>
           </div>
@@ -1016,6 +1013,7 @@ export class PackEditorComponent {
   private readonly packs = inject(PacksService);
   private readonly questionsService = inject(QuestionsService);
   private readonly chatService = inject(ChatService);
+  protected readonly i18n = inject(I18nService);
 
   readonly pack = input<Pack | null>(null);
   readonly cancelled = output<void>();
@@ -1152,7 +1150,7 @@ export class PackEditorComponent {
     this.accommodationMinutesDraft = source.accommodationMinutes ?? null;
     this.copyFromPackOpen.set(false);
     this.jsonImportOk.set(true);
-    this.jsonImportMessage.set(`Copied every field from "${packDisplayLabel(source)}" — adjust anything you like before saving.`);
+    this.jsonImportMessage.set(this.i18n.t('packEditor.copiedFromPack', { name: packDisplayLabel(source) }));
   }
 
   async loadTemplate(file: string): Promise<void> {
@@ -1164,7 +1162,7 @@ export class PackEditorComponent {
       this.templatesOpen.set(false);
     } catch {
       this.jsonImportOk.set(false);
-      this.jsonImportMessage.set('Failed to load template.');
+      this.jsonImportMessage.set(this.i18n.t('packEditor.failedToLoadTemplate'));
     }
   }
 
@@ -1258,7 +1256,7 @@ export class PackEditorComponent {
           .filter((d): d is PackDomain => d !== null)
           .slice(0, MAX_PACK_DOMAINS);
         this.domainsDraft.set(domains);
-        applied.push(`${domains.length} domain${domains.length === 1 ? '' : 's'}`);
+        applied.push(`${domains.length} domain(s)`);
       }
 
       if (typeof parsed.exportIntroQuestions === 'string') {
@@ -1276,14 +1274,14 @@ export class PackEditorComponent {
 
       if (applied.length > 0) {
         this.jsonImportOk.set(true);
-        this.jsonImportMessage.set(`Imported: ${applied.join(', ')}.`);
+        this.jsonImportMessage.set(this.i18n.t('packEditor.imported', { fields: applied.join(', ') }));
       } else {
         this.jsonImportOk.set(false);
-        this.jsonImportMessage.set('No recognized fields found.');
+        this.jsonImportMessage.set(this.i18n.t('packEditor.noRecognizedFields'));
       }
     } catch {
       this.jsonImportOk.set(false);
-      this.jsonImportMessage.set('Could not parse JSON. Check the format and try again.');
+      this.jsonImportMessage.set(this.i18n.t('packEditor.couldNotParseJson'));
     }
   }
 
@@ -1305,16 +1303,16 @@ export class PackEditorComponent {
   onAddDomain(): void {
     const name = this.domainDraft.trim();
     if (!name) {
-      this.domainError.set('Domain name cannot be empty.');
+      this.domainError.set(this.i18n.t('packEditor.domainNameEmpty'));
       return;
     }
     const current = this.domainsDraft();
     if (current.some((d) => d.name.toLowerCase() === name.toLowerCase())) {
-      this.domainError.set('Domain already exists.');
+      this.domainError.set(this.i18n.t('packEditor.domainAlreadyExists'));
       return;
     }
     if (current.length >= MAX_PACK_DOMAINS) {
-      this.domainError.set(`Maximum ${MAX_PACK_DOMAINS} domains reached.`);
+      this.domainError.set(this.i18n.t('packEditor.maxDomainsReached', { max: MAX_PACK_DOMAINS }));
       return;
     }
     const entry: PackDomain = { name, description: this.domainDescDraft.trim() };

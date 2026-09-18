@@ -18,6 +18,7 @@ import { ConfirmDeleteDialogComponent } from '../../shared/components/confirm-de
 import { DomainBadgeComponent } from '../../shared/components/domain-badge.component';
 import { ImageUploadHelperComponent } from '../../shared/components/image-upload-helper.component';
 import { MarkdownRendererComponent } from './markdown-renderer.component';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
@@ -47,11 +48,11 @@ function toCommaList(value: string): string[] {
       @if (current(); as question) {
         <header class="viewer-header">
           @if (showBackButton()) {
-            <button type="button" class="back-btn" (click)="back.emit()" aria-label="Back to question list">
+            <button type="button" class="back-btn" (click)="back.emit()" [attr.aria-label]="i18n.t('reviewViewer.backToList')">
               <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                 <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M15 6l-6 6 6 6"/>
               </svg>
-              <span>Back</span>
+              <span>{{ i18n.t('common.back') }}</span>
             </button>
           }
           <div class="title-block">
@@ -64,7 +65,7 @@ function toCommaList(value: string): string[] {
               class="icon-btn star-btn"
               (click)="onToggleStar(question)"
               [class.active]="question.starred"
-              [attr.aria-label]="question.starred ? 'Unstar this question' : 'Star this question for later review'"
+              [attr.aria-label]="question.starred ? i18n.t('questionItem.unstar') : i18n.t('questionItem.star')"
               [attr.aria-pressed]="!!question.starred"
             >
               <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
@@ -76,7 +77,7 @@ function toCommaList(value: string): string[] {
               class="icon-btn"
               (click)="onToggleEdit(question)"
               [class.active]="editing()"
-              [attr.aria-label]="editing() ? 'Exit edit mode' : 'Edit question manually'"
+              [attr.aria-label]="editing() ? i18n.t('reviewViewer.exitEditMode') : i18n.t('reviewViewer.editManually')"
               [attr.aria-pressed]="editing()"
               [disabled]="refining()"
             >
@@ -88,7 +89,7 @@ function toCommaList(value: string): string[] {
               type="button"
               class="icon-btn delete-btn"
               (click)="onDelete(question)"
-              aria-label="Delete this question"
+              [attr.aria-label]="i18n.t('reviewViewer.deleteThisQuestion')"
               [disabled]="refining() || deleting()"
             >
               @if (deleting()) {
@@ -105,16 +106,16 @@ function toCommaList(value: string): string[] {
         <div class="viewer-body">
           @if (editing()) {
             <div class="edit-mode">
-              <p class="edit-hint">Editing the structured question. Save to keep your changes; Cancel to discard.</p>
+              <p class="edit-hint">{{ i18n.t('reviewViewer.editHint') }}</p>
 
               <label class="edit-label">
-                <span>Title</span>
-                <input type="text" class="edit-input" [(ngModel)]="editTitleDraft" aria-label="Edit question title" />
+                <span>{{ i18n.t('packEditor.name') }}</span>
+                <input type="text" class="edit-input" [(ngModel)]="editTitleDraft" [attr.aria-label]="i18n.t('reviewViewer.editTitle')" />
               </label>
 
               <label class="edit-label">
-                <span>Domain</span>
-                <select class="edit-input" [(ngModel)]="editDomainDraft" aria-label="Edit question domain">
+                <span>{{ i18n.t('questionInput.domain') }}</span>
+                <select class="edit-input" [(ngModel)]="editDomainDraft" [attr.aria-label]="i18n.t('reviewViewer.editDomain')">
                   @for (d of domainOptions(); track d) {
                     <option [value]="d">{{ d }}</option>
                   }
@@ -122,46 +123,46 @@ function toCommaList(value: string): string[] {
               </label>
 
               <label class="edit-label">
-                <span>Question</span>
-                <textarea class="edit-textarea" rows="4" [(ngModel)]="editStemDraft" aria-label="Edit question stem"></textarea>
+                <span>{{ i18n.t('reviewViewer.question') }}</span>
+                <textarea class="edit-textarea" rows="4" [(ngModel)]="editStemDraft" [attr.aria-label]="i18n.t('reviewViewer.editStem')"></textarea>
               </label>
 
               <div class="alt-edit-list">
-                <span class="field-label">Alternatives</span>
+                <span class="field-label">{{ i18n.t('reviewViewer.alternatives') }}</span>
                 @for (alt of editAlternatives; track $index; let i = $index) {
                   <div class="alt-edit-row">
                     <span class="alt-letter">{{ alt.letter }}</span>
                     <div class="alt-edit-fields">
-                      <textarea class="edit-textarea" rows="2" [(ngModel)]="alt.text" placeholder="Alternative text"></textarea>
+                      <textarea class="edit-textarea" rows="2" [(ngModel)]="alt.text" [placeholder]="i18n.t('reviewViewer.alternativeText')"></textarea>
                       <label class="correct-toggle">
                         <input type="checkbox" [(ngModel)]="alt.isCorrect" />
-                        <span>Correct</span>
+                        <span>{{ i18n.t('reviewViewer.correct') }}</span>
                       </label>
-                      <textarea class="edit-textarea" rows="2" [(ngModel)]="alt.comment" placeholder="Comment / rationale for this alternative"></textarea>
+                      <textarea class="edit-textarea" rows="2" [(ngModel)]="alt.comment" [placeholder]="i18n.t('reviewViewer.commentPlaceholder')"></textarea>
                     </div>
-                    <button type="button" class="icon-btn-sm" (click)="onRemoveAlternative(i)" aria-label="Remove alternative" [disabled]="editAlternatives.length <= 2">
+                    <button type="button" class="icon-btn-sm" (click)="onRemoveAlternative(i)" [attr.aria-label]="i18n.t('reviewViewer.removeAlternative')" [disabled]="editAlternatives.length <= 2">
                       <svg viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M5 5l14 14M19 5L5 19"/></svg>
                     </button>
                   </div>
                 }
                 <button type="button" class="add-alt-btn" (click)="onAddAlternative()">
                   <svg viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
-                  <span>Add alternative</span>
+                  <span>{{ i18n.t('reviewViewer.addAlternative') }}</span>
                 </button>
               </div>
 
               <label class="edit-label">
-                <span>General comment (optional)</span>
-                <textarea class="edit-textarea" rows="3" [(ngModel)]="editGeneralCommentDraft" placeholder="An overall explanation that doesn't belong to a single alternative" aria-label="Edit general comment"></textarea>
+                <span>{{ i18n.t('reviewViewer.generalCommentOptional') }}</span>
+                <textarea class="edit-textarea" rows="3" [(ngModel)]="editGeneralCommentDraft" [placeholder]="i18n.t('reviewViewer.generalCommentPlaceholder')" [attr.aria-label]="i18n.t('reviewViewer.editGeneralComment')"></textarea>
               </label>
 
               <label class="edit-label">
-                <span>Topics (comma-separated)</span>
-                <input type="text" class="edit-input" [(ngModel)]="editTopicsDraft" aria-label="Edit topics" />
+                <span>{{ i18n.t('reviewViewer.topicsCommaSeparated') }}</span>
+                <input type="text" class="edit-input" [(ngModel)]="editTopicsDraft" [attr.aria-label]="i18n.t('reviewViewer.editTopics')" />
               </label>
               <label class="edit-label">
-                <span>Related services (comma-separated)</span>
-                <input type="text" class="edit-input" [(ngModel)]="editRelatedServicesDraft" aria-label="Edit related services" />
+                <span>{{ i18n.t('reviewViewer.relatedServicesCommaSeparated') }}</span>
+                <input type="text" class="edit-input" [(ngModel)]="editRelatedServicesDraft" [attr.aria-label]="i18n.t('reviewViewer.editRelatedServices')" />
               </label>
 
               <app-image-upload-helper />
@@ -171,15 +172,15 @@ function toCommaList(value: string): string[] {
               }
 
               <div class="edit-actions">
-                <button type="button" class="btn btn-ghost" (click)="onCancelEdit()" [disabled]="saving()">Cancel</button>
+                <button type="button" class="btn btn-ghost" (click)="onCancelEdit()" [disabled]="saving()">{{ i18n.t('common.cancel') }}</button>
                 <button type="button" class="btn btn-primary" (click)="onSaveEdit(question)" [disabled]="saving()">
-                  @if (saving()) { <mat-spinner diameter="18"></mat-spinner> } @else { Save }
+                  @if (saving()) { <mat-spinner diameter="18"></mat-spinner> } @else { {{ i18n.t('common.save') }} }
                 </button>
               </div>
             </div>
           } @else {
             <app-ai-disclaimer
-              message="This question was generated by AI and may contain errors. Treat it as study support, not as an authoritative source."
+              [message]="i18n.t('reviewViewer.aiDisclaimerReview')"
             />
 
             <div class="stem"><app-markdown-renderer [source]="question.stem" /></div>
@@ -187,10 +188,10 @@ function toCommaList(value: string): string[] {
             <button type="button" class="reveal-btn" (click)="onToggleReveal()">
               @if (revealed()) {
                 <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.9 5.1A10.9 10.9 0 0112 5c7 0 11 7 11 7a13.2 13.2 0 01-3.1 3.6M6.2 6.2A13.3 13.3 0 001 12s4 7 11 7a10.6 10.6 0 004.7-1.1"/></svg>
-                <span>Hide correct answer &amp; comments</span>
+                <span>{{ i18n.t('reviewViewer.hideAnswerAndComments') }}</span>
               } @else {
                 <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
-                <span>Reveal correct answer &amp; comments</span>
+                <span>{{ i18n.t('reviewViewer.revealAnswerAndComments') }}</span>
               }
             </button>
 
@@ -204,7 +205,7 @@ function toCommaList(value: string): string[] {
                       <div class="option-comment">
                         <div class="option-comment-label">
                           <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
-                          <span>Comment</span>
+                          <span>{{ i18n.t('reviewViewer.comment') }}</span>
                         </div>
                         <app-markdown-renderer [source]="opt.comment" />
                       </div>
@@ -223,7 +224,7 @@ function toCommaList(value: string): string[] {
               <div class="general-comment">
                 <div class="option-comment-label">
                   <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
-                  <span>General comment</span>
+                  <span>{{ i18n.t('reviewViewer.generalComment') }}</span>
                 </div>
                 <app-markdown-renderer [source]="question.generalComment" />
               </div>
@@ -233,13 +234,13 @@ function toCommaList(value: string): string[] {
               <div class="metadata-block">
                 @if (question.metadata.topics.length > 0) {
                   <div class="chip-row">
-                    <span class="chip-label">Topics</span>
+                    <span class="chip-label">{{ i18n.t('reviewViewer.topics') }}</span>
                     @for (t of question.metadata.topics; track t) { <span class="chip">{{ t }}</span> }
                   </div>
                 }
                 @if (question.metadata.relatedServices.length > 0) {
                   <div class="chip-row">
-                    <span class="chip-label">Related services</span>
+                    <span class="chip-label">{{ i18n.t('reviewViewer.relatedServices') }}</span>
                     @for (s of question.metadata.relatedServices; track s) { <span class="chip">{{ s }}</span> }
                   </div>
                 }
@@ -248,31 +249,29 @@ function toCommaList(value: string): string[] {
 
             <section class="refine-panel">
               <header class="refine-header">
-                <h3>Refine with AI</h3>
-                <p class="refine-hint">
-                  Tell the model what to adjust. The full question will be regenerated with your feedback applied.
-                </p>
+                <h3>{{ i18n.t('reviewViewer.refineWithAi') }}</h3>
+                <p class="refine-hint">{{ i18n.t('reviewViewer.refineHint') }}</p>
               </header>
               <textarea
                 class="refine-textarea"
                 [(ngModel)]="refineDraft"
                 rows="4"
-                placeholder="e.g. In alternative B you explained X but the concept of Z is not clear. Expand that part."
+                [placeholder]="i18n.t('reviewViewer.refinePlaceholder')"
                 [disabled]="refining()"
-                aria-label="Refinement feedback"
+                [attr.aria-label]="i18n.t('reviewViewer.refinementFeedback')"
               ></textarea>
               <div class="options-row">
                 <label class="model-row">
-                  <span class="model-label">Model</span>
+                  <span class="model-label">{{ i18n.t('questionInput.model') }}</span>
                   <select
                     class="model-select"
                     [ngModel]="selectedRefineModel()"
                     (ngModelChange)="onSelectRefineModel($event)"
                     [disabled]="refining()"
-                    aria-label="Model for refinement"
+                    [attr.aria-label]="i18n.t('reviewViewer.modelForRefinement')"
                   >
                     @for (model of availableModels(); track model.id) {
-                      <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (reasoning)' : '' }} — {{ model.tier }}</option>
+                      <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (' + i18n.t('settings.reasoning') + ')' : '' }} — {{ model.tier }}</option>
                     }
                   </select>
                 </label>
@@ -284,7 +283,7 @@ function toCommaList(value: string): string[] {
                   (click)="onRefine(question)"
                   [disabled]="!refineDraft.trim() || refining()"
                 >
-                  @if (refining()) { <mat-spinner diameter="18"></mat-spinner><span>Refining…</span> } @else { Send to AI }
+                  @if (refining()) { <mat-spinner diameter="18"></mat-spinner><span>{{ i18n.t('reviewViewer.refining') }}</span> } @else { {{ i18n.t('reviewViewer.sendToAi') }} }
                 </button>
               </div>
               @if (refineError()) {
@@ -292,7 +291,7 @@ function toCommaList(value: string): string[] {
               }
               <app-ai-disclaimer
                 [tight]="true"
-                message="Refined output is still AI-generated. Re-read the changes carefully before saving them as truth."
+                [message]="i18n.t('reviewViewer.aiDisclaimerRefine')"
               />
             </section>
 
@@ -301,15 +300,15 @@ function toCommaList(value: string): string[] {
                 <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
                   <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
                 </svg>
-                <span>New question</span>
+                <span>{{ i18n.t('reviewViewer.newQuestion') }}</span>
               </button>
             </div>
           }
         </div>
       } @else {
         <div class="viewer-empty">
-          <p class="empty-title">No question selected.</p>
-          <p class="empty-body">Generate a new review or pick one from the list to view it here.</p>
+          <p class="empty-title">{{ i18n.t('reviewViewer.noQuestionSelected') }}</p>
+          <p class="empty-body">{{ i18n.t('reviewViewer.noQuestionSelectedHint') }}</p>
         </div>
       }
     </section>
@@ -418,6 +417,7 @@ export class ReviewViewerComponent {
   private readonly packs = inject(PacksService);
   private readonly enrichment = inject(QuestionEnrichmentService);
   private readonly dialog = inject(MatDialog);
+  protected readonly i18n = inject(I18nService);
 
   readonly question = input<Question | null>(null);
   readonly showBackButton = input<boolean>(false);
@@ -546,15 +546,15 @@ export class ReviewViewerComponent {
       .filter((a) => a.text.length > 0);
 
     if (!stem || !title) {
-      this.editError.set('Title and question text cannot be empty.');
+      this.editError.set(this.i18n.t('reviewViewer.titleAndStemEmpty'));
       return;
     }
     if (alternatives.length < 2) {
-      this.editError.set('At least two alternatives are required.');
+      this.editError.set(this.i18n.t('reviewViewer.atLeastTwoAlternatives'));
       return;
     }
     if (!alternatives.some((a) => a.isCorrect)) {
-      this.editError.set('Mark at least one alternative as correct.');
+      this.editError.set(this.i18n.t('reviewViewer.markAtLeastOneCorrect'));
       return;
     }
 
@@ -578,7 +578,7 @@ export class ReviewViewerComponent {
         this.questionsService.updatePartial(question.id, updated);
         this.editing.set(false);
       } else {
-        this.editError.set('Failed to save — please try again.');
+        this.editError.set(this.i18n.t('reviewViewer.failedToSave'));
       }
     } finally {
       this.saving.set(false);
@@ -632,12 +632,12 @@ export class ReviewViewerComponent {
         this.refineDraft = '';
         this.refineModelOverride.set(null);
       } else {
-        this.refineError.set('Failed to save the refined question — please try again.');
+        this.refineError.set(this.i18n.t('reviewViewer.failedToSaveRefined'));
       }
     } catch (err) {
       const aborted = (err as Error)?.name === 'AbortError' || controller.signal.aborted;
       if (!aborted) {
-        this.refineError.set(err instanceof Error ? err.message : 'Refine failed.');
+        this.refineError.set(err instanceof Error ? err.message : this.i18n.t('reviewViewer.refineFailed'));
       }
     } finally {
       this.refining.set(false);

@@ -4,6 +4,7 @@ import { Script } from '../../core/models/script.model';
 import { ScriptsService } from '../../core/services/scripts.service';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
 import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.component';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-script-viewer',
@@ -15,11 +16,11 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
       @if (script(); as s) {
         <header class="viewer-header">
           @if (showBackButton()) {
-            <button type="button" class="back-btn" (click)="back.emit()" aria-label="Back to script list">
+            <button type="button" class="back-btn" (click)="back.emit()" [attr.aria-label]="i18n.t('scriptViewer.backToList')">
               <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                 <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M15 6l-6 6 6 6"/>
               </svg>
-              <span>Back</span>
+              <span>{{ i18n.t('common.back') }}</span>
             </button>
           }
           <h2 class="title">{{ s.title }}</h2>
@@ -29,7 +30,7 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
               class="icon-btn"
               (click)="onToggleEdit(s)"
               [class.active]="editing()"
-              [attr.aria-label]="editing() ? 'Exit edit mode' : 'Edit script manually'"
+              [attr.aria-label]="editing() ? i18n.t('reviewViewer.exitEditMode') : i18n.t('scriptViewer.editManually')"
             >
               <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                 <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4l10-10-4-4L4 16v4zM14 6l4 4"/>
@@ -39,7 +40,7 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
               type="button"
               class="icon-btn delete-btn"
               (click)="onDelete(s.id)"
-              aria-label="Delete this script"
+              [attr.aria-label]="i18n.t('scriptViewer.deleteThisScript')"
             >
               <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                 <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>
@@ -51,30 +52,30 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
         <div class="viewer-body">
           @if (editing()) {
             <div class="edit-mode">
-              <p class="edit-hint">Editing script (Markdown). Save to keep your changes; Cancel to discard.</p>
-              <textarea class="edit-textarea" [(ngModel)]="editDraft" aria-label="Edit script markdown"></textarea>
+              <p class="edit-hint">{{ i18n.t('scriptViewer.editHint') }}</p>
+              <textarea class="edit-textarea" [(ngModel)]="editDraft" [attr.aria-label]="i18n.t('scriptViewer.editMarkdown')"></textarea>
               <div class="edit-actions">
-                <button type="button" class="btn btn-ghost" (click)="onCancelEdit()">Cancel</button>
+                <button type="button" class="btn btn-ghost" (click)="onCancelEdit()">{{ i18n.t('common.cancel') }}</button>
                 <button
                   type="button"
                   class="btn btn-primary"
                   (click)="onSaveEdit(s.id)"
                   [disabled]="!editDraft.trim()"
-                >Save</button>
+                >{{ i18n.t('common.save') }}</button>
               </div>
             </div>
           } @else {
             <app-ai-disclaimer
-              message="This summary was assembled by AI from the transcripts you supplied. Re-read it against the original sources before publishing."
+              [message]="i18n.t('scriptViewer.aiDisclaimer')"
             />
             <app-markdown-renderer [source]="s.content" />
             <details class="sources">
-              <summary>Source transcripts ({{ s.sources.length }})</summary>
+              <summary>{{ i18n.t('scriptViewer.sourceTranscripts', { count: s.sources.length }) }}</summary>
               <ol class="sources-list">
                 @for (src of s.sources; track $index) {
                   <li>
                     <details>
-                      <summary>Aula {{ $index + 1 }} ({{ src.length }} chars)</summary>
+                      <summary>{{ i18n.t('scriptViewer.sourceLabel', { number: $index + 1, chars: src.length }) }}</summary>
                       <pre class="source-text">{{ src }}</pre>
                     </details>
                   </li>
@@ -85,8 +86,8 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
         </div>
       } @else {
         <div class="viewer-empty">
-          <p class="empty-title">No script selected.</p>
-          <p class="empty-body">Generate a new summary or pick one from the list to view it here.</p>
+          <p class="empty-title">{{ i18n.t('scriptViewer.noScriptSelected') }}</p>
+          <p class="empty-body">{{ i18n.t('scriptViewer.noScriptSelectedHint') }}</p>
         </div>
       }
     </section>
@@ -207,6 +208,7 @@ import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.co
 })
 export class ScriptViewerComponent {
   private readonly scriptsService = inject(ScriptsService);
+  protected readonly i18n = inject(I18nService);
 
   readonly script = input<Script | null>(null);
   readonly showBackButton = input<boolean>(false);

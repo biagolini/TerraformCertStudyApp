@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { StorageService } from '../../core/services/storage.service';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-sync-status',
@@ -32,19 +33,19 @@ import { StorageService } from '../../core/services/storage.service';
       </button>
 
       @if (panelOpen()) {
-        <div class="sync-panel" role="dialog" aria-label="Sync status">
+        <div class="sync-panel" role="dialog" [attr.aria-label]="i18n.t('sync.dialogLabel')">
           @if (isError()) {
-            <p class="panel-title error-title">Sync failed</p>
+            <p class="panel-title error-title">{{ i18n.t('sync.failed') }}</p>
             <p class="panel-body">{{ storage.lastError() }}</p>
-            <p class="panel-hint">Your changes are still saved on this device. They'll sync once this succeeds.</p>
+            <p class="panel-hint">{{ i18n.t('sync.stillSavedHint') }}</p>
             <button type="button" class="retry-btn" (click)="onRetry()">
-              @if (isSyncing()) { Retrying… } @else { Try again }
+              {{ isSyncing() ? i18n.t('sync.retrying') : i18n.t('sync.tryAgain') }}
             </button>
           } @else if (isSyncing()) {
-            <p class="panel-title">Syncing…</p>
-            <p class="panel-body">Pulling the latest questions, packs, and chats.</p>
+            <p class="panel-title">{{ i18n.t('sync.syncing') }}</p>
+            <p class="panel-body">{{ i18n.t('sync.pullingLatest') }}</p>
           } @else {
-            <p class="panel-title">Up to date</p>
+            <p class="panel-title">{{ i18n.t('sync.upToDate') }}</p>
             <p class="panel-body">{{ lastSyncedLabel() }}</p>
           }
         </div>
@@ -151,6 +152,7 @@ import { StorageService } from '../../core/services/storage.service';
 })
 export class SyncStatusComponent {
   protected readonly storage = inject(StorageService);
+  protected readonly i18n = inject(I18nService);
 
   protected readonly panelOpen = signal(false);
 
@@ -159,13 +161,14 @@ export class SyncStatusComponent {
 
   readonly lastSyncedLabel = computed(() => {
     const at = this.storage.lastSyncedAt();
-    if (!at) return 'Not synced yet.';
-    return `Last synced ${new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    if (!at) return this.i18n.t('sync.notSyncedYet');
+    const time = new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return this.i18n.t('sync.lastSynced', { time });
   });
 
   readonly ariaLabel = computed(() => {
-    if (this.isError()) return 'Sync failed — click for details';
-    if (this.isSyncing()) return 'Syncing…';
+    if (this.isError()) return this.i18n.t('sync.failedClickForDetails');
+    if (this.isSyncing()) return this.i18n.t('sync.syncing');
     return this.lastSyncedLabel();
   });
 

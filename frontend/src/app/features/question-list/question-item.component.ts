@@ -4,6 +4,7 @@ import { PacksService } from '../../core/services/packs.service';
 import { DEFAULT_DOMAIN } from '../../core/models/settings.model';
 import { DomainBadgeComponent } from '../../shared/components/domain-badge.component';
 import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-question-item',
@@ -27,7 +28,7 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
             type="button"
             class="title-btn"
             (click)="opened.emit()"
-            [attr.aria-label]="'Open review for ' + question().title"
+            [attr.aria-label]="i18n.t('questionItem.openReviewFor', { title: question().title })"
           >
             <span class="title">{{ question().title | truncate: 120 }}</span>
           </button>
@@ -36,7 +37,7 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
             class="star-btn"
             [class.active]="question().starred"
             (click)="$event.stopPropagation(); starToggled.emit()"
-            [attr.aria-label]="question().starred ? 'Unstar this question' : 'Star this question for later review'"
+            [attr.aria-label]="question().starred ? i18n.t('questionItem.unstar') : i18n.t('questionItem.star')"
             [attr.aria-pressed]="!!question().starred"
           >
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
@@ -52,7 +53,7 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
               [value]="question().domain"
               (change)="onPickDomain($event)"
               (blur)="closePicker()"
-              aria-label="Change domain"
+              [attr.aria-label]="i18n.t('questionItem.changeDomain')"
             >
               @for (option of domainOptions(); track option) {
                 <option [value]="option" [selected]="option === question().domain">{{ option }}</option>
@@ -63,7 +64,7 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
               type="button"
               class="badge-btn"
               (click)="openPicker()"
-              aria-label="Change domain"
+              [attr.aria-label]="i18n.t('questionItem.changeDomain')"
             >
               <app-domain-badge [domain]="question().domain" />
             </button>
@@ -213,6 +214,7 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
 })
 export class QuestionItemComponent {
   private readonly packs = inject(PacksService);
+  protected readonly i18n = inject(I18nService);
 
   readonly question = input.required<Question>();
   readonly selected = input.required<boolean>();
@@ -235,7 +237,9 @@ export class QuestionItemComponent {
   });
 
   readonly checkboxLabel = computed(() =>
-    this.selected() ? `Deselect ${this.question().title}` : `Select ${this.question().title}`,
+    this.selected()
+      ? this.i18n.t('questionItem.deselect', { title: this.question().title })
+      : this.i18n.t('questionItem.select', { title: this.question().title }),
   );
 
   openPicker(): void {

@@ -5,6 +5,7 @@ import { ChatService } from '../../core/services/chat.service';
 import { PacksService } from '../../core/services/packs.service';
 import { ConfirmDeleteDialogComponent } from '../../shared/components/confirm-delete-dialog.component';
 import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-chat-list',
@@ -15,11 +16,11 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
     <section class="list-card">
       <header class="card-header">
         <div class="title-row">
-          <h2>Open chat</h2>
+          <h2>{{ i18n.t('chatList.openChat') }}</h2>
           <span class="count">{{ count() }}</span>
         </div>
         @if (count() > 0) {
-          <button type="button" class="link danger" (click)="onDeleteAll()">Delete all</button>
+          <button type="button" class="link danger" (click)="onDeleteAll()">{{ i18n.t('chatList.deleteAll') }}</button>
         }
       </header>
 
@@ -27,13 +28,13 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
           <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
         </svg>
-        <span>New conversation</span>
+        <span>{{ i18n.t('chatList.newConversation') }}</span>
       </button>
 
       @if (count() === 0) {
         <div class="empty">
-          <p class="empty-title">No conversations yet.</p>
-          <p class="empty-body">Start a new conversation to chat freely about this certification's topics.</p>
+          <p class="empty-title">{{ i18n.t('chatList.noConversationsYet') }}</p>
+          <p class="empty-body">{{ i18n.t('chatList.noConversationsHint') }}</p>
         </div>
       } @else {
         <ul class="card-grid">
@@ -44,17 +45,17 @@ import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
                   <div class="chat-card-header">
                     <span class="chat-title">{{ session.title | truncate: 60 }}</span>
                     @if (session.summary) {
-                      <span class="badge">Summary ready</span>
+                      <span class="badge">{{ i18n.t('chatList.summaryReady') }}</span>
                     }
                   </div>
                   <p class="chat-preview">{{ previewText(session) | truncate: 100 }}</p>
-                  <span class="chat-meta">{{ session.messages.length }} message{{ session.messages.length === 1 ? '' : 's' }}</span>
+                  <span class="chat-meta">{{ i18n.t('chatList.messageCount', { count: session.messages.length }) }}</span>
                 </button>
                 <button
                   type="button"
                   class="chat-delete"
                   (click)="onDeleteOne(session)"
-                  aria-label="Delete conversation"
+                  [attr.aria-label]="i18n.t('chatList.deleteConversation')"
                 >
                   <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
                     <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>
@@ -187,6 +188,7 @@ export class ChatListComponent {
   private readonly chatService = inject(ChatService);
   private readonly packs = inject(PacksService);
   private readonly dialog = inject(MatDialog);
+  protected readonly i18n = inject(I18nService);
 
   readonly sessions = this.chatService.sessions;
   readonly count = this.chatService.count;
@@ -194,7 +196,7 @@ export class ChatListComponent {
   readonly opened = output<ChatSession>();
 
   previewText(session: ChatSession): string {
-    if (session.messages.length === 0) return 'No messages yet.';
+    if (session.messages.length === 0) return this.i18n.t('chatList.noMessagesYet');
     const last = session.messages[session.messages.length - 1];
     return last.content || '...';
   }
@@ -217,7 +219,7 @@ export class ChatListComponent {
 
   onDeleteAll(): void {
     const dialogRef = this.dialog.open(ConfirmDeleteDialogComponent, {
-      data: { title: `all ${this.count()} conversations` },
+      data: { title: this.i18n.t('chatList.allConversations', { count: this.count() }) },
       width: '400px',
     });
     dialogRef.afterClosed().subscribe((result) => {

@@ -10,6 +10,7 @@ import { ImportReviewService } from '../../core/services/import-review.service';
 import { DomainBadgeComponent } from '../../shared/components/domain-badge.component';
 import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
 import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.component';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 /** Encodes an ImportDraftImage's target+alternativeLetter as one <select>
  * value and back — 'stem' | 'generalComment' | 'unplaced' pass through as-is,
@@ -60,18 +61,18 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
       <div class="content">
         <div class="title-row">
           @if (isFailed() && !draft().title && !editing()) {
-            <span class="title failed-title">Extraction failed — question {{ draft().index + 1 }}</span>
+            <span class="title failed-title">{{ i18n.t('importDraft.extractionFailedQuestion', { number: draft().index + 1 }) }}</span>
           } @else if (!editing()) {
             <span class="title" [class.failed-title]="isFailed()">{{ draft().title | truncate: 120 }}</span>
           } @else {
-            <input type="text" class="title-input" [(ngModel)]="editTitle" placeholder="Title" />
+            <input type="text" class="title-input" [(ngModel)]="editTitle" [placeholder]="i18n.t('packEditor.name')" />
             <button
               type="button"
               class="reextract-btn"
               [disabled]="!editStem.trim() || generatingTitle()"
               (click)="$event.stopPropagation(); onGenerateTitle()"
-              [attr.aria-label]="'Generate title with AI'"
-              title="Generate title with AI"
+              [attr.aria-label]="i18n.t('importDraft.generateTitleWithAi')"
+              [title]="i18n.t('importDraft.generateTitleWithAi')"
             >
               @if (generatingTitle()) {
                 …
@@ -87,7 +88,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
               type="button"
               class="reextract-btn"
               (click)="$event.stopPropagation(); startEdit()"
-              [attr.aria-label]="'Edit question ' + (draft().index + 1)"
+              [attr.aria-label]="i18n.t('importDraft.editQuestion', { number: draft().index + 1 })"
             >
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
                 <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z" />
@@ -99,7 +100,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
               class="reextract-btn delete-btn"
               [disabled]="busy()"
               (click)="$event.stopPropagation(); deleteRequested.emit()"
-              [attr.aria-label]="'Delete question ' + (draft().index + 1)"
+              [attr.aria-label]="i18n.t('importDraft.deleteQuestion', { number: draft().index + 1 })"
             >
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
                 <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M5 7h14M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0v13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V7" />
@@ -111,7 +112,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
               [class.active]="hintOpen()"
               [disabled]="busy()"
               (click)="$event.stopPropagation(); toggleHint()"
-              [attr.aria-label]="'Re-extract question ' + (draft().index + 1)"
+              [attr.aria-label]="i18n.t('importDraft.reExtractQuestion', { number: draft().index + 1 })"
               [attr.aria-pressed]="hintOpen()"
             >
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
@@ -134,11 +135,11 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
               <p class="error-line">{{ titleGenerationError() }}</p>
             }
             <label class="edit-label">
-              <span>Domain</span>
-              <input type="text" class="edit-domain-input" [(ngModel)]="editDomain" placeholder="Domain" />
+              <span>{{ i18n.t('questionInput.domain') }}</span>
+              <input type="text" class="edit-domain-input" [(ngModel)]="editDomain" [placeholder]="i18n.t('questionInput.domain')" />
             </label>
             <label class="edit-label">
-              <span>Question stem</span>
+              <span>{{ i18n.t('importDraft.questionStem') }}</span>
               <textarea class="edit-textarea" rows="5" [(ngModel)]="editStem"></textarea>
             </label>
             @for (alt of editAlternatives(); track alt.letter) {
@@ -158,28 +159,28 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
                     type="button"
                     class="remove-alt-btn"
                     [disabled]="editAlternatives().length <= 2"
-                    [attr.aria-label]="'Remove alternative ' + alt.letter"
+                    [attr.aria-label]="i18n.t('importDraft.removeAlternative', { letter: alt.letter })"
                     (click)="removeAlternative(alt.letter)"
                   >×</button>
                 </div>
                 <textarea
                   class="edit-textarea edit-comment-textarea"
                   rows="2"
-                  placeholder="Source explanation for this option (optional)"
+                  [placeholder]="i18n.t('importDraft.sourceExplanationOptional')"
                   [ngModel]="alt.sourceComment ?? ''"
                   (ngModelChange)="setEditAltComment(alt.letter, $event)"
                 ></textarea>
               </div>
             }
-            <button type="button" class="add-alt-btn" (click)="addAlternative()">+ Add alternative</button>
+            <button type="button" class="add-alt-btn" (click)="addAlternative()">{{ i18n.t('importDraft.addAlternative') }}</button>
 
             <label class="edit-label">
-              <span>Overall source explanation (optional)</span>
+              <span>{{ i18n.t('importDraft.overallSourceExplanation') }}</span>
               <textarea class="edit-textarea" rows="3" [(ngModel)]="editSourceGeneralComment"></textarea>
             </label>
 
             <div class="edit-images">
-              <span class="edit-label-text">Images</span>
+              <span class="edit-label-text">{{ i18n.t('importDraft.images') }}</span>
               @for (img of editImages(); track img.key) {
                 <div class="edit-image-row">
                   <div class="edit-image-thumb"><app-markdown-renderer [source]="'![image](' + img.key + ')'" /></div>
@@ -188,24 +189,24 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
                     [ngModel]="encodeTarget(img)"
                     (ngModelChange)="setImageTarget(img.key, $event)"
                   >
-                    <option value="stem">Question stem</option>
+                    <option value="stem">{{ i18n.t('importDraft.questionStem') }}</option>
                     @for (alt of editAlternatives(); track alt.letter) {
-                      <option [value]="'alternativeText:' + alt.letter">Alternative {{ alt.letter }} text</option>
-                      <option [value]="'alternativeComment:' + alt.letter">Alternative {{ alt.letter }} explanation</option>
+                      <option [value]="'alternativeText:' + alt.letter">{{ i18n.t('importDraft.alternativeTextOption', { letter: alt.letter }) }}</option>
+                      <option [value]="'alternativeComment:' + alt.letter">{{ i18n.t('importDraft.alternativeExplanationOption', { letter: alt.letter }) }}</option>
                     }
-                    <option value="generalComment">Overall explanation</option>
-                    <option value="unplaced">Not placed</option>
+                    <option value="generalComment">{{ i18n.t('importDraft.overallExplanation') }}</option>
+                    <option value="unplaced">{{ i18n.t('importDraft.notPlaced') }}</option>
                   </select>
                   <button
                     type="button"
                     class="remove-alt-btn"
-                    [attr.aria-label]="'Remove image'"
+                    [attr.aria-label]="i18n.t('importDraft.removeImage')"
                     (click)="removeImage(img.key)"
                   >×</button>
                 </div>
               }
               <label class="add-image-btn">
-                {{ uploadingImage() ? 'Uploading…' : '+ Add image' }}
+                {{ uploadingImage() ? i18n.t('imageUpload.uploading') : i18n.t('importDraft.addImage') }}
                 <input type="file" accept=".png,.jpg,.jpeg,.gif,.webp" hidden [disabled]="uploadingImage()" (change)="onAddImage($event)" />
               </label>
               @if (imageUploadError()) {
@@ -215,9 +216,9 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
 
             <div class="edit-actions">
               <button type="button" class="hint-submit" [disabled]="busy()" (click)="saveEdit()">
-                {{ busy() ? 'Saving…' : 'Save' }}
+                {{ busy() ? i18n.t('importReview.saving') : i18n.t('common.save') }}
               </button>
-              <button type="button" class="btn-cancel" [disabled]="busy()" (click)="cancelEdit()">Cancel</button>
+              <button type="button" class="btn-cancel" [disabled]="busy()" (click)="cancelEdit()">{{ i18n.t('common.cancel') }}</button>
             </div>
           </div>
         } @else {
@@ -245,7 +246,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
                     </div>
                     @if (alt.sourceComment || imagesFor('alternativeComment', alt.letter).length > 0) {
                       <div class="source-comment">
-                        <p class="source-label">Source explanation (unverified):</p>
+                        <p class="source-label">{{ i18n.t('importDraft.sourceExplanationUnverified') }}</p>
                         @if (alt.sourceComment) {
                           <app-markdown-renderer [source]="alt.sourceComment" />
                         }
@@ -256,7 +257,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
                     }
                   </div>
                   @if (alt.isCorrect) {
-                    <span class="option-status" aria-label="Correct">
+                    <span class="option-status" [attr.aria-label]="i18n.t('reviewViewer.correct')">
                       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
                         <path fill="none" stroke="var(--color-green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7" />
                       </svg>
@@ -268,7 +269,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
 
             @if (draft().sourceGeneralComment || imagesFor('generalComment').length > 0) {
               <div class="source-comment">
-                <p class="source-label">Overall source explanation (unverified):</p>
+                <p class="source-label">{{ i18n.t('importDraft.overallSourceExplanationUnverified') }}</p>
                 @if (draft().sourceGeneralComment) {
                   <app-markdown-renderer [source]="draft().sourceGeneralComment!" />
                 }
@@ -280,7 +281,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
 
             @if (imagesFor('unplaced').length > 0) {
               <div class="reference-images">
-                <p class="reference-label">Other image(s) from this question (not placed — edit to assign one):</p>
+                <p class="reference-label">{{ i18n.t('importDraft.otherImagesHint') }}</p>
                 <div class="reference-grid">
                   @for (img of imagesFor('unplaced'); track img.key) {
                     <app-markdown-renderer [source]="'![reference image](' + img.key + ')'" />
@@ -297,7 +298,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
               <app-domain-badge [domain]="draft().domain!" />
             }
             @if (draft().reExtractCount > 0) {
-              <span class="reextract-count">re-extracted {{ draft().reExtractCount }}×</span>
+              <span class="reextract-count">{{ i18n.t('importDraft.reExtractedCount', { count: draft().reExtractCount }) }}</span>
             }
           </div>
         }
@@ -307,12 +308,12 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
             <input
               type="text"
               class="hint-input"
-              placeholder="What's wrong? (optional) e.g. 'the correct answer is C, not B'"
+              [placeholder]="i18n.t('importDraft.hintPlaceholder')"
               [(ngModel)]="hintText"
               [disabled]="busy()"
             />
             <button type="button" class="hint-submit" [disabled]="busy()" (click)="submitReExtract()">
-              {{ busy() ? 'Re-extracting…' : 'Re-extract' }}
+              {{ busy() ? i18n.t('importDraft.reExtracting') : i18n.t('importDraft.reExtract') }}
             </button>
           </div>
         }
@@ -696,6 +697,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
 export class ImportDraftItemComponent {
   private readonly imageAssets = inject(ImageAssetService);
   private readonly reviewService = inject(ImportReviewService);
+  protected readonly i18n = inject(I18nService);
 
   readonly draft = input.required<ImportDraftQuestion>();
   readonly jobId = input.required<string>();

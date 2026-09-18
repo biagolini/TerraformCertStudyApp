@@ -17,6 +17,7 @@ import { parseQuestionReview } from '../../core/utils/question-parse.util';
 import { parseReadyMadePaste } from '../../core/utils/ready-made-parse.util';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
 import { ImageUploadHelperComponent } from '../../shared/components/image-upload-helper.component';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-question-input',
@@ -26,17 +27,17 @@ import { ImageUploadHelperComponent } from '../../shared/components/image-upload
   template: `
     <section class="input-card">
       <header class="card-header">
-        <h2>New Question</h2>
+        <h2>{{ i18n.t('questionInput.newQuestion') }}</h2>
         <p class="subtitle">
           @if (activeView() === 'generate') {
-            Paste the full exam question with all alternatives.
+            {{ i18n.t('questionInput.subtitleGenerate') }}
           } @else {
-            Paste a ready-made review (e.g. from Claude App) and save it.
+            {{ i18n.t('questionInput.subtitleManual') }}
           }
         </p>
       </header>
 
-      <div class="mode-toggle" role="tablist" aria-label="Review mode">
+      <div class="mode-toggle" role="tablist" [attr.aria-label]="i18n.t('questionInput.reviewMode')">
         <button
           type="button"
           class="mode-btn"
@@ -45,7 +46,7 @@ import { ImageUploadHelperComponent } from '../../shared/components/image-upload
           [disabled]="streaming() || savingManual()"
           role="tab"
           [attr.aria-selected]="activeView() === 'generate'"
-        >Generate with AI</button>
+        >{{ i18n.t('settings.generateWithAi') }}</button>
         <button
           type="button"
           class="mode-btn"
@@ -54,24 +55,24 @@ import { ImageUploadHelperComponent } from '../../shared/components/image-upload
           [disabled]="streaming() || savingManual()"
           role="tab"
           [attr.aria-selected]="activeView() === 'manual'"
-        >Add ready-made</button>
+        >{{ i18n.t('questionInput.addReadyMade') }}</button>
       </div>
 
       @if (activeView() === 'generate') {
         <label class="textarea-wrap">
-          <span class="visually-hidden">Question text</span>
+          <span class="visually-hidden">{{ i18n.t('questionInput.questionText') }}</span>
           <textarea
             [(ngModel)]="draft"
             [disabled]="streaming() || finalizing()"
             rows="8"
-            placeholder="Paste the full question and all alternatives here, exactly as copied from the practice exam..."
+            [placeholder]="i18n.t('questionInput.draftPlaceholder')"
             class="textarea"
           ></textarea>
         </label>
         @if (streaming() || finalizing()) {
           <div class="live-preview" aria-live="polite">
             <p class="live-preview-label">
-              @if (finalizing()) { Structuring the review into alternatives… } @else { Generating… }
+              {{ finalizing() ? i18n.t('questionInput.structuring') : i18n.t('questionInput.generating') }}
             </p>
             <pre class="live-preview-body">{{ streamingPreview() }}</pre>
           </div>
@@ -80,16 +81,16 @@ import { ImageUploadHelperComponent } from '../../shared/components/image-upload
 
       <div class="options-row">
         <label class="model-row">
-          <span class="model-label">Model</span>
+          <span class="model-label">{{ i18n.t('questionInput.model') }}</span>
           <select
             class="model-select"
             [ngModel]="selectedModel()"
             (ngModelChange)="onSelectModel($event)"
             [disabled]="streaming() || finalizing() || savingManual() || generatingTitle()"
-            aria-label="Model for this generation"
+            [attr.aria-label]="i18n.t('questionInput.modelForGeneration')"
           >
             @for (model of availableModels(); track model.id) {
-              <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (reasoning)' : '' }} — {{ model.tier }}</option>
+              <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (' + i18n.t('settings.reasoning') + ')' : '' }} — {{ model.tier }}</option>
             }
           </select>
         </label>
@@ -99,7 +100,7 @@ import { ImageUploadHelperComponent } from '../../shared/components/image-upload
         @if (streaming()) {
           <button type="button" class="stop-btn" (click)="onStop()">
             <span class="stop-icon" aria-hidden="true"></span>
-            <span>Stop</span>
+            <span>{{ i18n.t('questionInput.stop') }}</span>
           </button>
         } @else {
           <button
@@ -108,18 +109,18 @@ import { ImageUploadHelperComponent } from '../../shared/components/image-upload
             (click)="onGenerate()"
             [disabled]="!canGenerate() || finalizing()"
           >
-            <span>{{ finalizing() ? 'Processing…' : 'Generate Review' }}</span>
+            <span>{{ finalizing() ? i18n.t('questionInput.processing') : i18n.t('questionInput.generateReview') }}</span>
           </button>
         }
       } @else {
         <label class="field">
-          <span class="field-label">Domain</span>
+          <span class="field-label">{{ i18n.t('questionInput.domain') }}</span>
           <select
             class="model-select"
             [ngModel]="selectedDomain()"
             (ngModelChange)="onSelectDomain($event)"
             [disabled]="savingManual()"
-            aria-label="Domain for this review"
+            [attr.aria-label]="i18n.t('questionInput.domainForReview')"
           >
             @for (d of domainOptions(); track d) {
               <option [value]="d">{{ d }}</option>
@@ -128,15 +129,15 @@ import { ImageUploadHelperComponent } from '../../shared/components/image-upload
         </label>
 
         <label class="field">
-          <span class="field-label">Title (optional)</span>
+          <span class="field-label">{{ i18n.t('questionInput.titleOptional') }}</span>
           <div class="title-row">
             <input
               type="text"
               class="title-input"
               [(ngModel)]="manualTitle"
               [disabled]="savingManual()"
-              placeholder="Leave empty to auto-generate on save"
-              aria-label="Review title"
+              [placeholder]="i18n.t('questionInput.titlePlaceholder')"
+              [attr.aria-label]="i18n.t('questionInput.reviewTitle')"
             />
             <button
               type="button"
@@ -144,26 +145,26 @@ import { ImageUploadHelperComponent } from '../../shared/components/image-upload
               (click)="onGenerateTitle()"
               [disabled]="generatingTitle() || savingManual() || !manualReview.trim() || !!manualTitle.trim()"
             >
-              @if (generatingTitle()) { Generating… } @else { Generate title }
+              {{ generatingTitle() ? i18n.t('questionInput.generating') : i18n.t('questionInput.generateTitle') }}
             </button>
           </div>
         </label>
 
         <label class="textarea-wrap">
           <div class="field-label-row">
-            <span class="field-label">Ready-made review (Markdown)</span>
+            <span class="field-label">{{ i18n.t('questionInput.readyMadeReviewLabel') }}</span>
             <button
               type="button"
               class="btn-ghost-sm"
               (click)="onAutofillFromPaste()"
               [disabled]="savingManual() || !manualReview.trim()"
-            >Auto-fill title &amp; domain</button>
+            >{{ i18n.t('questionInput.autofillTitleDomain') }}</button>
           </div>
           <textarea
             [(ngModel)]="manualReview"
             [disabled]="savingManual()"
             rows="10"
-            placeholder="Paste the finished Markdown review here (e.g. copied from Claude App)..."
+            [placeholder]="i18n.t('questionInput.manualReviewPlaceholder')"
             class="textarea"
           ></textarea>
         </label>
@@ -176,12 +177,12 @@ import { ImageUploadHelperComponent } from '../../shared/components/image-upload
           (click)="onSaveManual()"
           [disabled]="!manualReview.trim() || savingManual()"
         >
-          <span>{{ savingManual() ? 'Saving…' : 'Save review' }}</span>
+          <span>{{ savingManual() ? i18n.t('questionInput.saving') : i18n.t('questionInput.saveReview') }}</span>
         </button>
       }
 
       @if (activeView() === 'generate' && outputLanguage()) {
-        <p class="lang-hint">Output language: {{ outputLanguageName() }}</p>
+        <p class="lang-hint">{{ i18n.t('questionInput.outputLanguage', { name: outputLanguageName() }) }}</p>
       }
 
       @if (error()) {
@@ -189,7 +190,7 @@ import { ImageUploadHelperComponent } from '../../shared/components/image-upload
       }
 
       <app-ai-disclaimer
-        message="Generated reviews are produced by AI and can contain mistakes or hallucinations. Always verify against the official certification material."
+        [message]="i18n.t('questionInput.disclaimer')"
       />
     </section>
   `,
@@ -474,6 +475,7 @@ export class QuestionInputComponent {
   private readonly modelsService = inject(ModelsService);
   private readonly packs = inject(PacksService);
   private readonly enrichment = inject(QuestionEnrichmentService);
+  protected readonly i18n = inject(I18nService);
 
   protected readonly outputLanguage = this.settings.outputLanguage;
   protected readonly outputLanguageName = computed(() => outputLanguageLabel(this.outputLanguage()));
@@ -530,7 +532,7 @@ export class QuestionInputComponent {
 
     const { title, domain, remainder } = parseReadyMadePaste(source, this.domainOptions());
     if (!title && !domain) {
-      this.error.set("Couldn't detect a title or domain in the pasted text.");
+      this.error.set(this.i18n.t('questionInput.couldNotDetectTitleOrDomain'));
       return;
     }
 
@@ -543,7 +545,7 @@ export class QuestionInputComponent {
   async onGenerateTitle(): Promise<void> {
     const source = this.manualReview.trim();
     if (!source) {
-      this.error.set('Paste the review first to generate a title.');
+      this.error.set(this.i18n.t('questionInput.pasteReviewFirst'));
       return;
     }
     const controller = new AbortController();
@@ -558,7 +560,7 @@ export class QuestionInputComponent {
       );
       if (title) this.manualTitle = title;
     } catch (err) {
-      this.error.set(err instanceof Error ? err.message : 'Failed to generate a title.');
+      this.error.set(err instanceof Error ? err.message : this.i18n.t('questionInput.failedToGenerateTitle'));
     } finally {
       this.generatingTitle.set(false);
     }
@@ -593,7 +595,7 @@ export class QuestionInputComponent {
   async onSaveManual(): Promise<void> {
     const review = this.manualReview.trim();
     if (!review) {
-      this.error.set('The review text cannot be empty.');
+      this.error.set(this.i18n.t('questionInput.reviewTextEmpty'));
       return;
     }
     this.savingManual.set(true);
@@ -620,9 +622,7 @@ export class QuestionInputComponent {
 
       const question = await this.buildQuestion(review, title || fallbackTitle, this.selectedDomain(), activePack.id);
       if (!question) {
-        this.error.set(
-          "Couldn't parse this into structured question data — check it follows the Question / Alternatives / Correct answer / Incorrect answers template. See the browser console for exactly which part failed.",
-        );
+        this.error.set(this.i18n.t('questionInput.couldNotParseManual'));
         return;
       }
 
@@ -643,7 +643,7 @@ export class QuestionInputComponent {
   async onGenerate(): Promise<void> {
     const text = this.draft.trim();
     if (!text) {
-      this.error.set('Question text cannot be empty.');
+      this.error.set(this.i18n.t('questionInput.questionTextEmpty'));
       return;
     }
 
@@ -679,9 +679,7 @@ export class QuestionInputComponent {
       const review = stripInferredMetadata(accumulated);
       const question = await this.buildQuestion(review, title, domain, activePack.id);
       if (!question) {
-        this.error.set(
-          "Couldn't parse the generated review into structured question data. Try again, try a different model, or see the browser console for exactly which part failed.",
-        );
+        this.error.set(this.i18n.t('questionInput.couldNotParseGenerated'));
         return;
       }
 
@@ -693,7 +691,7 @@ export class QuestionInputComponent {
     } catch (err) {
       const aborted = (err as Error)?.name === 'AbortError' || controller.signal.aborted;
       if (!aborted) {
-        this.error.set(err instanceof Error ? err.message : 'Failed to generate review.');
+        this.error.set(err instanceof Error ? err.message : this.i18n.t('questionInput.failedToGenerateReview'));
       }
     } finally {
       this.streaming.set(false);

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { ImageAssetService } from '../../core/services/image-asset.service';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 /** Lets the user attach a hand-picked image to a question being written or
  * edited by hand (Add ready-made / edit mode) — separate from the bulk
@@ -13,7 +14,7 @@ import { ImageAssetService } from '../../core/services/image-asset.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="image-upload">
-      <span class="field-label">Attach an image</span>
+      <span class="field-label">{{ i18n.t('imageUpload.attachImage') }}</span>
       <div class="upload-row">
         <input
           #fileInput
@@ -23,7 +24,7 @@ import { ImageAssetService } from '../../core/services/image-asset.service';
           (change)="onFileSelected($event)"
         />
         <button type="button" class="btn-ghost-sm" (click)="fileInput.click()" [disabled]="uploading()">
-          Choose image
+          {{ i18n.t('imageUpload.chooseImage') }}
         </button>
         @if (selectedFile()) {
           <span class="filename">{{ selectedFile()!.name }}</span>
@@ -34,7 +35,7 @@ import { ImageAssetService } from '../../core/services/image-asset.service';
           (click)="onUpload()"
           [disabled]="!selectedFile() || uploading()"
         >
-          @if (uploading()) { Uploading… } @else { Upload }
+          {{ uploading() ? i18n.t('imageUpload.uploading') : i18n.t('imageUpload.upload') }}
         </button>
       </div>
 
@@ -46,10 +47,10 @@ import { ImageAssetService } from '../../core/services/image-asset.service';
         <div class="snippet-row">
           <code class="snippet">{{ snippet() }}</code>
           <button type="button" class="btn-ghost-sm" (click)="onCopy()">
-            {{ copied() ? 'Copied!' : 'Copy' }}
+            {{ copied() ? i18n.t('imageUpload.copied') : i18n.t('imageUpload.copy') }}
           </button>
         </div>
-        <p class="upload-hint">Paste this where you want the image — in the question, an alternative, or a comment.</p>
+        <p class="upload-hint">{{ i18n.t('imageUpload.pasteHint') }}</p>
       }
     </div>
   `,
@@ -133,6 +134,7 @@ import { ImageAssetService } from '../../core/services/image-asset.service';
 })
 export class ImageUploadHelperComponent {
   private readonly imageAssets = inject(ImageAssetService);
+  protected readonly i18n = inject(I18nService);
   private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
 
   protected readonly selectedFile = signal<File | null>(null);

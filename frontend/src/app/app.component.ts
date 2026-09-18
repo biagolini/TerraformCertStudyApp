@@ -10,6 +10,7 @@ import { SettingsComponent } from './features/settings/settings.component';
 import { ThemeToggleComponent } from './shared/components/theme-toggle.component';
 import { SyncStatusComponent } from './shared/components/sync-status.component';
 import { ImportStatusPillComponent } from './shared/components/import-status-pill.component';
+import { I18nService } from './core/i18n/i18n.service';
 
 @Component({
   selector: 'app-main',
@@ -33,14 +34,14 @@ import { ImportStatusPillComponent } from './shared/components/import-status-pil
       [style.--pack-color-soft]="activePackColorSoft()"
     >
       <header class="app-header">
-        <button type="button" class="brand" (click)="openPacks()" aria-label="Open pack switcher">
+        <button type="button" class="brand" (click)="openPacks()" [attr.aria-label]="i18n.t('app.openPackSwitcher')">
           <span class="brand-mark" aria-hidden="true"></span>
           <span class="brand-text">
             <span class="brand-title">{{ activePackName() }}</span>
             @if (activePackVersion()) {
               <span class="brand-version">{{ activePackVersion() }}</span>
             } @else {
-              <span class="brand-subtitle">Tap to switch pack</span>
+              <span class="brand-subtitle">{{ i18n.t('app.tapToSwitchPack') }}</span>
             }
           </span>
           <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" class="brand-chev">
@@ -51,13 +52,13 @@ import { ImportStatusPillComponent } from './shared/components/import-status-pil
           <app-import-status-pill />
           <app-sync-status />
           <app-theme-toggle />
-          <button type="button" class="icon-btn" (click)="openSettings()" aria-label="Open settings">
+          <button type="button" class="icon-btn" (click)="openSettings()" [attr.aria-label]="i18n.t('app.openSettings')">
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
               <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M12 8.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z"/>
               <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M19.4 13.5l1.6 1-2 3.4-1.9-.6a7.6 7.6 0 01-2 1.2l-.5 2H10.4l-.5-2a7.6 7.6 0 01-2-1.2l-1.9.6-2-3.4 1.6-1A7.6 7.6 0 014.5 12c0-.5.1-1 .2-1.5l-1.6-1 2-3.4 1.9.6a7.6 7.6 0 012-1.2l.5-2h4.2l.5 2c.7.3 1.4.7 2 1.2l1.9-.6 2 3.4-1.6 1c.1.5.2 1 .2 1.5s-.1 1-.2 1.5z"/>
             </svg>
           </button>
-          <button type="button" class="icon-btn" (click)="onLogout()" aria-label="Sign out">
+          <button type="button" class="icon-btn" (click)="onLogout()" [attr.aria-label]="i18n.t('app.signOut')">
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
               <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M15 12H4m0 0l3.5-3.5M4 12l3.5 3.5M14 4h4a2 2 0 012 2v12a2 2 0 01-2 2h-4"/>
             </svg>
@@ -80,7 +81,7 @@ import { ImportStatusPillComponent } from './shared/components/import-status-pil
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
               <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" [attr.d]="item.icon"/>
             </svg>
-            <span>{{ item.label }}</span>
+            <span>{{ i18n.t('nav.' + item.id) }}</span>
             @if (item.id === 'export' && selectedCount() > 0) {
               <span class="badge">{{ selectedCount() }}</span>
             }
@@ -90,14 +91,14 @@ import { ImportStatusPillComponent } from './shared/components/import-status-pil
 
       @if (packsOpen()) {
         <div class="overlay" (click)="closePacks()" aria-hidden="true"></div>
-        <aside class="drawer-host drawer-host-left" role="dialog" aria-label="Exam packs">
+        <aside class="drawer-host drawer-host-left" role="dialog" [attr.aria-label]="i18n.t('app.examPacksDialog')">
           <app-packs-drawer (closed)="closePacks()" />
         </aside>
       }
 
       @if (settingsOpen()) {
         <div class="overlay" (click)="closeSettings()" aria-hidden="true"></div>
-        <aside class="drawer-host" role="dialog" aria-label="Settings">
+        <aside class="drawer-host" role="dialog" [attr.aria-label]="i18n.t('app.settingsDialog')">
           <app-settings (closed)="closeSettings()" />
         </aside>
       }
@@ -110,6 +111,7 @@ export class AppComponent {
   private readonly auth = inject(AuthService);
   private readonly settingsService = inject(SettingsService);
   protected readonly themeService = inject(ThemeService);
+  protected readonly i18n = inject(I18nService);
 
   protected readonly settingsOpen = signal(false);
   protected readonly packsOpen = signal(false);

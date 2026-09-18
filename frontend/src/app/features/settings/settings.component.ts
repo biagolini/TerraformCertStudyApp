@@ -2,10 +2,12 @@ import { ChangeDetectionStrategy, Component, computed, inject, output, signal } 
 import { FormsModule } from '@angular/forms';
 import { NAV_ITEMS, NavTabId } from '../../core/models/nav-item.model';
 import { OUTPUT_LANGUAGES } from '../../core/models/settings.model';
+import { INTERFACE_LANGUAGES, InterfaceLanguage } from '../../core/models/i18n.model';
 import { ModelsService } from '../../core/services/models.service';
 import { QuestionsService } from '../../core/services/questions.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { StorageService } from '../../core/services/storage.service';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-settings',
@@ -15,12 +17,12 @@ import { StorageService } from '../../core/services/storage.service';
   template: `
     <div class="drawer">
       <header class="drawer-header">
-        <h2>Settings</h2>
+        <h2>{{ i18n.t('settings.title') }}</h2>
         <button
           type="button"
           class="close-btn"
           (click)="closed.emit()"
-          aria-label="Close settings"
+          [attr.aria-label]="i18n.t('settings.closeSettings')"
         >
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
             <path
@@ -37,14 +39,14 @@ import { StorageService } from '../../core/services/storage.service';
       <div class="drawer-body">
         <section class="block">
           <header class="section-header">
-            <h3>Sync</h3>
+            <h3>{{ i18n.t('settings.sync') }}</h3>
             <p class="helper">
               @if (syncStatus() === 'syncing') {
-                Syncing…
+                {{ i18n.t('sync.syncing') }}
               } @else if (lastSyncedAt()) {
-                Last synced {{ lastSyncedLabel() }}
+                {{ i18n.t('sync.lastSynced', { time: lastSyncedLabel() }) }}
               } @else {
-                Not synced yet.
+                {{ i18n.t('sync.notSyncedYet') }}
               }
             </p>
           </header>
@@ -52,67 +54,77 @@ import { StorageService } from '../../core/services/storage.service';
             <p class="sync-error">{{ syncError() }}</p>
           }
           <button type="button" class="btn btn-ghost" (click)="onSyncNow()" [disabled]="syncStatus() === 'syncing'">
-            @if (syncStatus() === 'syncing') { Syncing… } @else { Sync now }
+            {{ syncStatus() === 'syncing' ? i18n.t('sync.syncing') : i18n.t('settings.syncNow') }}
           </button>
         </section>
 
         <section class="block">
           <header class="section-header">
-            <h3>Default model</h3>
-            <p class="helper">
-              Foundation model used for Generate Review and Refine. You can override per call. Lighter tiers (fast) respond quicker and cost less. Models marked "(reasoning)" think before answering for higher accuracy.
-            </p>
+            <h3>{{ i18n.t('settings.defaultModel') }}</h3>
+            <p class="helper">{{ i18n.t('settings.defaultModelHelp') }}</p>
           </header>
           <select
             class="text-input"
             [ngModel]="defaultModel()"
             (ngModelChange)="onDefaultModelChange($event)"
-            aria-label="Default model"
+            [attr.aria-label]="i18n.t('settings.defaultModel')"
           >
             @for (model of availableModels(); track model.id) {
-              <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (reasoning)' : '' }} — {{ model.tier }}</option>
+              <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (' + i18n.t('settings.reasoning') + ')' : '' }} — {{ model.tier }}</option>
             }
             @if (!availableHas(defaultModel())) {
-              <option [value]="defaultModel()">{{ defaultModel() }} (not in current list)</option>
+              <option [value]="defaultModel()">{{ defaultModel() }} ({{ i18n.t('settings.notInCurrentList') }})</option>
             }
           </select>
         </section>
 
         <section class="block">
           <header class="section-header">
-            <h3>Exam import model</h3>
-            <p class="helper">
-              Foundation model used to extract questions from uploaded exam files (PDF/MD/ZIP). A stronger model
-              reduces extraction failures on messy source files, at higher cost and latency per question.
-            </p>
+            <h3>{{ i18n.t('settings.examImportModel') }}</h3>
+            <p class="helper">{{ i18n.t('settings.examImportModelHelp') }}</p>
           </header>
           <select
             class="text-input"
             [ngModel]="importExtractionModel()"
             (ngModelChange)="onImportExtractionModelChange($event)"
-            aria-label="Exam import model"
+            [attr.aria-label]="i18n.t('settings.examImportModel')"
           >
             @for (model of availableModels(); track model.id) {
-              <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (reasoning)' : '' }} — {{ model.tier }}</option>
+              <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (' + i18n.t('settings.reasoning') + ')' : '' }} — {{ model.tier }}</option>
             }
             @if (!availableHas(importExtractionModel())) {
-              <option [value]="importExtractionModel()">{{ importExtractionModel() }} (not in current list)</option>
+              <option [value]="importExtractionModel()">{{ importExtractionModel() }} ({{ i18n.t('settings.notInCurrentList') }})</option>
             }
           </select>
         </section>
 
         <section class="block">
           <header class="section-header">
-            <h3>Output language</h3>
-            <p class="helper">
-              Language used in explanations and translations. Default keeps the same language as the input question or transcript.
-            </p>
+            <h3>{{ i18n.t('settings.interfaceLanguage') }}</h3>
+            <p class="helper">{{ i18n.t('settings.interfaceLanguageHelp') }}</p>
+          </header>
+          <select
+            class="text-input"
+            [ngModel]="interfaceLanguage()"
+            (ngModelChange)="onInterfaceLanguageChange($event)"
+            [attr.aria-label]="i18n.t('settings.interfaceLanguage')"
+          >
+            @for (lang of interfaceLanguages; track lang.code) {
+              <option [value]="lang.code">{{ lang.label }}</option>
+            }
+          </select>
+        </section>
+
+        <section class="block">
+          <header class="section-header">
+            <h3>{{ i18n.t('settings.outputLanguage') }}</h3>
+            <p class="helper">{{ i18n.t('settings.outputLanguageHelp') }}</p>
           </header>
           <select
             class="text-input"
             [ngModel]="outputLanguage()"
             (ngModelChange)="onOutputLanguageChange($event)"
-            aria-label="Output language"
+            [attr.aria-label]="i18n.t('settings.outputLanguage')"
           >
             @for (lang of outputLanguages; track lang.code) {
               <option [value]="lang.code">{{ lang.label }}</option>
@@ -122,29 +134,24 @@ import { StorageService } from '../../core/services/storage.service';
 
         <section class="block">
           <header class="section-header">
-            <h3>Default review mode</h3>
-            <p class="helper">
-              Choose whether the New Question screen starts in "Generate with AI" mode or "Add ready-made review" mode. You can switch modes at any time on the screen itself.
-            </p>
+            <h3>{{ i18n.t('settings.defaultReviewMode') }}</h3>
+            <p class="helper">{{ i18n.t('settings.defaultReviewModeHelp') }}</p>
           </header>
           <select
             class="text-input"
             [ngModel]="defaultReviewMode()"
             (ngModelChange)="onDefaultReviewModeChange($event)"
-            aria-label="Default review mode"
+            [attr.aria-label]="i18n.t('settings.defaultReviewMode')"
           >
-            <option value="generate">Generate with AI</option>
-            <option value="manual">Add ready-made review</option>
+            <option value="generate">{{ i18n.t('settings.generateWithAi') }}</option>
+            <option value="manual">{{ i18n.t('settings.addReadyMadeReview') }}</option>
           </select>
         </section>
 
         <section class="block">
           <header class="section-header">
-            <h3>Question review</h3>
-            <p class="helper">
-              Highlight the correct alternative in green when reviewing a question. Turn this off to
-              review without seeing the answer marked.
-            </p>
+            <h3>{{ i18n.t('settings.questionReview') }}</h3>
+            <p class="helper">{{ i18n.t('settings.questionReviewHelp') }}</p>
           </header>
           <label class="switch-row">
             <button
@@ -154,19 +161,16 @@ import { StorageService } from '../../core/services/storage.service';
               (click)="onToggleShowCorrectInReview()"
               role="switch"
               [attr.aria-checked]="showCorrectInReview()"
-              aria-label="Highlight correct alternative in review"
+              [attr.aria-label]="i18n.t('settings.highlightCorrectAriaLabel')"
             ><span class="thumb"></span></button>
-            <span>Highlight correct alternative</span>
+            <span>{{ i18n.t('settings.highlightCorrectAlternative') }}</span>
           </label>
         </section>
 
         <section class="block">
           <header class="section-header">
-            <h3>Quiz timer</h3>
-            <p class="helper">
-              Default state of the timer toggles on the quiz setup screen (only shown for exams with
-              timing configured in the pack editor). You can still change these per quiz.
-            </p>
+            <h3>{{ i18n.t('settings.quizTimer') }}</h3>
+            <p class="helper">{{ i18n.t('settings.quizTimerHelp') }}</p>
           </header>
           <label class="switch-row">
             <button
@@ -176,9 +180,9 @@ import { StorageService } from '../../core/services/storage.service';
               (click)="onToggleDefaultTrackTime()"
               role="switch"
               [attr.aria-checked]="defaultTrackTime()"
-              aria-label="Track time by default"
+              [attr.aria-label]="i18n.t('settings.trackTimeAriaLabel')"
             ><span class="thumb"></span></button>
-            <span>Track time by default</span>
+            <span>{{ i18n.t('settings.trackTimeByDefault') }}</span>
           </label>
           <label class="switch-row">
             <button
@@ -188,18 +192,16 @@ import { StorageService } from '../../core/services/storage.service';
               (click)="onToggleDefaultUseAccommodation()"
               role="switch"
               [attr.aria-checked]="defaultUseAccommodation()"
-              aria-label="Use accommodation by default"
+              [attr.aria-label]="i18n.t('settings.useAccommodationAriaLabel')"
             ><span class="thumb"></span></button>
-            <span>Use accommodation by default</span>
+            <span>{{ i18n.t('settings.useAccommodationByDefault') }}</span>
           </label>
         </section>
 
         <section class="block">
           <header class="section-header">
-            <h3>Bottom navigation</h3>
-            <p class="helper">
-              Choose which tabs appear in the bottom navigation bar, and reorder them with the arrows. At least one must stay visible.
-            </p>
+            <h3>{{ i18n.t('settings.bottomNav') }}</h3>
+            <p class="helper">{{ i18n.t('settings.bottomNavHelp') }}</p>
           </header>
           @for (item of orderedNavItems(); track item.id; let i = $index, count = $count) {
             <div class="nav-order-row">
@@ -209,7 +211,7 @@ import { StorageService } from '../../core/services/storage.service';
                   class="reorder-btn"
                   [disabled]="i === 0"
                   (click)="onMoveNavTab(item.id, 'up')"
-                  [attr.aria-label]="'Move ' + item.label + ' up'"
+                  [attr.aria-label]="i18n.t('settings.moveUp', { name: i18n.t('nav.' + item.id) })"
                 >
                   <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
                     <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 15l6-6 6 6" />
@@ -220,7 +222,7 @@ import { StorageService } from '../../core/services/storage.service';
                   class="reorder-btn"
                   [disabled]="i === count - 1"
                   (click)="onMoveNavTab(item.id, 'down')"
-                  [attr.aria-label]="'Move ' + item.label + ' down'"
+                  [attr.aria-label]="i18n.t('settings.moveDown', { name: i18n.t('nav.' + item.id) })"
                 >
                   <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
                     <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6" />
@@ -236,9 +238,9 @@ import { StorageService } from '../../core/services/storage.service';
                   (click)="onToggleNavTab(item.id)"
                   role="switch"
                   [attr.aria-checked]="!hiddenNavTabs().includes(item.id)"
-                  [attr.aria-label]="'Show ' + item.label + ' in bottom navigation'"
+                  [attr.aria-label]="i18n.t('settings.showInBottomNav', { name: i18n.t('nav.' + item.id) })"
                 ><span class="thumb"></span></button>
-                <span>{{ item.label }}</span>
+                <span>{{ i18n.t('nav.' + item.id) }}</span>
               </label>
             </div>
           }
@@ -246,10 +248,8 @@ import { StorageService } from '../../core/services/storage.service';
 
         <section class="block danger">
           <header class="section-header">
-            <h3>Danger Zone</h3>
-            <p class="helper">
-              Clears the questions belonging to the active pack only. Other packs are not affected.
-            </p>
+            <h3>{{ i18n.t('settings.dangerZone') }}</h3>
+            <p class="helper">{{ i18n.t('settings.dangerZoneHelp') }}</p>
           </header>
           <button
             type="button"
@@ -257,15 +257,15 @@ import { StorageService } from '../../core/services/storage.service';
             (click)="onClearRequested()"
             [disabled]="questionCount() === 0"
           >
-            Clear questions in this pack
+            {{ i18n.t('settings.clearQuestionsInPack') }}
           </button>
-          <p class="helper">{{ questionCount() }} question{{ questionCount() === 1 ? '' : 's' }} in this pack.</p>
+          <p class="helper">{{ i18n.t('settings.questionCountInPack', { count: questionCount() }) }}</p>
           @if (clearResult(); as result) {
             <p class="helper" [class.clear-success]="result.failed === 0" [class.clear-warn]="result.failed > 0">
               @if (result.failed === 0) {
-                All {{ result.deleted }} question{{ result.deleted === 1 ? '' : 's' }} deleted successfully.
+                {{ i18n.t('settings.deletedSuccessfully', { count: result.deleted }) }}
               } @else {
-                Deleted {{ result.deleted }}, but {{ result.failed }} failed — still present, please try again.
+                {{ i18n.t('settings.deletedWithFailures', { deleted: result.deleted, failed: result.failed }) }}
               }
             </p>
           }
@@ -275,14 +275,12 @@ import { StorageService } from '../../core/services/storage.service';
       @if (confirmingClear()) {
         <div class="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
           <div class="confirm">
-            <h3 id="confirm-title">Clear questions in this pack?</h3>
-            <p>
-              This will permanently delete the {{ questionCount() }} question{{ questionCount() === 1 ? '' : 's' }} in the active pack. Your settings and other packs will not be affected.
-            </p>
+            <h3 id="confirm-title">{{ i18n.t('settings.clearQuestionsConfirmTitle') }}</h3>
+            <p>{{ i18n.t('settings.clearQuestionsConfirmBody', { count: questionCount() }) }}</p>
             <div class="confirm-actions">
-              <button type="button" class="btn btn-ghost" (click)="onCancelClear()" [disabled]="clearing()">Cancel</button>
+              <button type="button" class="btn btn-ghost" (click)="onCancelClear()" [disabled]="clearing()">{{ i18n.t('common.cancel') }}</button>
               <button type="button" class="btn btn-danger" (click)="onConfirmClear()" [disabled]="clearing()">
-                {{ clearing() ? 'Deleting…' : 'Delete' }}
+                {{ clearing() ? i18n.t('settings.deleting') : i18n.t('common.delete') }}
               </button>
             </div>
           </div>
@@ -517,11 +515,13 @@ export class SettingsComponent {
   private readonly questionsService = inject(QuestionsService);
   private readonly modelsService = inject(ModelsService);
   private readonly storage = inject(StorageService);
+  protected readonly i18n = inject(I18nService);
 
   protected readonly confirmingClear = signal(false);
   protected readonly clearing = signal(false);
   protected readonly clearResult = signal<{ deleted: number; failed: number } | null>(null);
   protected readonly outputLanguages = OUTPUT_LANGUAGES;
+  protected readonly interfaceLanguages = INTERFACE_LANGUAGES;
   protected readonly navItems = NAV_ITEMS;
   protected readonly orderedNavItems = this.settings.orderedNavItems;
 
@@ -531,6 +531,7 @@ export class SettingsComponent {
   readonly availableModels = this.modelsService.models;
   readonly defaultModel = this.settings.defaultModel;
   readonly importExtractionModel = this.settings.importExtractionModel;
+  readonly interfaceLanguage = this.settings.interfaceLanguage;
   readonly outputLanguage = this.settings.outputLanguage;
   readonly defaultReviewMode = this.settings.defaultReviewMode;
   readonly showCorrectInReview = this.settings.showCorrectInReview;
@@ -577,6 +578,10 @@ export class SettingsComponent {
 
   onImportExtractionModelChange(value: string): void {
     this.settings.setImportExtractionModel(value);
+  }
+
+  onInterfaceLanguageChange(value: InterfaceLanguage): void {
+    this.settings.setInterfaceLanguage(value);
   }
 
   onOutputLanguageChange(value: string): void {
