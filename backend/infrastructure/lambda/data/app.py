@@ -8,8 +8,7 @@ import time
 import uuid
 
 import boto3
-from aws_xray_sdk.core import patch_all, xray_recorder
-from aws_xray_sdk.ext.flask.middleware import XRayMiddleware
+from aws_xray_sdk.core import patch_all
 from boto3.dynamodb.conditions import Key
 from botocore.client import Config
 from botocore.exceptions import ClientError
@@ -73,7 +72,6 @@ _MODELS_TTL_SECONDS = 3600
 _models_cache = {"ts": 0.0, "data": None}
 
 app = Flask(__name__)
-XRayMiddleware(app, xray_recorder)
 
 
 def _user_pk():

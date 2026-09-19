@@ -36,6 +36,12 @@ export class AuthService {
    * the browser reports `online` again). */
   readonly offline = signal(false);
   readonly nextRetryAt = signal<number | null>(null);
+  /** The email of whichever Cognito account is actually logged in — shown in
+   * Settings so a mismatch between "who I think I'm logged in as" and "whose
+   * data I'm actually seeing" (e.g. a stale session left over from testing,
+   * or a different account than expected) is visible at a glance instead of
+   * being mistaken for a sync/data bug. */
+  readonly currentUserEmail = signal<string | null>(null);
 
   private readonly storage = inject(StorageService);
   private readonly router = inject(Router);
@@ -142,6 +148,7 @@ export class AuthService {
         const token = session.getIdToken().getJwtToken();
         this.isAuthenticated.set(true);
         this.storage.updateToken(token);
+        this.setUserInfoFromSession(session);
         this.exitOffline();
         resolve(token);
       });
@@ -194,6 +201,7 @@ export class AuthService {
         } else {
           this.isAuthenticated.set(true);
           this.storage.updateToken(session.getIdToken().getJwtToken());
+          this.setUserInfoFromSession(session);
           resolve(true);
         }
       });
@@ -205,6 +213,7 @@ export class AuthService {
     if (user) user.signOut();
     this.isAuthenticated.set(false);
     this.ready.set(false);
+    this.currentUserEmail.set(null);
     this.exitOffline();
     this.router.navigate(['/login']);
   }
@@ -224,14 +233,26 @@ export class AuthService {
   private redirectToLogin(): void {
     this.isAuthenticated.set(false);
     this.ready.set(false);
+    this.currentUserEmail.set(null);
     this.exitOffline();
     this.router.navigate(['/login']);
   }
 
   private async initStorage(session: CognitoUserSession): Promise<void> {
     const token = session.getIdToken().getJwtToken();
+    this.setUserInfoFromSession(session);
     await this.storage.initialize(token);
     this.ready.set(true);
+  }
+
+  /** Cognito's own `CognitoIdToken.decodePayload()` — no verification needed
+   * here (this is a display-only convenience for the logged-in user to
+   * confirm their own account, not a security boundary; the real signature
+   * verification happens server-side on every authenticated API call). */
+  private setUserInfoFromSession(session: CognitoUserSession): void {
+    const claims = session.getIdToken().decodePayload() as Record<string, unknown>;
+    const email = claims['email'];
+    this.currentUserEmail.set(typeof email === 'string' ? email : null);
   }
 
   private async restoreSession(): Promise<void> {

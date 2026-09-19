@@ -11,8 +11,7 @@ import os
 import re
 
 import boto3
-from aws_xray_sdk.core import patch_all, xray_recorder
-from aws_xray_sdk.ext.flask.middleware import XRayMiddleware
+from aws_xray_sdk.core import patch_all
 from flask import Flask, Response, request
 
 patch_all()
@@ -37,7 +36,6 @@ def _supports_reasoning(model_id):
 
 
 app = Flask(__name__)
-XRayMiddleware(app, xray_recorder)
 
 
 @app.route("/converse", methods=["POST"])

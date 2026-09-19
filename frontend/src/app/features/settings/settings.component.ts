@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { NAV_ITEMS, NavTabId } from '../../core/models/nav-item.model';
 import { OUTPUT_LANGUAGES } from '../../core/models/settings.model';
 import { INTERFACE_LANGUAGES, InterfaceLanguage } from '../../core/models/i18n.model';
+import { AuthService } from '../../core/services/auth.service';
 import { ModelsService } from '../../core/services/models.service';
 import { QuestionsService } from '../../core/services/questions.service';
 import { SettingsService } from '../../core/services/settings.service';
@@ -37,6 +38,14 @@ import { I18nService } from '../../core/i18n/i18n.service';
       </header>
 
       <div class="drawer-body">
+        <section class="block">
+          <header class="section-header">
+            <h3>{{ i18n.t('settings.account') }}</h3>
+            <p class="helper">{{ i18n.t('settings.accountHelp') }}</p>
+          </header>
+          <p class="account-email">{{ currentUserEmail() ?? i18n.t('settings.accountUnknown') }}</p>
+        </section>
+
         <section class="block">
           <header class="section-header">
             <h3>{{ i18n.t('settings.sync') }}</h3>
@@ -357,6 +366,11 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .helper.clear-warn {
         color: var(--color-amber);
       }
+      .account-email {
+        font-size: var(--font-size-base);
+        font-weight: 600;
+        color: var(--text-primary);
+      }
       .sync-error {
         font-size: var(--font-size-sm);
         color: var(--color-red);
@@ -515,7 +529,10 @@ export class SettingsComponent {
   private readonly questionsService = inject(QuestionsService);
   private readonly modelsService = inject(ModelsService);
   private readonly storage = inject(StorageService);
+  private readonly auth = inject(AuthService);
   protected readonly i18n = inject(I18nService);
+
+  protected readonly currentUserEmail = this.auth.currentUserEmail;
 
   protected readonly confirmingClear = signal(false);
   protected readonly clearing = signal(false);

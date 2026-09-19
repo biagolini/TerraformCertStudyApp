@@ -103,6 +103,9 @@ export const ES: Record<string, string> = {
   // Settings
   'settings.title': 'Ajustes',
   'settings.closeSettings': 'Cerrar ajustes',
+  'settings.account': 'Cuenta',
+  'settings.accountHelp': 'La cuenta actualmente conectada — revisa esto si los datos que ves no parecen correctos.',
+  'settings.accountUnknown': 'Desconocida',
   'settings.sync': 'Sincronización',
   'settings.syncNow': 'Sincronizar ahora',
   'settings.defaultModel': 'Modelo predeterminado',

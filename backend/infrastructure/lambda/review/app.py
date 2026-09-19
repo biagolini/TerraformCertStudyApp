@@ -16,7 +16,6 @@ import uuid
 
 import boto3
 from aws_xray_sdk.core import patch_all, xray_recorder
-from aws_xray_sdk.ext.flask.middleware import XRayMiddleware
 from botocore.config import Config
 from flask import Flask, Response, request
 
@@ -37,7 +36,6 @@ agentcore = boto3.client(
 RUNTIME_ARN = os.environ["AGENT_RUNTIME_ARN"]
 
 app = Flask(__name__)
-XRayMiddleware(app, xray_recorder)
 
 
 @app.route("/review", methods=["POST"])

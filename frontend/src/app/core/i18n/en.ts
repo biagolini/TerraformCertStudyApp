@@ -105,6 +105,9 @@ export const EN: Record<string, string> = {
   // Settings
   'settings.title': 'Settings',
   'settings.closeSettings': 'Close settings',
+  'settings.account': 'Account',
+  'settings.accountHelp': 'The account currently signed in — check this if the data you see doesn’t look right.',
+  'settings.accountUnknown': 'Unknown',
   'settings.sync': 'Sync',
   'settings.syncNow': 'Sync now',
   'settings.defaultModel': 'Default model',
