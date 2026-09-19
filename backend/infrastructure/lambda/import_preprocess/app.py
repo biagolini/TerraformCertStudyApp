@@ -19,6 +19,9 @@ from io import BytesIO
 from urllib.parse import unquote
 
 import boto3
+from aws_xray_sdk.core import patch_all
+
+patch_all()
 
 TABLE_NAME = os.environ["TABLE_NAME"]
 ASSETS_BUCKET_NAME = os.environ["ASSETS_BUCKET_NAME"]

@@ -15,12 +15,17 @@ fault-isolation philosophy, so one bad question never fails the whole Map.
 """
 
 import json
+import logging
 import os
 import time
 import uuid
 
 import boto3
+from aws_xray_sdk.core import patch_all, xray_recorder
 from botocore.config import Config
+
+patch_all()
+logging.getLogger().setLevel(logging.INFO)
 
 TABLE_NAME = os.environ["TABLE_NAME"]
 IMPORT_DRAFTS_TABLE_NAME = os.environ["IMPORT_DRAFTS_TABLE_NAME"]
@@ -126,8 +131,20 @@ def handler(event, context):
         _increment_job_counters(pk, job_id, failed=False)
         return {"index": draft_index, "status": "SUCCEEDED", "questionId": question_id}
     except Exception as e:  # noqa: BLE001 — any failure here must degrade to a per-item result
+        # Logged with the request id front and center so the "Show logs" button
+        # (data Lambda's GET .../logs route) can find exactly this invocation's
+        # output via logs:FilterLogEvents on the request id alone.
+        logging.exception(
+            "import_explain failed job=%s index=%s request_id=%s",
+            job_id, draft_index, context.aws_request_id,
+        )
         _increment_job_counters(pk, job_id, failed=True)
-        return {"index": draft_index, "status": "FAILED", "error": str(e)}
+        return {
+            "index": draft_index,
+            "status": "FAILED",
+            "error": str(e),
+            "requestId": context.aws_request_id,
+        }
 
 
 def _increment_job_counters(pk, job_id, failed):
@@ -230,11 +247,12 @@ def _generate_explanation(stem, alternatives, pack, output_language="", source_g
         "sourceGeneralComment": source_general_comment,
         "images": images or [],
     }
-    response = agentcore.invoke_agent_runtime(
-        agentRuntimeArn=AGENT_RUNTIME_ARN,
-        runtimeSessionId=uuid.uuid4().hex + uuid.uuid4().hex,
-        payload=json.dumps(payload).encode("utf-8"),
-    )
+    with xray_recorder.in_subsegment("invoke_review_agent"):
+        response = agentcore.invoke_agent_runtime(
+            agentRuntimeArn=AGENT_RUNTIME_ARN,
+            runtimeSessionId=uuid.uuid4().hex + uuid.uuid4().hex,
+            payload=json.dumps(payload).encode("utf-8"),
+        )
     # The agent's HTTP contract is always SSE-framed ("data: {...}" lines),
     # even for this logically non-streaming call — see review_agent/app.py's
     # module docstring on why (its entrypoint is always an async generator).

@@ -11,7 +11,11 @@ import os
 import re
 
 import boto3
+from aws_xray_sdk.core import patch_all, xray_recorder
+from aws_xray_sdk.ext.flask.middleware import XRayMiddleware
 from flask import Flask, Response, request
+
+patch_all()
 
 bedrock = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 DEFAULT_MODEL_ID = os.environ.get("MODEL_ID", "amazon.nova-lite-v1:0")
@@ -33,6 +37,7 @@ def _supports_reasoning(model_id):
 
 
 app = Flask(__name__)
+XRayMiddleware(app, xray_recorder)
 
 
 @app.route("/converse", methods=["POST"])

@@ -8,10 +8,14 @@ import time
 import uuid
 
 import boto3
+from aws_xray_sdk.core import patch_all, xray_recorder
+from aws_xray_sdk.ext.flask.middleware import XRayMiddleware
 from boto3.dynamodb.conditions import Key
 from botocore.client import Config
 from botocore.exceptions import ClientError
 from flask import Flask, Response, request
+
+patch_all()
 
 TABLE_NAME = os.environ.get("TABLE_NAME", "cert-stud-data")
 QUESTIONS_TABLE_NAME = os.environ.get("QUESTIONS_TABLE_NAME", "cert-stud-questions")
@@ -22,6 +26,7 @@ IMPORT_STATE_MACHINE_ARN = os.environ.get("IMPORT_STATE_MACHINE_ARN", "")
 IMPORT_EXPLAIN_STATE_MACHINE_ARN = os.environ.get("IMPORT_EXPLAIN_STATE_MACHINE_ARN", "")
 IMPORT_EXTRACT_LAMBDA_ARN = os.environ.get("IMPORT_EXTRACT_LAMBDA_ARN", "")
 IMPORT_FINALIZE_LAMBDA_ARN = os.environ.get("IMPORT_FINALIZE_LAMBDA_ARN", "")
+IMPORT_EXPLAIN_LOG_GROUP_NAME = os.environ.get("IMPORT_EXPLAIN_LOG_GROUP_NAME", "")
 # Mirrors lambda/import_extract/app.py's own VALID_IMAGE_TARGETS — a manual
 # draft edit must accept only the same classifications extraction itself
 # can produce, see ImportDraftImage on the frontend.
@@ -44,6 +49,7 @@ s3 = boto3.client(
     config=Config(signature_version="s3v4"),
 )
 sfn = boto3.client("stepfunctions", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+logs_client = boto3.client("logs", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 
 # Bedrock control-plane client (model discovery — NOT the runtime client).
 bedrock_ctl = boto3.client("bedrock", region_name=os.environ.get("AWS_REGION", "us-east-1"))
@@ -67,6 +73,7 @@ _MODELS_TTL_SECONDS = 3600
 _models_cache = {"ts": 0.0, "data": None}
 
 app = Flask(__name__)
+XRayMiddleware(app, xray_recorder)
 
 
 def _user_pk():
@@ -1053,6 +1060,44 @@ def re_extract_draft(item_id, index):
     if not updated_item:
         return _error("Re-extract did not produce a draft", 500)
     return _json({"draft": json.loads(updated_item["data"])})
+
+
+@app.route("/data/imports/<item_id>/drafts/<int:index>/logs", methods=["GET"])
+def get_draft_logs(item_id, index):
+    """Real CloudWatch logs for the specific import-explain invocation that
+    failed on this draft — surfaced next to a failed "Refine extraction
+    with AI" result so a bad run can be diagnosed without leaving the app.
+    `requestId` isn't on the draft itself — a failed explain call never
+    updates its draft (see lambda/import_explain/app.py, which only writes
+    the draft on success) — it's recorded on the JOB's `failures` list by
+    lambda/import_finalize/app.py's _normalize_failure. A draft with no
+    matching failure entry (never ran Phase 2, or succeeded) returns an
+    empty result rather than an error."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    if not IMPORT_EXPLAIN_LOG_GROUP_NAME:
+        return _error("Logs are not configured", 500)
+
+    job_item = table.get_item(Key={"pk": pk, "sk": f"IMPORTJOB#{item_id}"}).get("Item")
+    if not job_item:
+        return _error("Job not found", 404)
+    job_data = json.loads(job_item["data"]) if isinstance(job_item.get("data"), str) else job_item.get("data", {})
+    failure = next((f for f in (job_data.get("failures") or []) if f.get("index") == index), None)
+    request_id = failure.get("requestId") if failure else None
+    if not request_id:
+        return _json({"requestId": None, "events": []})
+
+    resp = logs_client.filter_log_events(
+        logGroupName=IMPORT_EXPLAIN_LOG_GROUP_NAME,
+        filterPattern=f'"{request_id}"',
+        limit=200,
+    )
+    events = [
+        {"timestamp": e["timestamp"], "message": e["message"]}
+        for e in resp.get("events", [])
+    ]
+    return _json({"requestId": request_id, "events": events})
 
 
 @app.route("/data/imports/<item_id>/generate-explanations", methods=["POST"])

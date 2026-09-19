@@ -88,7 +88,15 @@ export class QuizService {
   private readonly lastAttemptState = signal<QuizAttempt | null>(null);
   private readonly tickState = signal(0);
   private readonly questionStartedAtState = signal(0);
+  private readonly questionCheckedAtState = signal<number | null>(null);
   private readonly timeLimitReachedAtState = signal<number | null>(null);
+  private readonly pausedState = signal(false);
+  private pausedAt: number | null = null;
+  private accumulatedPausedMs = 0;
+  /** Snapshot of `accumulatedPausedMs` taken whenever `questionStartedAtState` resets —
+   * lets flushTimeSpent()/clock exclude only the pause time that happened DURING the
+   * current question, not pauses from earlier questions in the same attempt. */
+  private questionStartedPausedMs = 0;
   private readonly annotationsState = signal<Record<string, QuestionAnnotations>>({});
   private readonly timeSpentState = signal<Record<string, number>>({});
   private readonly reviewFlagsState = signal<Record<string, boolean>>({});
@@ -106,6 +114,7 @@ export class QuizService {
   readonly phase = this.phaseState.asReadonly();
   readonly lastAttempt = this.lastAttemptState.asReadonly();
   readonly timeLimitReachedAt = this.timeLimitReachedAtState.asReadonly();
+  readonly paused = this.pausedState.asReadonly();
 
   /** Whether the ACTIVE pack (before a quiz starts) has timer config — drives the Quiz Setup toggles. */
   readonly timerAvailable = computed(() => hasTimerConfig(this.packs.activePack()));
@@ -130,14 +139,23 @@ export class QuizService {
    * Ticks every second; null when time tracking is off or the pack has no timer config. */
   readonly clock = computed<QuizClock | null>(() => {
     this.tickState();
+    this.pausedState();
     const settings = this.settingsState();
     if (!settings.trackTime || !hasTimerConfig(this.timerPack())) return null;
 
+    const pausedMs = this.currentPausedMs();
+
     if (settings.mode === 'instant') {
-      const remainingSeconds = this.perQuestionSeconds() - (Date.now() - this.questionStartedAtState()) / 1000;
+      // Frozen the instant checkAnswer() is called, so reading the explanation
+      // afterward doesn't keep draining the per-question countdown.
+      const checkedAt = this.questionCheckedAtState();
+      const reference = checkedAt ?? Date.now();
+      const pausedDuringQuestion = pausedMs - this.questionStartedPausedMs;
+      const remainingSeconds =
+        this.perQuestionSeconds() - (reference - this.questionStartedAtState() - pausedDuringQuestion) / 1000;
       return { remainingSeconds, overtime: remainingSeconds < 0 };
     }
-    const remainingSeconds = this.totalSeconds() - (Date.now() - this.startedAt) / 1000;
+    const remainingSeconds = this.totalSeconds() - (Date.now() - this.startedAt - pausedMs) / 1000;
     return { remainingSeconds, overtime: remainingSeconds < 0 };
   });
 
@@ -285,6 +303,11 @@ export class QuizService {
     this.reviewFlagsState.set({});
     this.startedAt = Date.now();
     this.questionStartedAtState.set(this.startedAt);
+    this.questionCheckedAtState.set(null);
+    this.pausedState.set(false);
+    this.pausedAt = null;
+    this.accumulatedPausedMs = 0;
+    this.questionStartedPausedMs = 0;
     this.activePackAtStart = this.packs.activePack();
 
     this.clearTicker();
@@ -322,20 +345,21 @@ export class QuizService {
     if (answer.selected.length === 0 || answer.checked) return;
     const score = scoreAnswer(questionCorrectLetters(q), answer.selected, this.allowsPartialCredit());
     this.setAnswer(q.id, { ...answer, checked: true, correct: score === 1, score });
+    this.questionCheckedAtState.set(Date.now());
     this.syncInProgress();
   }
 
   next(): void {
     this.flushTimeSpent();
     this.currentIndexState.update((i) => Math.min(i + 1, this.questionsState().length - 1));
-    this.questionStartedAtState.set(Date.now());
+    this.beginQuestionTiming();
     this.syncInProgress();
   }
 
   previous(): void {
     this.flushTimeSpent();
     this.currentIndexState.update((i) => Math.max(i - 1, 0));
-    this.questionStartedAtState.set(Date.now());
+    this.beginQuestionTiming();
     this.syncInProgress();
   }
 
@@ -343,8 +367,28 @@ export class QuizService {
     if (index < 0 || index >= this.questionsState().length) return;
     this.flushTimeSpent();
     this.currentIndexState.set(index);
-    this.questionStartedAtState.set(Date.now());
+    this.beginQuestionTiming();
     this.syncInProgress();
+  }
+
+  /** Pauses the running clock — accumulated elapsed/remaining time is frozen until
+   * unpause(), rather than just stopping the display tick (which alone would leave
+   * the underlying wall-clock math to silently balloon and jump on resume). */
+  pause(): void {
+    if (this.pausedState() || this.phaseState() !== 'running') return;
+    this.pausedState.set(true);
+    this.pausedAt = Date.now();
+    this.clearTicker();
+  }
+
+  unpause(): void {
+    if (!this.pausedState()) return;
+    this.accumulatedPausedMs += Date.now() - (this.pausedAt ?? Date.now());
+    this.pausedAt = null;
+    this.pausedState.set(false);
+    if (this.settingsState().trackTime) {
+      this.tickInterval = setInterval(() => this.tickState.update((t) => t + 1), 1000);
+    }
   }
 
   /** Toggles a highlight/strikethrough range for the current question's block
@@ -453,6 +497,12 @@ export class QuizService {
     this.timeLimitReachedAtState.set(attempt.timeLimitReachedAt ?? null);
     // Deliberately NOT restored from the attempt — always reset to "now" so the
     // offline gap between sessions isn't wrongly counted as time on this question.
+    // A resumed session never carries over a stale in-progress pause either.
+    this.questionCheckedAtState.set(null);
+    this.pausedState.set(false);
+    this.pausedAt = null;
+    this.accumulatedPausedMs = 0;
+    this.questionStartedPausedMs = 0;
     this.questionStartedAtState.set(Date.now());
 
     this.activePackAtStart = resolveResumePack(this.packs.packs(), attempt);
@@ -478,15 +528,34 @@ export class QuizService {
     this.annotationsState.set({});
     this.timeSpentState.set({});
     this.reviewFlagsState.set({});
+    this.questionCheckedAtState.set(null);
+    this.pausedState.set(false);
+    this.pausedAt = null;
+    this.accumulatedPausedMs = 0;
+    this.questionStartedPausedMs = 0;
     this.phaseState.set('setup');
   }
 
   private flushTimeSpent(): void {
     const q = this.currentQuestion();
     if (!q) return;
-    const elapsed = (Date.now() - this.questionStartedAtState()) / 1000;
+    const pausedDuringQuestion = this.currentPausedMs() - this.questionStartedPausedMs;
+    const elapsed = (Date.now() - this.questionStartedAtState()) / 1000 - pausedDuringQuestion / 1000;
     if (elapsed <= 0) return;
     this.timeSpentState.update((prev) => ({ ...prev, [q.id]: (prev[q.id] ?? 0) + elapsed }));
+  }
+
+  /** Resets the per-question timing baseline (start time, checked-at freeze, and the
+   * paused-ms snapshot flushTimeSpent()/clock diff against) — called whenever the
+   * current question changes. */
+  private beginQuestionTiming(): void {
+    this.questionStartedAtState.set(Date.now());
+    this.questionCheckedAtState.set(null);
+    this.questionStartedPausedMs = this.currentPausedMs();
+  }
+
+  private currentPausedMs(): number {
+    return this.accumulatedPausedMs + (this.pausedAt !== null ? Date.now() - this.pausedAt : 0);
   }
 
   private timerPack(): Pack {

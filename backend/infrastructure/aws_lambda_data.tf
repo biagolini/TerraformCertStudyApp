@@ -50,6 +50,10 @@ resource "aws_lambda_function" "data" {
     "arn:aws:lambda:${var.aws_region}:753240598075:layer:LambdaAdapterLayerArm64:27"
   ]
 
+  tracing_config {
+    mode = "Active"
+  }
+
   environment {
     variables = {
       AWS_LAMBDA_EXEC_WRAPPER          = "/opt/bootstrap"
@@ -64,6 +68,7 @@ resource "aws_lambda_function" "data" {
       IMPORT_EXPLAIN_STATE_MACHINE_ARN = aws_sfn_state_machine.import_exam_explain.arn
       IMPORT_EXTRACT_LAMBDA_ARN        = aws_lambda_function.import_extract.arn
       IMPORT_FINALIZE_LAMBDA_ARN       = aws_lambda_function.import_finalize.arn
+      IMPORT_EXPLAIN_LOG_GROUP_NAME    = aws_cloudwatch_log_group.lambda_import_explain.name
     }
   }
 
@@ -221,6 +226,24 @@ resource "aws_iam_role_policy" "lambda_data_invoke_extract" {
         # duplicating that logic.
         aws_lambda_function.import_finalize.arn,
       ]
+    }]
+  })
+}
+
+# --- "Show logs" on a failed AI-refine draft (see lambda/data/app.py's
+# get_draft_logs) — scoped to exactly the import-explain Lambda's own log
+# group, never a blanket logs:* grant. ---
+
+resource "aws_iam_role_policy" "lambda_data_read_import_explain_logs" {
+  name = "${var.project_prefix}-lambda-data-read-import-explain-logs"
+  role = aws_iam_role.lambda_data.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "logs:FilterLogEvents"
+      Resource = "${aws_cloudwatch_log_group.lambda_import_explain.arn}:*"
     }]
   })
 }

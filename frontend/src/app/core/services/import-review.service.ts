@@ -57,6 +57,25 @@ export class ImportReviewService {
     return {};
   }
 
+  /** Real CloudWatch logs for the import-explain invocation that produced
+   * this draft's Phase 2 failure (see the failed-draft "Show logs" button).
+   * `requestId: null` means the backend had nothing to look up (draft never
+   * reached or never failed Phase 2). */
+  async getDraftLogs(
+    jobId: string,
+    index: number,
+  ): Promise<{ requestId: string | null; events: { timestamp: number; message: string }[]; error?: string }> {
+    const token = await this.auth.getValidToken();
+    const res = await fetch(`${this.apiUrl}/data/imports/${jobId}/drafts/${index}/logs`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}) as { error?: string });
+      return { requestId: null, events: [], error: body.error || 'Failed to load logs.' };
+    }
+    return (await res.json()) as { requestId: string | null; events: { timestamp: number; message: string }[] };
+  }
+
   /** Directly overwrites one draft's content with what the reviewer typed
    * — no AI call, for a quick correction. */
   async updateDraft(

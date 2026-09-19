@@ -26,6 +26,10 @@ resource "aws_sfn_state_machine" "import_exam" {
     include_execution_data = true
     level                  = "ALL"
   }
+
+  tracing_configuration {
+    enabled = true
+  }
 }
 
 resource "aws_iam_role" "sfn_import" {
@@ -78,6 +82,25 @@ resource "aws_iam_role_policy" "sfn_import_logs" {
         "logs:PutResourcePolicy",
         "logs:DescribeResourcePolicies",
         "logs:DescribeLogGroups",
+      ]
+      Resource = "*"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "sfn_import_xray" {
+  name = "${var.project_prefix}-sfn-import-xray"
+  role = aws_iam_role.sfn_import.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "xray:PutTraceSegments",
+        "xray:PutTelemetryRecords",
+        "xray:GetSamplingRules",
+        "xray:GetSamplingTargets",
       ]
       Resource = "*"
     }]

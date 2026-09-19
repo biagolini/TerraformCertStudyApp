@@ -1,10 +1,12 @@
 # ============================================================================
 # Lambda — AWS Documentation lookup (AgentCore Gateway "Lambda" target)
 # ============================================================================
-# Plain Python handler, no dependencies (stdlib only — see
-# lambda/mcp_aws_docs/app.py for why Gateway can't proxy the stdio
-# awslabs.aws-documentation-mcp-server directly). Invoked only by the
-# AgentCore Gateway, never by API Gateway or the frontend.
+# Plain Python handler — stdlib only for its actual documentation-lookup
+# logic (see lambda/mcp_aws_docs/app.py for why Gateway can't proxy the
+# stdio awslabs.aws-documentation-mcp-server directly), plus aws-xray-sdk
+# so its outbound HTTP calls get traced like every other Lambda in this
+# project. Invoked only by the AgentCore Gateway, never by API Gateway or
+# the frontend.
 
 resource "null_resource" "lambda_mcp_aws_docs_build" {
   triggers = {
@@ -19,6 +21,9 @@ resource "null_resource" "lambda_mcp_aws_docs_build" {
       set -e
       BUILD="${local.lambda_build_dir}/mcp_aws_docs"
       rm -rf "$BUILD" && mkdir -p "$BUILD"
+      pip3 install --platform manylinux2014_aarch64 \
+        --target "$BUILD" --implementation cp --python-version 3.13 \
+        --only-binary=:all: -r "${local.lambda_src_dir}/mcp_aws_docs/requirements.txt" --quiet
       cp "${local.lambda_src_dir}/mcp_aws_docs/app.py" "$BUILD/"
       find "$BUILD" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
       find "$BUILD" -name "*.pyc" -delete 2>/dev/null || true
@@ -39,6 +44,10 @@ resource "aws_lambda_function" "mcp_aws_docs" {
   filename      = "${local.lambda_build_dir}/mcp_aws_docs.zip"
 
   source_code_hash = null_resource.lambda_mcp_aws_docs_build.triggers.code_hash
+
+  tracing_config {
+    mode = "Active"
+  }
 
   depends_on = [null_resource.lambda_mcp_aws_docs_build]
 }

@@ -15,8 +15,12 @@ import os
 import uuid
 
 import boto3
+from aws_xray_sdk.core import patch_all, xray_recorder
+from aws_xray_sdk.ext.flask.middleware import XRayMiddleware
 from botocore.config import Config
 from flask import Flask, Response, request
+
+patch_all()
 
 # boto3's default read_timeout (60s) applies to any gap between received
 # chunks, not just total call duration — normally fine for the streaming
@@ -33,6 +37,7 @@ agentcore = boto3.client(
 RUNTIME_ARN = os.environ["AGENT_RUNTIME_ARN"]
 
 app = Flask(__name__)
+XRayMiddleware(app, xray_recorder)
 
 
 @app.route("/review", methods=["POST"])
@@ -63,11 +68,12 @@ def review():
 
     def generate():
         try:
-            response = agentcore.invoke_agent_runtime(
-                agentRuntimeArn=RUNTIME_ARN,
-                runtimeSessionId=uuid.uuid4().hex + uuid.uuid4().hex,
-                payload=json.dumps(payload).encode("utf-8"),
-            )
+            with xray_recorder.in_subsegment("invoke_review_agent"):
+                response = agentcore.invoke_agent_runtime(
+                    agentRuntimeArn=RUNTIME_ARN,
+                    runtimeSessionId=uuid.uuid4().hex + uuid.uuid4().hex,
+                    payload=json.dumps(payload).encode("utf-8"),
+                )
             content_type = response.get("contentType", "")
             if "text/event-stream" in content_type:
                 for line in response["response"].iter_lines(chunk_size=1):

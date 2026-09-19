@@ -44,6 +44,8 @@ export const EN: Record<string, string> = {
   'sync.notSyncedYet': 'Not synced yet.',
   'sync.lastSynced': 'Last synced {{time}}',
   'sync.failedClickForDetails': 'Sync failed — click for details',
+  'offline.label': 'Offline',
+  'offline.retryNow': 'Offline — click to retry now',
 
   // Import status pill
   'importPill.dialogLabel': 'Exam import status',
@@ -398,6 +400,10 @@ export const EN: Record<string, string> = {
   'importDraft.reExtracting': 'Re-extracting…',
   'importDraft.reExtract': 'Re-extract',
   'importDraft.explanationFailed': 'Explanation generation failed: {{error}}',
+  'importDraft.showLogs': 'Show logs',
+  'importDraft.hideLogs': 'Hide logs',
+  'importDraft.loadingLogs': 'Loading logs…',
+  'importDraft.noLogsFound': 'No log lines found for this invocation.',
 
   // Import exam
   'importExam.pageTitle': 'Import Exam',
@@ -566,6 +572,10 @@ export const EN: Record<string, string> = {
   'quizRunner.markedForReview': 'Marked for review',
   'quizRunner.answeredOfTotal': '{{answered}} of {{total}} answered',
   'quizRunner.flaggedCount': '{{count}} marked for review',
+  'quizRunner.pause': 'Pause',
+  'quizRunner.resume': 'Resume',
+  'quizRunner.paused': 'Paused.',
+  'quizRunner.pausedMessage': 'The clock is stopped. Resume when you’re ready to continue.',
 
   // Quiz results
   'quizResults.title': 'Quiz results',

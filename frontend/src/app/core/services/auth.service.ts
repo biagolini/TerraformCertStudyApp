@@ -9,6 +9,19 @@ import {
 import { environment } from '../../../environments/environment';
 import { StorageService } from './storage.service';
 
+const OFFLINE_RETRY_MS = 30 * 60 * 1000;
+
+/** Amazon Cognito Identity JS's own Client throws exactly this message when
+ * the underlying fetch itself fails (no response at all) — see
+ * node_modules/amazon-cognito-identity-js/es/Client.js. That specific
+ * message is the one reliable way to tell "couldn't reach Cognito" apart
+ * from a real auth rejection (NotAuthorizedException, expired refresh
+ * token, etc.), which always comes back with a response and a Cognito
+ * error code instead. */
+function isNetworkFailure(err: unknown): boolean {
+  return (err instanceof Error && err.message === 'Network error') || !navigator.onLine;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   isAuthenticated = signal(false);
@@ -16,10 +29,18 @@ export class AuthService {
   ready = signal(false);
   /** True while attempting automatic token refresh */
   reauthenticating = signal(false);
+  /** True when the last token refresh failed because Cognito couldn't be
+   * reached (not because the session is actually invalid) — the app stays
+   * on the current screen instead of redirecting to /login, and a
+   * background retry keeps trying every 30 minutes (or immediately once
+   * the browser reports `online` again). */
+  readonly offline = signal(false);
+  readonly nextRetryAt = signal<number | null>(null);
 
   private readonly storage = inject(StorageService);
   private readonly router = inject(Router);
   private userPool: CognitoUserPool | null = null;
+  private offlineRetryTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     // Lets StorageService fetch a fresh, auto-refreshed token before every
@@ -38,6 +59,8 @@ export class AuthService {
         this.restoreSession();
       }
     }
+
+    window.addEventListener('online', () => this.retryNow());
   }
 
   login(email: string, password: string): Promise<string> {
@@ -78,10 +101,14 @@ export class AuthService {
 
   /**
    * Returns a valid id token, refreshing if necessary.
-   * Shows reauthenticating overlay while refreshing.
-   * If refresh fails, redirects to login.
+   * Shows reauthenticating overlay while refreshing (unless `background` —
+   * used by the offline auto-retry so it doesn't pop the blocking overlay
+   * for a check the user didn't ask for).
+   * If refresh fails because the session is genuinely invalid, redirects to
+   * login. If it fails because Cognito couldn't be reached, flips `offline`
+   * instead and schedules a silent retry — see isNetworkFailure().
    */
-  async getValidToken(): Promise<string> {
+  async getValidToken(background = false): Promise<string> {
     if (!this.userPool) {
       this.redirectToLogin();
       throw new Error('Session expired. Redirecting to login...');
@@ -96,12 +123,17 @@ export class AuthService {
     return new Promise<string>((resolve, reject) => {
       // getSession() automatically refreshes the id token using the refresh token
       // if the current id token is expired but refresh token is still valid
-      this.reauthenticating.set(true);
+      if (!background) this.reauthenticating.set(true);
 
       user.getSession((err: any, session: CognitoUserSession | null) => {
-        this.reauthenticating.set(false);
+        if (!background) this.reauthenticating.set(false);
 
         if (err || !session || !session.isValid()) {
+          if (err && isNetworkFailure(err)) {
+            this.enterOffline();
+            reject(Object.assign(new Error('Offline — will retry automatically.'), { offline: true }));
+            return;
+          }
           this.redirectToLogin();
           reject(new Error('Session expired. Redirecting to login...'));
           return;
@@ -110,9 +142,43 @@ export class AuthService {
         const token = session.getIdToken().getJwtToken();
         this.isAuthenticated.set(true);
         this.storage.updateToken(token);
+        this.exitOffline();
         resolve(token);
       });
     });
+  }
+
+  /** Forces an immediate retry (browser `online` event, or a user-facing
+   * "Retry now" affordance) instead of waiting out the rest of the current
+   * 30-minute backoff. */
+  retryNow(): void {
+    if (!this.offline()) return;
+    void this.getValidToken(true);
+  }
+
+  /** Schedules the next background retry. Re-entrant by design: a retry
+   * that itself fails calls enterOffline() again (from getValidToken's own
+   * failure path) which reschedules — so this never needs to reschedule
+   * itself from its own timeout callback, only clear the timer handle and
+   * attempt the retry. */
+  private enterOffline(): void {
+    this.offline.set(true);
+    if (this.offlineRetryTimer) return; // already scheduled
+    this.nextRetryAt.set(Date.now() + OFFLINE_RETRY_MS);
+    this.offlineRetryTimer = setTimeout(() => {
+      this.offlineRetryTimer = null;
+      if (this.offline()) void this.getValidToken(true).catch(() => {});
+    }, OFFLINE_RETRY_MS);
+  }
+
+  private exitOffline(): void {
+    if (!this.offline() && this.offlineRetryTimer === null) return;
+    this.offline.set(false);
+    this.nextRetryAt.set(null);
+    if (this.offlineRetryTimer) {
+      clearTimeout(this.offlineRetryTimer);
+      this.offlineRetryTimer = null;
+    }
   }
 
   ensureTokenValid(): Promise<boolean> {
@@ -139,6 +205,7 @@ export class AuthService {
     if (user) user.signOut();
     this.isAuthenticated.set(false);
     this.ready.set(false);
+    this.exitOffline();
     this.router.navigate(['/login']);
   }
 
@@ -157,6 +224,7 @@ export class AuthService {
   private redirectToLogin(): void {
     this.isAuthenticated.set(false);
     this.ready.set(false);
+    this.exitOffline();
     this.router.navigate(['/login']);
   }
 

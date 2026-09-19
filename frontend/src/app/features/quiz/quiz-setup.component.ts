@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { packDisplayLabel } from '../../core/models/pack.model';
 import { QuizAttempt } from '../../core/models/quiz-attempt.model';
 import { QuizMode, QuizScope } from '../../core/models/quiz.model';
@@ -12,6 +13,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 @Component({
   selector: 'app-quiz-setup',
   standalone: true,
+  imports: [FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="setup-card">
@@ -122,7 +124,16 @@ import { I18nService } from '../../core/i18n/i18n.service';
         <span class="switch-label">{{ i18n.t('quizSetup.questions') }}</span>
         <div class="stepper">
           <button type="button" (click)="onChangeCount(-5)" [disabled]="effectiveCount() <= 1">−</button>
-          <span>{{ effectiveCount() }}</span>
+          <input
+            type="number"
+            inputmode="numeric"
+            class="stepper-input"
+            [ngModel]="effectiveCount()"
+            (ngModelChange)="onCountInput($event)"
+            [min]="1"
+            [max]="filteredCount()"
+            [attr.aria-label]="i18n.t('quizSetup.questions')"
+          />
           <button type="button" (click)="onChangeCount(5)" [disabled]="effectiveCount() >= filteredCount()">+</button>
         </div>
         <span class="hint-text">{{ i18n.t('quizSetup.ofAvailable', { count: filteredCount() }) }}</span>
@@ -235,6 +246,13 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .stepper button:hover:not(:disabled) { background: var(--bg-subtle); }
       .stepper button:disabled { opacity: 0.4; cursor: not-allowed; }
       .stepper span { min-width: 24px; text-align: center; font-weight: 600; font-size: var(--font-size-sm); }
+      .stepper-input {
+        width: 48px; min-width: 0; text-align: center; font-weight: 600; font-size: var(--font-size-sm);
+        border: none; background: transparent; color: var(--text-primary); font-family: var(--font-family);
+        -moz-appearance: textfield;
+      }
+      .stepper-input::-webkit-outer-spin-button, .stepper-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+      .stepper-input:focus { outline: none; }
       .hint-text { color: var(--text-faint); font-size: var(--font-size-xs); }
       .switch-label { font-size: var(--font-size-sm); color: var(--text-secondary); }
 
@@ -334,7 +352,7 @@ export class QuizSetupComponent {
 
   protected readonly effectiveCount = computed(() => {
     const max = Math.max(this.filteredCount(), 1);
-    const desired = this.countOverride() ?? Math.min(20, max);
+    const desired = this.countOverride() ?? max;
     return Math.max(1, Math.min(desired, max));
   });
 
@@ -359,6 +377,11 @@ export class QuizSetupComponent {
 
   onChangeCount(delta: number): void {
     this.countOverride.set(this.effectiveCount() + delta);
+  }
+
+  onCountInput(value: number): void {
+    if (!Number.isFinite(value)) return;
+    this.countOverride.set(Math.round(value));
   }
 
   answeredCount(attempt: QuizAttempt): number {

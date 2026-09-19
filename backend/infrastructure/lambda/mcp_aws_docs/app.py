@@ -19,6 +19,10 @@ import re
 from html.parser import HTMLParser
 from urllib.request import Request, urlopen
 
+from aws_xray_sdk.core import patch_all
+
+patch_all()
+
 SEARCH_ENDPOINT = "https://proxy.search.docs.aws.amazon.com/search"
 USER_AGENT = "cert-study-assistant-review-agent/1.0 (aws-documentation-lookup-tool)"
 

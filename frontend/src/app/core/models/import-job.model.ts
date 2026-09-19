@@ -12,6 +12,11 @@ export interface ImportJobFailure {
   index: number | null;
   error: string;
   preview: string | null;
+  /** Only set for a Phase 2 (AI-refine) failure — the CloudWatch request id
+   * that identifies exactly which import-explain invocation produced this
+   * failure, so its real logs can be looked up (see ImportReviewService.
+   * getDraftLogs). Null for Phase 1 (structure-extraction) failures. */
+  requestId?: string | null;
 }
 
 export interface ImportJob {

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { correctLetters } from '../../core/models/question.model';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
@@ -26,13 +26,26 @@ import { I18nService } from '../../core/i18n/i18n.service';
               <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
               {{ clockLabel(c) }}
             </span>
+            <button
+              type="button"
+              class="pause-btn"
+              (click)="quiz.paused() ? quiz.unpause() : quiz.pause()"
+              [attr.aria-label]="quiz.paused() ? i18n.t('quizRunner.resume') : i18n.t('quizRunner.pause')"
+            >
+              @if (quiz.paused()) {
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+              } @else {
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M7 5h4v14H7zm6 0h4v14h-4z"/></svg>
+              }
+            </button>
           }
           @if (isInstant()) {
             <span class="score-pill">{{ i18n.t('quizRunner.score', { correct: score().correct, answered: score().answered }) }}</span>
           }
         </header>
 
-        <div class="annotate-toolbar">
+        <div #toolbarSentinel></div>
+        <div class="annotate-toolbar" [class.stuck]="toolbarStuck()">
           <button
             type="button"
             class="tool-btn"
@@ -90,6 +103,12 @@ import { I18nService } from '../../core/i18n/i18n.service';
           </div>
         }
 
+        @if (quiz.paused()) {
+          <div class="paused-banner">
+            <p><strong>{{ i18n.t('quizRunner.paused') }}</strong> {{ i18n.t('quizRunner.pausedMessage') }}</p>
+            <button type="button" class="btn btn-primary" (click)="quiz.unpause()">{{ i18n.t('quizRunner.resume') }}</button>
+          </div>
+        } @else {
         <div class="runner-body">
           <div class="question-main">
             <div class="q-domain">
@@ -235,6 +254,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             }
           </aside>
         </div>
+        }
       </section>
 
       @if (debugEnabled()) {
@@ -261,8 +281,14 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .score-pill { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-secondary); background: var(--bg-elevated); padding: 4px var(--space-md); border-radius: var(--radius-pill); white-space: nowrap; }
       .clock-pill { display: inline-flex; align-items: center; gap: 4px; font-size: var(--font-size-sm); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-secondary); background: var(--bg-elevated); padding: 4px var(--space-md); border-radius: var(--radius-pill); white-space: nowrap; }
       .clock-pill.overtime { color: #fff; background: var(--color-red); }
+      .pause-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-secondary); cursor: pointer; flex-shrink: 0; }
+      .pause-btn:hover { border-color: var(--color-purple); color: var(--color-purple); }
+
+      .paused-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-lg); border-radius: var(--radius-md); background: var(--bg-elevated); border: 1px solid var(--bg-border); }
+      .paused-banner p { margin: 0; font-size: var(--font-size-sm); color: var(--text-primary); }
 
       .annotate-toolbar { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+      .annotate-toolbar.stuck { position: sticky; top: 0; z-index: 10; background: var(--bg-surface); box-shadow: var(--shadow-sm); padding: var(--space-sm) 0; }
       .tool-btn { display: inline-flex; align-items: center; gap: var(--space-xs); padding: 0 var(--space-md); min-height: 34px; border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-secondary); font-size: var(--font-size-sm); font-weight: 600; font-family: var(--font-family); cursor: pointer; }
       .tool-btn:hover { border-color: var(--color-purple); color: var(--color-purple); }
       .tool-btn.active { background: var(--bg-elevated); border-color: var(--color-purple); color: var(--color-purple); }
@@ -390,6 +416,9 @@ export class QuizRunnerComponent {
   protected readonly annotations = this.quiz.currentAnnotations;
   protected readonly noteOpen = signal(false);
 
+  private readonly toolbarSentinelRef = viewChild<{ nativeElement: HTMLElement }>('toolbarSentinel');
+  protected readonly toolbarStuck = signal(false);
+
   /** Temporary on-device diagnostic panel for the mobile Safari highlight/
    * strikethrough investigation — the on-screen panel needs ?debug=1 in the URL,
    * but every log line always prints to console too, unconditionally, so a
@@ -421,6 +450,7 @@ export class QuizRunnerComponent {
   }
 
   constructor() {
+    const destroyRef = inject(DestroyRef);
     console.log(`[QuizRunner] loaded — build marker: ${QuizRunnerComponent.BUILD_MARKER}`);
     if (this.debugEnabled()) {
       const onSelectionChange = () => {
@@ -428,8 +458,18 @@ export class QuizRunnerComponent {
         this.log(`selectionchange -> "${sel?.toString() ?? ''}" collapsed=${sel?.isCollapsed}`);
       };
       document.addEventListener('selectionchange', onSelectionChange);
-      inject(DestroyRef).onDestroy(() => document.removeEventListener('selectionchange', onSelectionChange));
+      destroyRef.onDestroy(() => document.removeEventListener('selectionchange', onSelectionChange));
     }
+
+    afterNextRender(() => {
+      const sentinel = this.toolbarSentinelRef()?.nativeElement;
+      if (!sentinel) return;
+      const observer = new IntersectionObserver(([entry]) => this.toolbarStuck.set(!entry.isIntersecting), {
+        threshold: 0,
+      });
+      observer.observe(sentinel);
+      destroyRef.onDestroy(() => observer.disconnect());
+    });
   }
 
   private readonly timeUpDismissed = signal(false);

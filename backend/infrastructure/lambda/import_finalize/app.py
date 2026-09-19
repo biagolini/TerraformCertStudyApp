@@ -29,7 +29,10 @@ import os
 import time
 
 import boto3
+from aws_xray_sdk.core import patch_all
 from boto3.dynamodb.conditions import Key
+
+patch_all()
 
 TABLE_NAME = os.environ["TABLE_NAME"]
 IMPORT_DRAFTS_TABLE_NAME = os.environ["IMPORT_DRAFTS_TABLE_NAME"]
@@ -66,6 +69,7 @@ def _normalize_failure(result):
             "index": result.get("index"),
             "error": result.get("error", "Unknown error"),
             "preview": result.get("preview"),
+            "requestId": result.get("requestId"),
         }
     chunk = result.get("chunk") or {}
     err = result.get("error") or {}
@@ -73,6 +77,7 @@ def _normalize_failure(result):
         "index": chunk.get("index"),
         "error": err.get("Cause") or err.get("Error") or "Unknown error",
         "preview": None,
+        "requestId": None,
     }
 
 

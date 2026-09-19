@@ -32,6 +32,7 @@ import uuid
 
 import boto3
 import httpx
+from aws_xray_sdk.core import patch_all
 from bedrock_agentcore import BedrockAgentCoreApp
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
@@ -43,6 +44,11 @@ from strands.tools.mcp.mcp_client import MCPClient
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("review_agent")
+
+# Instruments boto3/httpx calls this agent makes (Bedrock, the MCP Gateway
+# call) as X-Ray subsegments — see aws_agentcore.tf's agentcore_runtime role,
+# which already grants xray:PutTraceSegments/PutTelemetryRecords.
+patch_all()
 
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 GATEWAY_URL = os.environ.get("GATEWAY_URL", "")

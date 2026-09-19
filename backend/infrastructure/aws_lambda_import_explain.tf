@@ -48,6 +48,10 @@ resource "aws_lambda_function" "import_explain" {
 
   source_code_hash = null_resource.lambda_import_explain_build.triggers.code_hash
 
+  tracing_config {
+    mode = "Active"
+  }
+
   environment {
     variables = {
       TABLE_NAME               = aws_dynamodb_table.data.name
@@ -58,6 +62,11 @@ resource "aws_lambda_function" "import_explain" {
   }
 
   depends_on = [null_resource.lambda_import_explain_build, data.external.runtime]
+}
+
+resource "aws_cloudwatch_log_group" "lambda_import_explain" {
+  name              = "/aws/lambda/${aws_lambda_function.import_explain.function_name}"
+  retention_in_days = 14
 }
 
 resource "aws_iam_role" "lambda_import_explain" {

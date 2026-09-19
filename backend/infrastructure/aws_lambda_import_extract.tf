@@ -50,6 +50,10 @@ resource "aws_lambda_function" "import_extract" {
 
   source_code_hash = null_resource.lambda_import_extract_build.triggers.code_hash
 
+  tracing_config {
+    mode = "Active"
+  }
+
   environment {
     variables = {
       TABLE_NAME                  = aws_dynamodb_table.data.name

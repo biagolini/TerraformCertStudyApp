@@ -36,7 +36,10 @@ import re
 import time
 
 import boto3
+from aws_xray_sdk.core import patch_all
 from botocore.exceptions import ClientError
+
+patch_all()
 
 from prompt import build_system_prompt, build_tool_schema
 

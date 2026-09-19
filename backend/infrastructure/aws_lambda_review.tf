@@ -46,6 +46,10 @@ resource "aws_lambda_function" "review" {
     "arn:aws:lambda:${var.aws_region}:753240598075:layer:LambdaAdapterLayerArm64:27"
   ]
 
+  tracing_config {
+    mode = "Active"
+  }
+
   environment {
     variables = {
       AWS_LAMBDA_EXEC_WRAPPER = "/opt/bootstrap"

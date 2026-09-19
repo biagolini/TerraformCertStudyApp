@@ -42,6 +42,8 @@ export const ES: Record<string, string> = {
   'sync.notSyncedYet': 'Aún no sincronizado.',
   'sync.lastSynced': 'Sincronizado a las {{time}}',
   'sync.failedClickForDetails': 'Error de sincronización — haz clic para más detalles',
+  'offline.label': 'Sin conexión',
+  'offline.retryNow': 'Sin conexión — haz clic para reintentar ahora',
 
   // Import status pill
   'importPill.dialogLabel': 'Estado de importación de examen',
@@ -396,6 +398,10 @@ export const ES: Record<string, string> = {
   'importDraft.reExtracting': 'Reextrayendo…',
   'importDraft.reExtract': 'Reextraer',
   'importDraft.explanationFailed': 'Error al generar la explicación: {{error}}',
+  'importDraft.showLogs': 'Mostrar registros',
+  'importDraft.hideLogs': 'Ocultar registros',
+  'importDraft.loadingLogs': 'Cargando registros…',
+  'importDraft.noLogsFound': 'No se encontraron líneas de registro para esta ejecución.',
 
   // Import exam
   'importExam.pageTitle': 'Importar examen',
@@ -564,6 +570,10 @@ export const ES: Record<string, string> = {
   'quizRunner.markedForReview': 'Marcada para revisar',
   'quizRunner.answeredOfTotal': '{{answered}} de {{total}} respondidas',
   'quizRunner.flaggedCount': '{{count}} marcada(s) para revisar',
+  'quizRunner.pause': 'Pausar',
+  'quizRunner.resume': 'Reanudar',
+  'quizRunner.paused': 'Pausado.',
+  'quizRunner.pausedMessage': 'El reloj está detenido. Reanuda cuando estés listo para continuar.',
 
   // Quiz results
   'quizResults.title': 'Resultados del simulacro',

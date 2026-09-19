@@ -10,6 +10,7 @@ import { SettingsComponent } from './features/settings/settings.component';
 import { ThemeToggleComponent } from './shared/components/theme-toggle.component';
 import { SyncStatusComponent } from './shared/components/sync-status.component';
 import { ImportStatusPillComponent } from './shared/components/import-status-pill.component';
+import { OfflineIndicatorComponent } from './shared/components/offline-indicator.component';
 import { I18nService } from './core/i18n/i18n.service';
 
 @Component({
@@ -25,6 +26,7 @@ import { I18nService } from './core/i18n/i18n.service';
     ThemeToggleComponent,
     SyncStatusComponent,
     ImportStatusPillComponent,
+    OfflineIndicatorComponent,
   ],
   styleUrl: './app.component.scss',
   template: `
@@ -49,6 +51,7 @@ import { I18nService } from './core/i18n/i18n.service';
           </svg>
         </button>
         <div class="header-actions">
+          <app-offline-indicator />
           <app-import-status-pill />
           <app-sync-status />
           <app-theme-toggle />

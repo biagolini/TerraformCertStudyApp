@@ -226,6 +226,24 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
             <p class="error-line">{{ draft().error }}</p>
           } @else if (explainError()) {
             <p class="error-line">{{ i18n.t('importDraft.explanationFailed', { error: explainError() }) }}</p>
+            <button type="button" class="show-logs-btn" (click)="$event.stopPropagation(); toggleLogs()">
+              {{ logsOpen() ? i18n.t('importDraft.hideLogs') : i18n.t('importDraft.showLogs') }}
+            </button>
+            @if (logsOpen()) {
+              <div class="logs-panel" (click)="$event.stopPropagation()">
+                @if (loadingLogs()) {
+                  <p class="logs-status">{{ i18n.t('importDraft.loadingLogs') }}</p>
+                } @else if (logsError()) {
+                  <p class="error-line">{{ logsError() }}</p>
+                } @else if (logEvents() && logEvents()!.length === 0) {
+                  <p class="logs-status">{{ i18n.t('importDraft.noLogsFound') }}</p>
+                } @else if (logEvents()) {
+                  @for (event of logEvents(); track $index) {
+                    <div class="log-line"><span class="log-ts">{{ formatLogTimestamp(event.timestamp) }}</span> {{ event.message }}</div>
+                  }
+                }
+              </div>
+            }
           }
           @if (draft().stem) {
             <div class="stem">
@@ -483,6 +501,47 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
         font-size: var(--font-size-xs);
         color: var(--text-faint);
       }
+      .show-logs-btn {
+        align-self: flex-start;
+        padding: 2px var(--space-sm);
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--bg-border);
+        background: var(--bg-input);
+        color: var(--text-secondary);
+        font-size: var(--font-size-xs);
+        font-weight: 600;
+      }
+      .show-logs-btn:hover {
+        border-color: var(--color-purple);
+        color: var(--color-purple);
+      }
+      .logs-panel {
+        margin-top: var(--space-xs);
+        padding: var(--space-sm);
+        border-radius: var(--radius-md);
+        background: #0d0d0f;
+        color: #d4d4d8;
+        font-family: 'SF Mono', Menlo, monospace;
+        font-size: 11px;
+        line-height: 1.5;
+        max-height: 240px;
+        overflow-y: auto;
+      }
+      .logs-status {
+        margin: 0;
+        color: var(--text-faint);
+        font-size: var(--font-size-xs);
+      }
+      .log-line {
+        white-space: pre-wrap;
+        word-break: break-word;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 2px 0;
+      }
+      .log-ts {
+        color: #7cfc7c;
+        margin-right: var(--space-xs);
+      }
       .hint-form {
         display: flex;
         gap: var(--space-xs);
@@ -720,6 +779,11 @@ export class ImportDraftItemComponent {
   protected readonly hintOpen = signal(false);
   protected hintText = '';
 
+  protected readonly logsOpen = signal(false);
+  protected readonly loadingLogs = signal(false);
+  protected readonly logEvents = signal<{ timestamp: number; message: string }[] | null>(null);
+  protected readonly logsError = signal<string | null>(null);
+
   // Public (not `protected`) — the review page reads this via a viewChild
   // query to gate navigating away from an in-progress edit, see
   // import-review-page.component.ts's tryNavigate.
@@ -749,6 +813,28 @@ export class ImportDraftItemComponent {
 
   toggleHint(): void {
     this.hintOpen.update((open) => !open);
+  }
+
+  async toggleLogs(): Promise<void> {
+    const opening = !this.logsOpen();
+    this.logsOpen.set(opening);
+    if (!opening || this.logEvents() !== null || this.loadingLogs()) return;
+    this.loadingLogs.set(true);
+    this.logsError.set(null);
+    try {
+      const result = await this.reviewService.getDraftLogs(this.jobId(), this.draft().index);
+      if (result.error) {
+        this.logsError.set(result.error);
+      } else {
+        this.logEvents.set(result.events);
+      }
+    } finally {
+      this.loadingLogs.set(false);
+    }
+  }
+
+  formatLogTimestamp(ts: number): string {
+    return new Date(ts).toISOString().slice(11, 23);
   }
 
   submitReExtract(): void {
