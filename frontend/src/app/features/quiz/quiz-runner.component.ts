@@ -8,6 +8,8 @@ import { resolveTranslationTargetLabel } from '../../core/utils/translate-prompt
 import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.component';
 import { QuizAnnotatedTextComponent } from './quiz-annotated-text.component';
 import { formatClock, QuizService } from '../../core/services/quiz.service';
+import { splitQuizToolRows } from '../../core/models/quiz-tool.model';
+import { ViewportService } from '../../core/services/viewport.service';
 import { BedrockService, TranslatedReviewContent } from '../../core/services/bedrock.service';
 import { QuestionsService } from '../../core/services/questions.service';
 import { SettingsService } from '../../core/services/settings.service';
@@ -48,60 +50,104 @@ import { I18nService } from '../../core/i18n/i18n.service';
         </header>
 
         <div #toolbarSentinel></div>
+        @if (toolRows().length > 0) {
         <div class="annotate-toolbar" [class.stuck]="toolbarStuck()">
-          <button
-            type="button"
-            class="tool-btn"
-            (mousedown)="onToolPointerDown('Highlight', $event)"
-            (touchstart)="onToolPointerDown('Highlight', $event)"
-            (touchend)="onHighlightTouchEnd($event)"
-            (click)="onHighlightClick()"
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9 11l6-6 4 4-6 6m-4-4l-3 7 7-3m-4-4l4 4"/></svg>
-            <span>{{ i18n.t('quizRunner.highlight') }}</span>
-          </button>
-          <button
-            type="button"
-            class="tool-btn"
-            (mousedown)="onToolPointerDown('Strikethrough', $event)"
-            (touchstart)="onToolPointerDown('Strikethrough', $event)"
-            (touchend)="onStrikethroughTouchEnd($event)"
-            (click)="onStrikethroughClick()"
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 12h16M8 12c0-2 1.5-4 4-4s4 1 4 2M8 12c0 2 1.5 5 4 5 2.5 0 3.5-1.3 4-2.5"/></svg>
-            <span>{{ i18n.t('quizRunner.strikethrough') }}</span>
-          </button>
-          <button
-            type="button"
-            class="tool-btn"
-            [disabled]="!quiz.hasCurrentMarks()"
-            (click)="onClearMarksClick()"
-            [attr.aria-label]="i18n.t('quizRunner.clearMarksAriaLabel')"
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M20 20H9l-6-6a2 2 0 010-2.8L12.6 2.6a2 2 0 012.8 0l5.7 5.7a2 2 0 010 2.8L14 18"/></svg>
-            <span>{{ i18n.t('quizRunner.clearMarks') }}</span>
-          </button>
-          <button type="button" class="tool-btn" [class.active]="noteOpen()" (click)="onNoteToggleClick()">
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 5h16v11H8l-4 4V5z"/></svg>
-            <span>{{ i18n.t('quizRunner.note') }}</span>
-          </button>
-          <button
-            type="button"
-            class="tool-btn"
-            [class.active]="showTranslated()"
-            [disabled]="translating()"
-            (click)="onToggleTranslate(q)"
-            [attr.aria-pressed]="showTranslated()"
-            [title]="showTranslated() ? i18n.t('reviewViewer.showOriginal') : i18n.t('reviewViewer.translateTooltip', { language: translateTargetLabel() })"
-          >
-            @if (translating()) {
-              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" class="spin"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.5" stroke-dasharray="40" stroke-linecap="round"/></svg>
-            } @else {
-              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M5 8h9M9.5 5v3M13 8a12 12 0 01-6.5 8M8 12a10.7 10.7 0 006 5M13 20l4-9 4 9M14.7 17h4.6"/></svg>
-            }
-            <span>{{ showTranslated() ? i18n.t('reviewViewer.showOriginal') : i18n.t('reviewViewer.translate') }}</span>
-          </button>
+          @for (row of toolRows(); track $index) {
+            <div class="toolbar-row">
+              @for (tool of row; track tool.id) {
+                @switch (tool.id) {
+                  @case ('highlight') {
+                    <button
+                      type="button"
+                      class="tool-btn"
+                      (mousedown)="onToolPointerDown('Highlight', $event)"
+                      (touchstart)="onToolPointerDown('Highlight', $event)"
+                      (touchend)="onHighlightTouchEnd($event)"
+                      (click)="onHighlightClick()"
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9 11l6-6 4 4-6 6m-4-4l-3 7 7-3m-4-4l4 4"/></svg>
+                      <span>{{ i18n.t('quizRunner.highlight') }}</span>
+                    </button>
+                  }
+                  @case ('strikethrough') {
+                    <button
+                      type="button"
+                      class="tool-btn"
+                      (mousedown)="onToolPointerDown('Strikethrough', $event)"
+                      (touchstart)="onToolPointerDown('Strikethrough', $event)"
+                      (touchend)="onStrikethroughTouchEnd($event)"
+                      (click)="onStrikethroughClick()"
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 12h16M8 12c0-2 1.5-4 4-4s4 1 4 2M8 12c0 2 1.5 5 4 5 2.5 0 3.5-1.3 4-2.5"/></svg>
+                      <span>{{ i18n.t('quizRunner.strikethrough') }}</span>
+                    </button>
+                  }
+                  @case ('clearMarks') {
+                    <button
+                      type="button"
+                      class="tool-btn"
+                      [disabled]="!quiz.hasCurrentMarks()"
+                      (click)="onClearMarksClick()"
+                      [attr.aria-label]="i18n.t('quizRunner.clearMarksAriaLabel')"
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M20 20H9l-6-6a2 2 0 010-2.8L12.6 2.6a2 2 0 012.8 0l5.7 5.7a2 2 0 010 2.8L14 18"/></svg>
+                      <span>{{ i18n.t('quizRunner.clearMarks') }}</span>
+                    </button>
+                  }
+                  @case ('note') {
+                    <button type="button" class="tool-btn" [class.active]="noteOpen()" (click)="onNoteToggleClick()">
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 5h16v11H8l-4 4V5z"/></svg>
+                      <span>{{ i18n.t('quizRunner.note') }}</span>
+                    </button>
+                  }
+                  @case ('translate') {
+                    <button
+                      type="button"
+                      class="tool-btn"
+                      [class.active]="showTranslated()"
+                      [disabled]="translating()"
+                      (click)="onToggleTranslate(q)"
+                      [attr.aria-pressed]="showTranslated()"
+                      [title]="showTranslated() ? i18n.t('reviewViewer.showOriginal') : i18n.t('reviewViewer.translateTooltip', { language: translateTargetLabel() })"
+                    >
+                      @if (translating()) {
+                        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" class="spin"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.5" stroke-dasharray="40" stroke-linecap="round"/></svg>
+                      } @else {
+                        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M5 8h9M9.5 5v3M13 8a12 12 0 01-6.5 8M8 12a10.7 10.7 0 006 5M13 20l4-9 4 9M14.7 17h4.6"/></svg>
+                      }
+                      <span>{{ showTranslated() ? i18n.t('reviewViewer.showOriginal') : i18n.t('reviewViewer.translate') }}</span>
+                    </button>
+                  }
+                  @case ('checkAnswer') {
+                    <button
+                      type="button"
+                      class="tool-btn"
+                      [disabled]="answer().checked || answer().selected.length === 0"
+                      (click)="quiz.checkAnswer()"
+                      [attr.aria-label]="i18n.t('quizRunner.checkAnswer')"
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7"/></svg>
+                      <span>{{ i18n.t('quizRunner.checkAnswer') }}</span>
+                    </button>
+                  }
+                  @case ('nextQuestion') {
+                    <button
+                      type="button"
+                      class="tool-btn"
+                      [disabled]="isLast()"
+                      (click)="quiz.next()"
+                      [attr.aria-label]="i18n.t('quizRunner.nextQuestion')"
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M5 12h13m0 0l-5-5m5 5l-5 5"/></svg>
+                      <span>{{ i18n.t('importReview.next') }}</span>
+                    </button>
+                  }
+                }
+              }
+            </div>
+          }
         </div>
+        }
         @if (translateError()) {
           <p class="translate-error" role="alert">{{ translateError() }}</p>
         }
@@ -177,6 +223,16 @@ import { I18nService } from '../../core/i18n/i18n.service';
               >
                 <span class="option-letter">{{ opt.letter }}</span>
                 <div class="option-body">
+                  @if (showFeedback() && isSelected(opt.letter)) {
+                    <div class="your-answer" [class.ok]="opt.isCorrect" [class.bad]="!opt.isCorrect" role="status">
+                      @if (opt.isCorrect) {
+                        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7"/></svg>
+                      } @else {
+                        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6L6 18"/></svg>
+                      }
+                      <span>{{ answerVerdictLabel(opt.isCorrect) }}</span>
+                    </div>
+                  }
                   <div class="option-text">
                     @if (showTranslated()) {
                       <app-markdown-renderer [source]="displayAltText(opt, i)" />
@@ -325,7 +381,8 @@ import { I18nService } from '../../core/i18n/i18n.service';
        * Clear marks/Note/Translate) on one row instead of wrapping to two
        * on a narrow phone screen, and frees up more vertical room for the
        * question itself. */
-      .annotate-toolbar { display: flex; gap: var(--space-xs); }
+      .annotate-toolbar { display: flex; flex-direction: column; gap: var(--space-xs); }
+      .toolbar-row { display: flex; gap: var(--space-xs); }
       /* top matches --header-height, not 0 — the page's own .app-header is
        * ALSO position:sticky/top:0/z-index:10 (app.component.scss), so
        * sticking to 0 here landed the toolbar underneath/behind the header
@@ -409,6 +466,12 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .option-card.correct .option-letter { background: var(--color-green); color: #fff; }
       .option-card.incorrect .option-letter { background: var(--color-red); color: #fff; }
       .option-body { flex: 1; min-width: 0; }
+      /* Verdict banner on the alternative the user picked, so "did I get it
+       * right?" is answerable without comparing the green/red borders — and,
+       * in multi-select, per choice rather than for the question as a whole. */
+      .your-answer { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 var(--space-xs); padding: 2px var(--space-sm); border-radius: var(--radius-pill); font-size: var(--font-size-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+      .your-answer.ok { color: var(--color-green); background: rgba(0, 184, 148, 0.14); }
+      .your-answer.bad { color: var(--color-red); background: rgba(214, 48, 49, 0.14); }
       .option-text { display: block; font-size: var(--font-size-base); color: var(--text-primary); line-height: 1.5; }
       .option-comment { margin: var(--space-sm) 0 0; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); background: var(--bg-elevated); border-left: 2px solid var(--bg-border); font-size: var(--font-size-sm); color: var(--text-muted); line-height: 1.5; }
       .option-comment-label { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; color: var(--text-faint); font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -456,6 +519,7 @@ export class QuizRunnerComponent {
   private readonly questionsService = inject(QuestionsService);
   private readonly bedrock = inject(BedrockService);
   private readonly appSettings = inject(SettingsService);
+  private readonly viewport = inject(ViewportService);
   protected readonly i18n = inject(I18nService);
 
   protected readonly question = this.quiz.currentQuestion;
@@ -505,6 +569,28 @@ export class QuizRunnerComponent {
 
   private readonly toolbarSentinelRef = viewChild<{ nativeElement: HTMLElement }>('toolbarSentinel');
   protected readonly toolbarStuck = signal(false);
+
+  /** The toolbar is "compact" once it has detached from the flow and is pinned at
+   * the top of a phone-width viewport: the point where the question's own bottom
+   * action row (Check answer / Next) has scrolled out of reach and it is worth
+   * surfacing those two actions up here. Desktop keeps them out of the toolbar,
+   * where the bottom row is always in view. */
+  protected readonly compactToolbar = computed(() => this.toolbarStuck() && this.viewport.isMobile());
+
+  /** User-configured tool set (see SettingsComponent's "Quiz toolbar" block),
+   * minus the ones that don't apply in the current context. */
+  protected readonly visibleTools = computed(() => {
+    const hidden = new Set(this.appSettings.hiddenQuizTools());
+    const compact = this.compactToolbar();
+    const instant = this.isInstant();
+    return this.appSettings
+      .orderedQuizTools()
+      .filter((tool) => !hidden.has(tool.id))
+      .filter((tool) => (tool.compactOnly ? compact : true))
+      .filter((tool) => (tool.instantOnly ? instant : true));
+  });
+
+  protected readonly toolRows = computed(() => splitQuizToolRows(this.visibleTools(), this.appSettings.quizToolbarRows()));
 
   /** Temporary on-device diagnostic panel for the mobile Safari highlight/
    * strikethrough investigation — the on-screen panel needs ?debug=1 in the URL,
@@ -648,6 +734,15 @@ export class QuizRunnerComponent {
 
   isSelected(letter: string): boolean {
     return this.answer().selected.includes(letter);
+  }
+
+  /** Multi-select gets "choice" wording: with several picks, a per-alternative
+   * verdict is not the verdict for the question. */
+  answerVerdictLabel(isCorrect: boolean): string {
+    if (this.isMultiSelect()) {
+      return isCorrect ? this.i18n.t('quizRunner.yourChoiceCorrect') : this.i18n.t('quizRunner.yourChoiceIncorrect');
+    }
+    return isCorrect ? this.i18n.t('quizRunner.yourAnswerCorrect') : this.i18n.t('quizRunner.yourAnswerIncorrect');
   }
 
   onSelect(letter: string): void {

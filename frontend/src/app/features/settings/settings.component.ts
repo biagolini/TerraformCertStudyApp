@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NAV_ITEMS, NavTabId } from '../../core/models/nav-item.model';
+import { MAX_QUIZ_TOOLBAR_ROWS, QuizToolId } from '../../core/models/quiz-tool.model';
 import { OUTPUT_LANGUAGES } from '../../core/models/settings.model';
 import { INTERFACE_LANGUAGES, InterfaceLanguage } from '../../core/models/i18n.model';
 import { AuthService } from '../../core/services/auth.service';
@@ -273,6 +274,83 @@ import { I18nService } from '../../core/i18n/i18n.service';
           }
         </section>
 
+        <section class="block">
+          <header class="section-header">
+            <h3>{{ i18n.t('settings.quizToolbar') }}</h3>
+            <p class="helper">{{ i18n.t('settings.quizToolbarHelp') }}</p>
+          </header>
+          @for (tool of orderedQuizTools(); track tool.id; let i = $index, count = $count) {
+            <div class="nav-order-row">
+              <div class="reorder-buttons">
+                <button
+                  type="button"
+                  class="reorder-btn"
+                  [disabled]="i === 0"
+                  (click)="onMoveQuizTool(tool.id, 'up')"
+                  [attr.aria-label]="i18n.t('settings.moveUp', { name: i18n.t(tool.labelKey) })"
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                    <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 15l6-6 6 6" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="reorder-btn"
+                  [disabled]="i === count - 1"
+                  (click)="onMoveQuizTool(tool.id, 'down')"
+                  [attr.aria-label]="i18n.t('settings.moveDown', { name: i18n.t(tool.labelKey) })"
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                    <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+              </div>
+              <label class="switch-row">
+                <button
+                  type="button"
+                  class="switch"
+                  [class.on]="!hiddenQuizTools().includes(tool.id)"
+                  (click)="onToggleQuizTool(tool.id)"
+                  role="switch"
+                  [attr.aria-checked]="!hiddenQuizTools().includes(tool.id)"
+                  [attr.aria-label]="i18n.t('settings.showInQuizToolbar', { name: i18n.t(tool.labelKey) })"
+                ><span class="thumb"></span></button>
+                <span>
+                  {{ i18n.t(tool.labelKey) }}
+                  @if (tool.compactOnly) {
+                    <span class="tool-tag">{{ i18n.t('settings.quizToolbarPhoneOnly') }}</span>
+                  }
+                </span>
+              </label>
+            </div>
+          }
+          <div class="rows-row">
+            <span class="rows-label">{{ i18n.t('settings.quizToolbarRows') }}</span>
+            <div class="stepper">
+              <button
+                type="button"
+                class="reorder-btn wide"
+                [disabled]="quizToolbarRows() <= 1"
+                (click)="onQuizToolbarRowsChange(quizToolbarRows() - 1)"
+                [attr.aria-label]="i18n.t('settings.quizToolbarFewerRows')"
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M5 12h14" /></svg>
+              </button>
+              <span class="rows-value">{{ quizToolbarRows() }}</span>
+              <button
+                type="button"
+                class="reorder-btn wide"
+                [disabled]="quizToolbarRows() >= maxQuizToolbarRows()"
+                (click)="onQuizToolbarRowsChange(quizToolbarRows() + 1)"
+                [attr.aria-label]="i18n.t('settings.quizToolbarMoreRows')"
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
+              </button>
+            </div>
+          </div>
+          <p class="helper">{{ i18n.t('settings.quizToolbarRowsHelp') }}</p>
+        </section>
+
         <section class="block danger">
           <header class="section-header">
             <h3>{{ i18n.t('settings.dangerZone') }}</h3>
@@ -480,6 +558,44 @@ import { I18nService } from '../../core/i18n/i18n.service';
         opacity: 0.3;
         cursor: not-allowed;
       }
+      .reorder-btn.wide {
+        width: 28px;
+        height: 24px;
+      }
+      .tool-tag {
+        margin-left: var(--space-xs);
+        padding: 1px 6px;
+        border-radius: var(--radius-pill);
+        background: var(--bg-elevated);
+        color: var(--text-faint);
+        font-size: var(--font-size-xs);
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .rows-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-sm);
+        margin-top: var(--space-sm);
+      }
+      .rows-label {
+        font-size: var(--font-size-sm);
+        color: var(--text-secondary);
+      }
+      .stepper {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+      }
+      .rows-value {
+        min-width: 1.5em;
+        text-align: center;
+        font-size: var(--font-size-base);
+        font-weight: 700;
+        color: var(--text-primary);
+        font-variant-numeric: tabular-nums;
+      }
       .switch {
         width: 38px;
         height: 22px;
@@ -565,6 +681,15 @@ export class SettingsComponent {
   protected readonly interfaceLanguages = INTERFACE_LANGUAGES;
   protected readonly navItems = NAV_ITEMS;
   protected readonly orderedNavItems = this.settings.orderedNavItems;
+  protected readonly orderedQuizTools = this.settings.orderedQuizTools;
+  /** Asking for more rows than there are visible buttons would leave an empty
+   * row, so the stepper stops at the point where every row still gets one
+   * button (the same rule splitQuizToolRows enforces at render time). */
+  protected readonly maxQuizToolbarRows = computed(() => {
+    const hidden = this.settings.hiddenQuizTools();
+    const visible = this.orderedQuizTools().filter((tool) => !hidden.includes(tool.id)).length;
+    return Math.max(1, Math.min(MAX_QUIZ_TOOLBAR_ROWS, visible));
+  });
 
   readonly closed = output<void>();
 
@@ -580,6 +705,8 @@ export class SettingsComponent {
   readonly defaultTrackTime = this.settings.defaultTrackTime;
   readonly defaultUseAccommodation = this.settings.defaultUseAccommodation;
   readonly hiddenNavTabs = this.settings.hiddenNavTabs;
+  readonly hiddenQuizTools = this.settings.hiddenQuizTools;
+  readonly quizToolbarRows = this.settings.quizToolbarRows;
 
   readonly syncStatus = this.storage.syncStatus;
   readonly syncError = this.storage.lastError;
@@ -658,6 +785,22 @@ export class SettingsComponent {
 
   onMoveNavTab(id: NavTabId, direction: 'up' | 'down'): void {
     this.settings.moveNavTab(id, direction);
+  }
+
+  onToggleQuizTool(id: QuizToolId): void {
+    this.settings.toggleQuizTool(id);
+    // Hiding buttons can push the current row count past what is now
+    // representable — clamp it instead of leaving a phantom empty row.
+    const max = this.maxQuizToolbarRows();
+    if (this.quizToolbarRows() > max) this.settings.setQuizToolbarRows(max);
+  }
+
+  onMoveQuizTool(id: QuizToolId, direction: 'up' | 'down'): void {
+    this.settings.moveQuizTool(id, direction);
+  }
+
+  onQuizToolbarRowsChange(rows: number): void {
+    this.settings.setQuizToolbarRows(Math.min(rows, this.maxQuizToolbarRows()));
   }
 
   isLastVisibleNavTab(id: NavTabId): boolean {

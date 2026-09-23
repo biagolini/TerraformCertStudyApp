@@ -34,6 +34,8 @@ Pack-scoped sections (`questions`, `import`) never render without a pack in the 
 
 The tab bar is user-configurable: `SettingsService.orderedNavItems()` drives which items show and in what order, and the item ids (`questions`, `import`, `quiz`, `transcripts`, `chat`, `export`, `costs`) match the route paths.
 
+The quiz question toolbar is configurable the same way, through `QUIZ_TOOLS` in `core/models/quiz-tool.model.ts` plus `hiddenQuizTools` / `quizToolOrder` / `quizToolbarRows` in `AppSettings`: Settings picks which buttons show, their order, and how many rows (up to 3) they are split over, and `splitQuizToolRows` only materializes a row when there is at least one button for it. Two of the tools (`checkAnswer`, `nextQuestion`) are flagged `compactOnly` and render only while the toolbar is pinned to the top of a phone-width viewport, where the question's own bottom action row has scrolled out of reach; `checkAnswer` additionally only applies in instant-feedback mode.
+
 `authGuard` does two things: `AuthService.ensureTokenValid()` and then waits (up to 10s) for `StorageService.ready()`, so a page never renders against a half-loaded local store.
 
 ## Project Structure
@@ -73,7 +75,7 @@ All services live in `core/services/` and are `{ providedIn: 'root' }` singleton
 | `QuizService` / `QuizAttemptsService` | Quiz run state (clock, answers, annotations, flags) and persisted attempts |
 | `ChatService` | Chat session CRUD, message append/streaming, summary management |
 | `ScriptsService` | Transcript CRUD |
-| `SettingsService` | User preferences (interface language, nav order, translation target) |
+| `SettingsService` | User preferences (interface language, nav order, quiz toolbar layout, translation target) |
 | `UsageService` | Token usage / cost records for the Costs page |
 | `ImportExamService` / `ImportReviewService` | Bulk import upload, job polling, draft review |
 | `ExportService` | Build Markdown content, download files, ZIP for multi-file exports |

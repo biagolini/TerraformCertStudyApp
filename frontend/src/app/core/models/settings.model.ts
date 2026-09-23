@@ -2,6 +2,7 @@ export type ThemeMode = 'light' | 'dark';
 
 import { StudyMethod } from './method.model';
 import { DEFAULT_NAV_ORDER, NavTabId } from './nav-item.model';
+import { DEFAULT_QUIZ_TOOL_ORDER, QuizToolId } from './quiz-tool.model';
 import { InterfaceLanguage } from './i18n.model';
 
 export type ReviewMode = 'generate' | 'manual';
@@ -35,6 +36,16 @@ export interface AppSettings {
    * which tolerates a stale/incomplete list (a nav item added after this
    * was saved, or one that no longer exists). */
   navOrder: NavTabId[];
+  /** Quiz annotation-toolbar buttons the user has chosen to hide — see
+   * QUIZ_TOOLS. Default empty (all visible). */
+  hiddenQuizTools: QuizToolId[];
+  /** Display order of the quiz annotation-toolbar buttons — see QUIZ_TOOLS
+   * and resolveQuizToolOrder. */
+  quizToolOrder: QuizToolId[];
+  /** How many rows the quiz toolbar is split into (1 by default, capped at
+   * MAX_QUIZ_TOOLBAR_ROWS). Rows are only materialized when there is at least
+   * one button per row — see splitQuizToolRows. */
+  quizToolbarRows: number;
 }
 
 export const DEFAULT_MODEL = 'amazon.nova-lite-v1:0';
@@ -60,6 +71,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultUseAccommodation: false,
   hiddenNavTabs: [],
   navOrder: DEFAULT_NAV_ORDER,
+  hiddenQuizTools: [],
+  quizToolOrder: DEFAULT_QUIZ_TOOL_ORDER,
+  quizToolbarRows: 1,
 };
 
 export function isReviewMode(value: string): value is ReviewMode {

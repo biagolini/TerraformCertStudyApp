@@ -1,6 +1,12 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { StudyMethod } from '../models/method.model';
 import { DEFAULT_NAV_ORDER, NAV_ITEMS, NavTabId, resolveNavOrder } from '../models/nav-item.model';
+import {
+  DEFAULT_QUIZ_TOOL_ORDER,
+  MAX_QUIZ_TOOLBAR_ROWS,
+  QuizToolId,
+  resolveQuizToolOrder,
+} from '../models/quiz-tool.model';
 import { AppSettings, DEFAULT_SETTINGS, ReviewMode, ThemeMode } from '../models/settings.model';
 import { InterfaceLanguage } from '../models/i18n.model';
 import { StorageService } from './storage.service';
@@ -28,6 +34,10 @@ export class SettingsService {
   /** Every current nav item, in the user's chosen display order — see
    * resolveNavOrder for how a stale/incomplete stored order is handled. */
   readonly orderedNavItems = computed(() => resolveNavOrder(this.state().navOrder ?? DEFAULT_NAV_ORDER));
+  readonly hiddenQuizTools = computed(() => this.state().hiddenQuizTools ?? []);
+  /** Every quiz toolbar button, in the user's chosen display order. */
+  readonly orderedQuizTools = computed(() => resolveQuizToolOrder(this.state().quizToolOrder ?? DEFAULT_QUIZ_TOOL_ORDER));
+  readonly quizToolbarRows = computed(() => this.state().quizToolbarRows ?? 1);
 
   constructor() {
     effect(() => {
@@ -118,6 +128,32 @@ export class SettingsService {
     if (index === -1 || swapWith < 0 || swapWith >= order.length) return;
     [order[index], order[swapWith]] = [order[swapWith], order[index]];
     this.update((s) => ({ ...s, navOrder: order }));
+  }
+
+  /** Hiding every tool is allowed here (unlike the bottom nav, where it would
+   * lock the user out of Settings): the toolbar is a convenience layer and the
+   * same actions still exist at the bottom of the question. */
+  toggleQuizTool(id: QuizToolId): void {
+    const current = this.hiddenQuizTools();
+    const next = current.includes(id) ? current.filter((t) => t !== id) : [...current, id];
+    this.update((s) => ({ ...s, hiddenQuizTools: next }));
+  }
+
+  /** Swaps `id` with its neighbor — same "operate on the resolved order, not the
+   * raw stored one" approach as moveNavTab. */
+  moveQuizTool(id: QuizToolId, direction: 'up' | 'down'): void {
+    const order = this.orderedQuizTools().map((tool) => tool.id);
+    const index = order.indexOf(id);
+    const swapWith = direction === 'up' ? index - 1 : index + 1;
+    if (index === -1 || swapWith < 0 || swapWith >= order.length) return;
+    [order[index], order[swapWith]] = [order[swapWith], order[index]];
+    this.update((s) => ({ ...s, quizToolOrder: order }));
+  }
+
+  setQuizToolbarRows(rows: number): void {
+    const clamped = Math.max(1, Math.min(MAX_QUIZ_TOOLBAR_ROWS, Math.trunc(rows) || 1));
+    if (clamped === this.quizToolbarRows()) return;
+    this.update((s) => ({ ...s, quizToolbarRows: clamped }));
   }
 
   private update(updater: (current: AppSettings) => AppSettings): void {

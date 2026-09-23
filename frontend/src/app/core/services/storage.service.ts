@@ -12,6 +12,7 @@ import { QuizAttempt } from '../models/quiz-attempt.model';
 import { AppSettings, DEFAULT_SETTINGS, isReviewMode } from '../models/settings.model';
 import { isStudyMethod } from '../models/method.model';
 import { NAV_ITEMS, NavTabId } from '../models/nav-item.model';
+import { MAX_QUIZ_TOOLBAR_ROWS, isQuizToolId } from '../models/quiz-tool.model';
 import { isInterfaceLanguage } from '../models/i18n.model';
 import { environment } from '../../../environments/environment';
 
@@ -649,6 +650,16 @@ export class StorageService {
         navOrder: Array.isArray(parsed.navOrder)
           ? parsed.navOrder.filter((id): id is NavTabId => NAV_ITEMS.some((item) => item.id === id))
           : DEFAULT_SETTINGS.navOrder,
+        hiddenQuizTools: Array.isArray(parsed.hiddenQuizTools)
+          ? parsed.hiddenQuizTools.filter(isQuizToolId)
+          : DEFAULT_SETTINGS.hiddenQuizTools,
+        quizToolOrder: Array.isArray(parsed.quizToolOrder)
+          ? parsed.quizToolOrder.filter(isQuizToolId)
+          : DEFAULT_SETTINGS.quizToolOrder,
+        quizToolbarRows:
+          typeof parsed.quizToolbarRows === 'number' && Number.isFinite(parsed.quizToolbarRows)
+            ? Math.max(1, Math.min(MAX_QUIZ_TOOLBAR_ROWS, Math.trunc(parsed.quizToolbarRows)))
+            : DEFAULT_SETTINGS.quizToolbarRows,
       };
     } catch { return { ...DEFAULT_SETTINGS }; }
   }
