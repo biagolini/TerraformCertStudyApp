@@ -1,0 +1,53 @@
+<!-- @dsCard group="Foundations" -->
+<!doctype html>
+<html class="theme-light">
+<head>
+  <meta charset="utf-8">
+  <title>Typography &amp; spacing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    .type-row { display: flex; align-items: baseline; gap: var(--space-md); padding: var(--space-sm) 0; border-bottom: 1px solid var(--bg-border); }
+    .type-row .label { width: 160px; flex-shrink: 0; color: var(--text-muted); font-size: var(--font-size-xs); font-family: var(--font-mono); }
+    .space-row { display: flex; align-items: center; gap: var(--space-md); padding: var(--space-xs) 0; }
+    .space-row .bar { background: var(--color-purple); height: 12px; border-radius: 2px; }
+    .space-row .label { width: 120px; color: var(--text-muted); font-size: var(--font-size-xs); font-family: var(--font-mono); }
+  </style>
+</head>
+<body>
+  <div class="ds-toolbar"><button class="ds-theme-toggle" onclick="document.documentElement.classList.toggle('theme-dark'); document.documentElement.classList.toggle('theme-light');">Toggle theme</button></div>
+  <div class="ds-page">
+    <section class="ds-section">
+      <h2>Type scale</h2>
+      <p class="ds-hint">Inter, loaded from Google Fonts (see <code>frontend/src/index.html</code>). Falls back to <code>system-ui, -apple-system, sans-serif</code>.</p>
+      <div class="type-row"><span class="label">font-size-xl / 18px / 600</span><span style="font-size:var(--font-size-xl);font-weight:600">Section heading</span></div>
+      <div class="type-row"><span class="label">font-size-lg / 16px / 600</span><span style="font-size:var(--font-size-lg);font-weight:600">Card title</span></div>
+      <div class="type-row"><span class="label">font-size-base / 14px / 400</span><span style="font-size:var(--font-size-base)">Body text — question titles, form inputs, buttons.</span></div>
+      <div class="type-row"><span class="label">font-size-sm / 11px / 400</span><span style="font-size:var(--font-size-sm);color:var(--text-muted)">Helper text, labels, timestamps.</span></div>
+      <div class="type-row"><span class="label">font-size-xs / 10px / 600</span><span style="font-size:var(--font-size-xs);font-weight:600;text-transform:uppercase;letter-spacing:.04em">Domain badge</span></div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Spacing scale</h2>
+      <p class="ds-hint">4 / 8 / 16 / 24 / 32 — used for gaps and padding everywhere, never ad-hoc pixel values.</p>
+      <div class="space-row"><span class="label">space-xs · 4px</span><span class="bar" style="width:4px"></span></div>
+      <div class="space-row"><span class="label">space-sm · 8px</span><span class="bar" style="width:8px"></span></div>
+      <div class="space-row"><span class="label">space-md · 16px</span><span class="bar" style="width:16px"></span></div>
+      <div class="space-row"><span class="label">space-lg · 24px</span><span class="bar" style="width:24px"></span></div>
+      <div class="space-row"><span class="label">space-xl · 32px</span><span class="bar" style="width:32px"></span></div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Radii</h2>
+      <div class="ds-row">
+        <div style="width:80px;height:80px;background:var(--bg-elevated);border:1px solid var(--bg-border);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:var(--font-size-xs);color:var(--text-muted)">sm · 6px</div>
+        <div style="width:80px;height:80px;background:var(--bg-elevated);border:1px solid var(--bg-border);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;font-size:var(--font-size-xs);color:var(--text-muted)">md · 8px</div>
+        <div style="width:80px;height:80px;background:var(--bg-elevated);border:1px solid var(--bg-border);border-radius:var(--radius-lg);display:flex;align-items:center;justify-content:center;font-size:var(--font-size-xs);color:var(--text-muted)">lg · 12px</div>
+        <div style="width:80px;height:80px;background:var(--bg-elevated);border:1px solid var(--bg-border);border-radius:var(--radius-pill);display:flex;align-items:center;justify-content:center;font-size:var(--font-size-xs);color:var(--text-muted)">pill</div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

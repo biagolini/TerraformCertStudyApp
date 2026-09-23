@@ -1,0 +1,36 @@
+{
+  "name": "MongoDB Associate Developer (Python)",
+  "version": "",
+  "color": "#00ED64",
+  "description": "MongoDB certification validating the skills to build applications using MongoDB and a supported driver. This pack uses Python as the reference language (the exam is also offered for Node.js, Java, C#, and PHP). Covers the document model and MongoDB architecture, CRUD operations (the largest domain), indexes, the aggregation pipeline, and schema design, plus driver usage. Online proctored exam, multiple-choice and coding challenges, 90 minutes, 70% passing score, no prerequisites.",
+  "exportIntroQuestions": "## About this document\n\nThis document is a collection of practice exam questions for the **MongoDB Associate Developer** certification, using **Python** as the reference language. The questions were selected because they represent the core application-development skills every MongoDB developer should master.\n\n### Certification context\n\nThis certification validates the ability to build applications with MongoDB, including topics such as:\n\n* The document model, BSON types, and MongoDB architecture\n* CRUD operations: query operators, cursors, projection, bulk operations, and error handling (the heaviest domain, about half the exam)\n* Indexes: single-field, compound, text, index properties, selection, and management\n* The aggregation pipeline: stages ($match, $group, $sort, $project, $lookup), operators, and performance\n* Schema design: data modeling patterns, embedding versus referencing, schema validation, and normalization tradeoffs\n* Using the MongoDB driver (Python reference: PyMongo) for connections, CRUD, ObjectId, transactions, and error handling\n\n### About the questions\n\nEach question in this document is independent and should be analyzed as a standalone scenario. Practice exams intentionally present isolated situations, and questions may appear in any order during the actual certification exam. Information from one question should never be assumed to apply to another.\n\nFor each scenario, this document includes:\n\n* The original practice exam question.\n* An explanation of the reasoning behind the correct answer.\n* A discussion of why the remaining options are less appropriate for the stated requirements.\n\n### Learning objective\n\nThe primary goal of this material is to develop applied MongoDB development skills rather than memorization. Because CRUD dominates the exam, the focus should be on writing correct queries, choosing the right operators, using indexes effectively, and designing sound schemas, all with the Python driver.\n\nBy studying the reasoning behind each answer, readers can build the development skills expected for the MongoDB Associate Developer certification exam.",
+  "exportIntroTranscripts": "## About this document\n\nThis document contains technical summaries of lesson transcripts related to the **MongoDB Associate Developer (Python)** certification.\n\n### Purpose\nOrganizes and synthesizes lesson content in a structured format for quick review and deeper understanding of the concepts presented.",
+  "exportIntroChat": "## About this document\n\nThis document contains AI study conversations related to the **MongoDB Associate Developer (Python)** certification.\n\n### Purpose\nRecords discussions and explanations generated during interactive AI study sessions, serving as complementary reference material.",
+  "domains": [
+    {
+      "name": "Overview and Document Model",
+      "order": 1,
+      "description": "Domain 1 (8%): BSON types, MongoDB architecture, and document model concepts."
+    },
+    {
+      "name": "CRUD Operations",
+      "order": 2,
+      "description": "Domain 2 (51%): Basic CRUD (create, read, update, delete); query operators (comparison, logical, element, array); cursor operations (sort, limit, skip); projection (inclusion, exclusion, array operators); bulk operations (ordered, unordered); and error handling. Practiced with the Python driver (PyMongo)."
+    },
+    {
+      "name": "Indexes",
+      "order": 3,
+      "description": "Domain 3 (17%): Single-field, compound, and text indexes; index properties; index selection; and index creation and management."
+    },
+    {
+      "name": "Aggregation Pipeline",
+      "order": 4,
+      "description": "Domain 4 (8%): Pipeline stages ($match, $group, $sort, $project, $lookup); aggregation operators ($sum, $avg, $min, $max); performance considerations; and working with arrays ($unwind)."
+    },
+    {
+      "name": "Schema Design",
+      "order": 5,
+      "description": "Domain 5 (16%): Data modeling patterns; relationships (embedding versus referencing); schema validation; document structure; and normalization versus denormalization."
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+<!-- @dsCard group="Screens" -->
+<!doctype html>
+<html class="theme-light">
+<head>
+  <meta charset="utf-8">
+  <title>Methods screen</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    /* Lifted from methods-tab.component.ts */
+    .methods { display: flex; flex-direction: column; gap: var(--space-lg); width: 640px; }
+    .methods-header h2 { font-size: var(--font-size-xl); margin: 0 0 var(--space-xs); }
+    .hint-text { color: var(--text-muted); font-size: var(--font-size-sm); line-height: 1.5; margin: 0; }
+    .grid { display: grid; gap: var(--space-md); grid-template-columns: repeat(3, 1fr); list-style: none; margin: 0; padding: 0; }
+    .card {
+      display: flex; flex-direction: column; gap: var(--space-sm);
+      padding: var(--space-lg); border-radius: var(--radius-lg);
+      background: var(--bg-surface); border: 1px solid var(--bg-border);
+      text-align: left; cursor: pointer; min-height: 160px; width: 100%;
+      font-family: var(--font-family);
+      transition: border-color var(--transition-fast), transform var(--transition-fast);
+    }
+    .card:hover { border-color: var(--color-purple); transform: translateY(-1px); }
+    .card.active { border-color: var(--color-purple); box-shadow: 0 0 0 1px var(--color-purple); }
+    .card-head { display: flex; align-items: center; gap: var(--space-sm); }
+    .card-title { font-size: var(--font-size-lg); font-weight: 600; color: var(--text-primary); }
+    .tag { padding: 1px 8px; background: var(--bg-elevated); color: var(--text-muted); font-size: var(--font-size-xs); text-transform: uppercase; border-radius: var(--radius-pill); letter-spacing: 0.04em; }
+    .check { color: var(--color-purple); margin-left: auto; }
+    .card-body { color: var(--text-muted); font-size: var(--font-size-sm); line-height: 1.5; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="ds-toolbar"><button class="ds-theme-toggle" onclick="document.documentElement.classList.toggle('theme-dark'); document.documentElement.classList.toggle('theme-light');">Toggle theme</button></div>
+  <div class="ds-page">
+    <section class="ds-section">
+      <h2>Methods tab</h2>
+      <p class="ds-hint">Study-method picker — <code>methods-tab.component.ts</code>. Card grid: 1 column under 600px, 2 under 900px, 3 above (shown here at 3 columns). The active card gets a 1px colored ring in <code>--color-purple</code> (or the active pack's color, when set); no method currently has <code>status: 'preview'</code>, so the "Preview" tag/badge exists in code but isn't exercised by real data today.</p>
+      <section class="methods">
+        <header class="methods-header">
+          <h2>Study methods</h2>
+          <p class="hint-text">Choose how you want to feed material into the model. Your choice persists across sessions and applies to the Create tab.</p>
+        </header>
+        <ul class="grid">
+          <li>
+            <button type="button" class="card active" aria-pressed="true">
+              <span class="card-head">
+                <span class="card-title">Question reviews</span>
+                <span class="check" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M5 12l5 5L20 7"/></svg>
+                </span>
+              </span>
+              <span class="card-body">Paste an exam question and get a structured review with the correct answer and reasoning for every alternative.</span>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="card" aria-pressed="false">
+              <span class="card-head">
+                <span class="card-title">Transcript scripts</span>
+              </span>
+              <span class="card-body">Turn one or many video-lesson transcripts into a layered technical summary that another AI (NotebookLM) can read aloud as a podcast.</span>
+            </button>
+          </li>
+          <li>
+            <button type="button" class="card" aria-pressed="false">
+              <span class="card-head">
+                <span class="card-title">Open chat</span>
+              </span>
+              <span class="card-body">Free-form tutor conversation focused on your active certification. Persist multiple sessions and generate or update a NotebookLM-style summary at any point.</span>
+            </button>
+          </li>
+        </ul>
+      </section>
+    </section>
+  </div>
+</body>
+</html>

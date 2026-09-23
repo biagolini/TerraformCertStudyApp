@@ -1,0 +1,62 @@
+<!-- @dsCard group="Components" -->
+<!doctype html>
+<html class="theme-light">
+<head>
+  <meta charset="utf-8">
+  <title>App header</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    /* Lifted from app.component.ts / app.component.scss + theme-toggle / sync-status components */
+    .app-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-sm) var(--space-lg); min-height: var(--header-height); background: var(--bg-surface); border-bottom: 1px solid var(--bg-border); width: 640px; }
+    .brand { display: inline-flex; align-items: center; gap: var(--space-sm); background: transparent; border: none; padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-md); cursor: pointer; }
+    .brand:hover { background: var(--bg-subtle); }
+    .brand-mark { width: 32px; height: 32px; border-radius: var(--radius-md); background: var(--color-purple); }
+    .brand-text { display: flex; flex-direction: column; text-align: left; }
+    .brand-title { font-size: var(--font-size-base); font-weight: 600; color: var(--text-primary); }
+    .brand-version { font-size: var(--font-size-xs); color: var(--text-faint); letter-spacing: 0.04em; }
+    .header-actions { display: flex; align-items: center; gap: var(--space-xs); }
+    .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: var(--touch-min); height: var(--touch-min); border-radius: var(--radius-md); color: var(--text-secondary); background: transparent; border: none; cursor: pointer; }
+    .icon-btn:hover { color: var(--text-primary); background: var(--bg-subtle); }
+    .icon-btn.error { color: var(--color-red); }
+  </style>
+</head>
+<body>
+  <div class="ds-toolbar"><button class="ds-theme-toggle" onclick="document.documentElement.classList.toggle('theme-dark'); document.documentElement.classList.toggle('theme-light');">Toggle theme</button></div>
+  <div class="ds-page">
+    <section class="ds-section">
+      <h2>Header bar</h2>
+      <p class="ds-hint">Pack switcher on the left, utility icons on the right: sync status, theme toggle, settings, sign out. <code>--touch-min</code> (44px) on every tap target.</p>
+      <header class="app-header">
+        <button class="brand" aria-label="Open pack switcher">
+          <span class="brand-mark"></span>
+          <span class="brand-text"><span class="brand-title">AWS Solutions Architect</span><span class="brand-version">SAA-C03</span></span>
+          <svg viewBox="0 0 24 24" width="14" height="14" style="color:var(--text-muted)"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="header-actions">
+          <button class="icon-btn" title="sync-status.component.ts — idle">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 12a8 8 0 0114-5.3M20 12a8 8 0 01-14 5.3M4 4v5h5M20 20v-5h-5"/></svg>
+          </button>
+          <button class="icon-btn" title="theme-toggle.component.ts">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M20.5 14.2a8 8 0 01-10.7-10.7 1 1 0 00-1.2-1.3A10 10 0 1021.8 15.4a1 1 0 00-1.3-1.2z"/></svg>
+          </button>
+          <button class="icon-btn" title="Settings"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M12 8.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z"/><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M19.4 13.5l1.6 1-2 3.4-1.9-.6a7.6 7.6 0 01-2 1.2l-.5 2H10.4l-.5-2a7.6 7.6 0 01-2-1.2l-1.9.6-2-3.4 1.6-1A7.6 7.6 0 014.5 12c0-.5.1-1 .2-1.5l-1.6-1 2-3.4 1.9.6a7.6 7.6 0 012-1.2l.5-2h4.2l.5 2c.7.3 1.4.7 2 1.2l1.9-.6 2 3.4-1.6 1c.1.5.2 1 .2 1.5s-.1 1-.2 1.5z"/></svg></button>
+        </div>
+      </header>
+
+      <p class="ds-hint" style="margin-top:var(--space-lg)">Sync status — error state (red icon + dot, opens a panel with the real error message):</p>
+      <header class="app-header">
+        <button class="brand" aria-label="Open pack switcher">
+          <span class="brand-mark"></span>
+          <span class="brand-text"><span class="brand-title">AWS Solutions Architect</span><span class="brand-version">SAA-C03</span></span>
+        </button>
+        <div class="header-actions">
+          <button class="icon-btn error" title="Sync failed — click for details" style="position:relative">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 12a8 8 0 0114-5.3M20 12a8 8 0 01-14 5.3M4 4v5h5M20 20v-5h-5"/></svg>
+            <span style="position:absolute; top:8px; right:8px; width:8px; height:8px; border-radius:50%; background:var(--color-red); border:2px solid var(--bg-surface)"></span>
+          </button>
+        </div>
+      </header>
+    </section>
+  </div>
+</body>
+</html>

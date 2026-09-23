@@ -1,0 +1,88 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  width: 100%;
+  max-width: 100vw;
+  overscroll-behavior-x: none;
+}
+
+// overflow-x: hidden lives on <html> ONLY, not <body> — <html> is the
+// actual scrolling element here (confirmed via document.scrollingElement),
+// so this is enough to stop horizontal overscroll/bounce. Setting it on
+// <body> too used to additionally break `position: sticky` app-wide
+// (observed directly: even .app-header itself never actually stuck) —
+// per the CSS Overflow spec, `overflow-x: hidden` with no `overflow-y` set
+// forces `overflow-y` to compute as `auto` too, so <body> silently gained
+// a non-visible overflow on both axes and became the element sticky
+// positioning resolved against, instead of <html> — and since <body>'s own
+// box never needs to scroll (its content already fits it exactly), every
+// sticky element inside it rendered as if it were `position: static`.
+html {
+  overflow-x: hidden;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-size-adjust: 100%;
+  touch-action: pan-y pinch-zoom;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  min-height: 100dvh;
+}
+
+h1, h2, h3, h4, h5, h6, p, ul, ol, figure, blockquote {
+  margin: 0;
+  padding: 0;
+}
+
+ul, ol {
+  list-style: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+input, textarea, select {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--color-blue);
+  text-decoration: none;
+}
+
+img, svg {
+  display: block;
+  max-width: 100%;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-purple);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--color-purple);
+  color: #ffffff;
+}

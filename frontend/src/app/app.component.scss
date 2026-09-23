@@ -1,0 +1,287 @@
+:host {
+  display: block;
+  min-height: 100dvh;
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  min-height: var(--header-height);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--bg-border);
+  backdrop-filter: blur(8px);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+  background: transparent;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.brand:hover {
+  background: var(--bg-subtle);
+}
+
+.brand-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--pack-color, var(--color-purple));
+  flex-shrink: 0;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  text-align: left;
+}
+
+.brand-title {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 50vw;
+}
+
+.brand-subtitle,
+.brand-version {
+  font-size: var(--font-size-xs);
+  color: var(--text-faint);
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 50vw;
+}
+
+.brand-subtitle {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.brand-chev {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.icon-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-subtle);
+}
+
+.app-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  padding-bottom: calc(var(--tabbar-height) + var(--space-md));
+}
+
+// <router-outlet> is a real DOM element and, left alone, becomes a grid
+// item itself (occupying a real cell) — pushing every routed page's actual
+// content (which arrives as router-outlet's next sibling) one grid cell
+// off from where it belongs. It renders nothing on its own, so it's
+// removed from grid/flex layout participation entirely.
+.app-main router-outlet {
+  display: none;
+}
+
+.column {
+  min-width: 0;
+}
+
+.column-full {
+  grid-column: 1 / -1;
+}
+
+// Note: /quiz and /export's own full-width grid-column treatment lives in
+// their own components' :host styles (quiz.component.ts, export.component.ts),
+// not here — a rule written in AppComponent's stylesheet can't reach them:
+// they're router-inserted siblings of <router-outlet>, not elements
+// literally written in AppComponent's template, so Angular's view
+// encapsulation attribute (added to everything actually in this
+// component's template) never lands on them.
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--bg-border);
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 20;
+}
+
+.tab {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: var(--tabbar-height);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  text-decoration: none;
+  text-align: center;
+  transition: color var(--transition-fast);
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+}
+
+.tab.active {
+  color: var(--color-purple);
+}
+
+.tab .badge {
+  position: absolute;
+  top: 6px;
+  right: calc(50% - 30px);
+  background: var(--color-purple);
+  color: #ffffff;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-bg);
+  z-index: 30;
+  animation: fade-in 180ms ease;
+}
+
+.drawer-host {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 100vw);
+  background: var(--bg-surface);
+  z-index: 31;
+  box-shadow: var(--shadow-lg);
+  animation: slide-in-right 240ms ease;
+  overflow: hidden;
+}
+
+.drawer-host-left {
+  left: 0;
+  right: auto;
+  animation: slide-in-left 240ms ease;
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (min-width: 768px) {
+  .app-main {
+    grid-template-columns: minmax(320px, 360px) 1fr;
+    gap: var(--space-lg);
+    padding: var(--space-lg);
+    // The tabbar stays fixed/overlaid at the bottom on desktop too (same as
+    // mobile) rather than sitting in normal flow at the end of the content
+    // — a long list (many questions) used to mean scrolling all the way
+    // down just to reach the nav. Reserve space for it here instead.
+    padding-bottom: calc(var(--tabbar-height) + var(--space-lg));
+  }
+
+  .tabbar {
+    justify-content: center;
+    border-top: 1px solid var(--bg-border);
+    background: var(--bg-base);
+    padding: var(--space-sm) 0;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  .tab {
+    flex: 0 0 auto;
+    flex-direction: row;
+    padding: 0 var(--space-lg);
+    min-height: 44px;
+  }
+
+  .tab .badge {
+    position: static;
+    margin-left: var(--space-xs);
+  }
+}

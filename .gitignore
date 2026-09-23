@@ -1,0 +1,9 @@
+# Temp folder
+.temp/
+
+# MacOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc

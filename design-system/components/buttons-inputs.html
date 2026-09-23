@@ -1,0 +1,79 @@
+<!-- @dsCard group="Components" -->
+<!doctype html>
+<html class="theme-light">
+<head>
+  <meta charset="utf-8">
+  <title>Buttons &amp; inputs</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    /* Lifted from question-input.component.ts / settings.component.ts */
+    .generate-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm);
+      min-height: 48px; padding: 0 var(--space-lg); border-radius: var(--radius-md);
+      border: none; background: linear-gradient(135deg, var(--color-purple), var(--color-blue));
+      color: #fff; font-family: var(--font-family); font-weight: 600; font-size: var(--font-size-lg); cursor: pointer;
+    }
+    .generate-btn:hover { filter: brightness(1.08); }
+    .stop-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm);
+      min-height: 48px; padding: 0 var(--space-lg); border-radius: var(--radius-md);
+      border: none; background: var(--color-red); color: #fff; font-family: var(--font-family);
+      font-weight: 600; font-size: var(--font-size-lg); cursor: pointer;
+    }
+    .btn-ghost { min-height: var(--touch-min); padding: 0 var(--space-md); border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-base); background: transparent; color: var(--text-secondary); border: 1px solid var(--bg-border); font-family: var(--font-family); cursor: pointer; }
+    .btn-ghost:hover { background: var(--bg-subtle); }
+    .btn-danger { min-height: var(--touch-min); padding: 0 var(--space-md); border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-base); background: transparent; color: var(--color-red); border: 1px solid var(--color-red); font-family: var(--font-family); cursor: pointer; }
+    .btn-danger:hover { background: var(--color-red); color: #fff; }
+    .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: var(--touch-min); height: var(--touch-min); border-radius: var(--radius-md); color: var(--text-secondary); background: transparent; border: none; cursor: pointer; }
+    .icon-btn:hover { color: var(--text-primary); background: var(--bg-subtle); }
+
+    .text-input, select.text-input {
+      height: var(--touch-min); padding: 0 var(--space-md); border-radius: var(--radius-md);
+      border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary);
+      font-family: var(--font-family); font-size: var(--font-size-base); width: 280px;
+    }
+    .text-input:focus-visible { outline: none; border-color: var(--color-purple); }
+    textarea.text-input { width: 420px; min-height: 90px; padding: var(--space-md); resize: vertical; line-height: 1.55; }
+
+    .mode-toggle { display: inline-flex; gap: 2px; padding: 3px; background: var(--bg-elevated); border-radius: var(--radius-md); border: 1px solid var(--bg-border); }
+    .mode-btn { padding: 0 var(--space-md); min-height: 34px; border-radius: var(--radius-sm); background: transparent; border: none; color: var(--text-secondary); font-family: var(--font-family); font-size: var(--font-size-sm); font-weight: 600; cursor: pointer; }
+    .mode-btn.active { background: var(--bg-surface); color: var(--color-purple); box-shadow: var(--shadow-sm); }
+  </style>
+</head>
+<body>
+  <div class="ds-toolbar"><button class="ds-theme-toggle" onclick="document.documentElement.classList.toggle('theme-dark'); document.documentElement.classList.toggle('theme-light');">Toggle theme</button></div>
+  <div class="ds-page">
+    <section class="ds-section">
+      <h2>Buttons</h2>
+      <p class="ds-hint">Gradient primary is the only high-emphasis button in the app — used once per screen (Generate Review, Save review). Everything else is ghost or danger.</p>
+      <div class="ds-row">
+        <button class="generate-btn">Generate Review</button>
+        <button class="stop-btn">Stop</button>
+        <button class="btn-ghost">Cancel</button>
+        <button class="btn-danger">Clear questions</button>
+        <button class="icon-btn" aria-label="Settings" title="icon-btn — header icons">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M12 8.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z"/><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M19.4 13.5l1.6 1-2 3.4-1.9-.6a7.6 7.6 0 01-2 1.2l-.5 2H10.4l-.5-2a7.6 7.6 0 01-2-1.2l-1.9.6-2-3.4 1.6-1A7.6 7.6 0 014.5 12c0-.5.1-1 .2-1.5l-1.6-1 2-3.4 1.9.6a7.6 7.6 0 012-1.2l.5-2h4.2l.5 2c.7.3 1.4.7 2 1.2l1.9-.6 2 3.4-1.6 1c.1.5.2 1 .2 1.5s-.1 1-.2 1.5z"/></svg>
+        </button>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Segmented toggle</h2>
+      <p class="ds-hint">Used for Generate/Add-ready-made and other two-way mode switches.</p>
+      <div class="mode-toggle">
+        <button class="mode-btn active">Generate with AI</button>
+        <button class="mode-btn">Add ready-made</button>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Inputs</h2>
+      <div class="ds-row" style="flex-direction:column; align-items:flex-start; gap:var(--space-md)">
+        <input class="text-input" type="text" placeholder="Title (optional)">
+        <select class="text-input"><option>Amazon Nova Lite — Balanced</option></select>
+        <textarea class="text-input" placeholder="Paste the full question and all alternatives here..."></textarea>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

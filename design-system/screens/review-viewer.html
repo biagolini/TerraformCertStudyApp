@@ -1,0 +1,167 @@
+<!-- @dsCard group="Screens" -->
+<!doctype html>
+<html class="theme-light">
+<head>
+  <meta charset="utf-8">
+  <title>Review viewer</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    /* Lifted verbatim from review-viewer.component.ts + markdown-renderer.component.ts */
+    .viewer { display: flex; flex-direction: column; height: 560px; width: 680px; background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden; }
+    .viewer-header { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--bg-border); background: var(--bg-surface); }
+    .back-btn { display: inline-flex; align-items: center; gap: var(--space-xs); min-height: var(--touch-min); padding: 0 var(--space-sm); border-radius: var(--radius-md); color: var(--text-secondary); font-size: var(--font-size-sm); background: none; border: none; cursor: pointer; }
+    .back-btn:hover { background: var(--bg-subtle); color: var(--text-primary); }
+    .title-block { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-xs); }
+    .title-block h2 { font-size: var(--font-size-lg); color: var(--text-primary); line-height: 1.3; margin: 0; overflow-wrap: anywhere; }
+    .header-actions { display: inline-flex; align-items: center; gap: var(--space-xs); }
+    .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: var(--touch-min); height: var(--touch-min); border-radius: var(--radius-md); color: var(--text-muted); background: none; border: none; cursor: pointer; }
+    .icon-btn:hover { background: var(--bg-subtle); color: var(--text-primary); }
+    .icon-btn.active { background: var(--bg-elevated); color: var(--color-purple); }
+    .delete-btn:hover { color: var(--color-red); }
+    .viewer-body { flex: 1; overflow-y: auto; padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-xl); }
+
+    .edit-mode { display: flex; flex-direction: column; gap: var(--space-sm); flex: 1; }
+    .edit-hint { color: var(--text-muted); font-size: var(--font-size-sm); margin: 0; }
+    .edit-label { display: flex; flex-direction: column; gap: 4px; font-size: var(--font-size-sm); color: var(--text-secondary); }
+    .edit-title-input { padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary); font-size: var(--font-size-base); font-family: var(--font-family); }
+    .edit-title-input:focus-visible { outline: none; border-color: var(--color-purple); }
+    .edit-textarea { flex: 1; min-height: 220px; padding: var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary); font-family: var(--font-mono); font-size: var(--font-size-base); line-height: 1.5; resize: vertical; }
+    .edit-textarea:focus-visible { outline: none; border-color: var(--color-purple); }
+    .edit-actions { display: flex; justify-content: flex-end; gap: var(--space-sm); }
+
+    .disclaimer { display: flex; align-items: flex-start; gap: var(--space-xs); font-size: var(--font-size-xs); color: var(--text-faint); line-height: 1.5; margin: 0; }
+    .disclaimer svg { flex-shrink: 0; margin-top: 2px; opacity: 0.8; }
+
+    /* markdown-renderer.component.ts — note: #### headings map to level>2 => md-h3 */
+    .markdown { display: flex; flex-direction: column; gap: var(--space-md); color: var(--text-primary); font-size: var(--font-size-base); line-height: 1.6; }
+    .md-h3 { font-size: var(--font-size-lg); color: var(--text-secondary); margin-top: var(--space-sm); }
+    .md-p { margin: 0; }
+    .md-p.muted { color: var(--text-muted); font-size: calc(var(--font-size-base) - 1px); }
+    .md-ul { padding-left: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-xs); margin: 0; }
+    .md-ul li { list-style: disc; margin-left: 0; color: var(--text-primary); }
+    .markdown strong { color: var(--text-primary); font-weight: 700; }
+
+    .refine-panel { display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-md); border-radius: var(--radius-md); background: var(--bg-elevated); border: 1px solid var(--bg-border); }
+    .refine-header h3 { font-size: var(--font-size-base); color: var(--text-primary); margin: 0 0 var(--space-xs); }
+    .refine-hint { color: var(--text-muted); font-size: var(--font-size-sm); margin: 0; }
+    .refine-textarea { width: 100%; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary); font-family: var(--font-family); font-size: var(--font-size-base); line-height: 1.5; resize: vertical; min-height: 90px; box-sizing: border-box; }
+    .refine-textarea:focus-visible { outline: none; border-color: var(--color-purple); }
+    .refine-actions { display: flex; justify-content: flex-end; }
+    .model-row { display: flex; align-items: center; gap: var(--space-sm); min-width: 0; }
+    .model-label { font-size: var(--font-size-sm); color: var(--text-muted); }
+    .model-select { flex: 1; min-width: 0; min-height: 36px; padding: 0 var(--space-sm); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary); font-size: var(--font-size-sm); font-family: var(--font-family); }
+    .model-select:focus-visible { outline: none; border-color: var(--color-purple); }
+    .refine-error { color: var(--color-red); font-size: var(--font-size-sm); margin: 0; }
+
+    .btn { min-height: var(--touch-min); padding: 0 var(--space-md); border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-base); display: inline-flex; align-items: center; gap: var(--space-sm); border: none; font-family: var(--font-family); cursor: pointer; }
+    .btn-primary { background: var(--color-purple); color: #ffffff; }
+    .btn-primary:hover { background: var(--color-blue); }
+    .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--bg-border); }
+    .btn-ghost:hover { background: var(--bg-subtle); }
+    .btn-stop { background: var(--color-red); color: #ffffff; }
+    .stop-icon { width: 12px; height: 12px; background: #ffffff; border-radius: 2px; }
+
+    .new-question-row { display: flex; justify-content: center; padding: var(--space-md) 0 var(--space-lg); }
+    .new-question-btn { display: inline-flex; align-items: center; gap: var(--space-xs); padding: var(--space-xs) var(--space-md); background: none; border: 1px solid var(--bg-border); border-radius: var(--radius-pill); color: var(--text-muted); font-size: var(--font-size-sm); cursor: pointer; }
+    .new-question-btn:hover { border-color: var(--color-purple); color: var(--text-primary); }
+
+    .viewer-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-xs); padding: var(--space-xl); color: var(--text-muted); text-align: center; }
+    .empty-title { font-size: var(--font-size-lg); color: var(--text-secondary); margin: 0; }
+    .empty-body { font-size: var(--font-size-sm); margin: 0; }
+
+    .badge { display: inline-flex; align-items: center; padding: 3px var(--space-md); border-radius: var(--radius-lg); font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #fff; }
+    .badge-1 { background: #2563eb; }
+  </style>
+</head>
+<body>
+  <div class="ds-toolbar"><button class="ds-theme-toggle" onclick="document.documentElement.classList.toggle('theme-dark'); document.documentElement.classList.toggle('theme-light');">Toggle theme</button></div>
+  <div class="ds-page">
+
+    <section class="ds-section">
+      <h2>Review viewer — reading a question</h2>
+      <p class="ds-hint">The review's Markdown is rendered by <code>markdown-renderer.component.ts</code>: <code>#### heading</code> maps to <code>.md-h3</code> (heading levels 3+ collapse to the same smaller style — there's no visual H1). A line wrapped in single <code>*asterisks*</code> (no <code>**</code>) renders as a muted paragraph — that's how "Correct answer and explanation" restates an option's letter+text quietly before the explanation prose.</p>
+      <div class="viewer">
+        <header class="viewer-header">
+          <div class="title-block">
+            <h2>Automatic failover across Availability Zones</h2>
+            <span class="badge badge-1">Networking</span>
+          </div>
+          <div class="header-actions">
+            <button class="icon-btn" aria-label="Edit review manually">
+              <svg viewBox="0 0 24 24" width="20" height="20"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4l10-10-4-4L4 16v4zM14 6l4 4"/></svg>
+            </button>
+            <button class="icon-btn delete-btn" aria-label="Delete this question">
+              <svg viewBox="0 0 24 24" width="20" height="20"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>
+            </button>
+          </div>
+        </header>
+        <div class="viewer-body">
+          <p class="disclaimer">
+            <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>
+            <span>This review was generated by AI and may contain errors. Treat it as study support, not as an authoritative source.</span>
+          </p>
+          <div class="markdown">
+            <h3 class="md-h3">Key concepts related to this question:</h3>
+            <ul class="md-ul"><li>Multi-AZ high availability</li><li>Application Load Balancer</li><li>Auto Scaling groups</li></ul>
+            <h3 class="md-h3">Question Context:</h3>
+            <p class="md-p">This question checks whether the candidate can design for automatic recovery from a full Availability Zone outage without any manual step.</p>
+            <h3 class="md-h3">Question:</h3>
+            <p class="md-p">A company runs a three-tier web application across two Availability Zones. The operations team wants requests to keep being served automatically if one entire Availability Zone becomes unavailable, with no manual intervention. Which change should they make?</p>
+            <h3 class="md-h3">Alternatives:</h3>
+            <p class="md-p muted">A. Deploy the application in a single, larger Availability Zone</p>
+            <p class="md-p muted">B. Place an Application Load Balancer in front of instances spread across both Availability Zones, in an Auto Scaling group</p>
+            <h3 class="md-h3">Correct answer and explanation:</h3>
+            <p class="md-p muted">B. Place an Application Load Balancer in front of instances spread across both Availability Zones, in an Auto Scaling group</p>
+            <p class="md-p">An <strong>Application Load Balancer</strong> spanning both zones, paired with an <strong>Auto Scaling group</strong>, automatically detects unhealthy targets and reroutes traffic without any manual step.</p>
+          </div>
+          <section class="refine-panel">
+            <header class="refine-header"><h3>Refine with AI</h3><p class="refine-hint">Tell the model what to adjust. The full review will be regenerated with your feedback applied.</p></header>
+            <textarea class="refine-textarea" placeholder="e.g. In alternative B you explained X but the concept of Z is not clear. Expand that part."></textarea>
+            <label class="model-row"><span class="model-label">Model</span>
+              <select class="model-select"><option>Amazon Nova Lite — Balanced</option></select>
+            </label>
+            <div class="refine-actions"><button class="btn btn-primary">Send to AI</button></div>
+          </section>
+          <div class="new-question-row">
+            <button class="new-question-btn">
+              <svg viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>
+              <span>New question</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Review viewer — edit mode &amp; refining</h2>
+      <p class="ds-hint">Clicking the pencil a second time saves. While an AI refine is streaming, the textarea disables and the button becomes a red "Stop" (same shape as Question Input's stop button).</p>
+      <div class="viewer">
+        <header class="viewer-header">
+          <div class="title-block"><h2>Automatic failover across Availability Zones</h2><span class="badge badge-1">Networking</span></div>
+          <div class="header-actions"><button class="icon-btn active" aria-label="Exit edit mode" aria-pressed="true"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4l10-10-4-4L4 16v4zM14 6l4 4"/></svg></button></div>
+        </header>
+        <div class="viewer-body">
+          <div class="edit-mode">
+            <p class="edit-hint">Editing title and review (Markdown). Save to keep your changes; Cancel to discard.</p>
+            <label class="edit-label"><span>Title</span><input type="text" class="edit-title-input" value="Automatic failover across Availability Zones"></label>
+            <textarea class="edit-textarea">#### Question:
+A company runs a three-tier web application across two Availability Zones...</textarea>
+            <div class="edit-actions"><button class="btn btn-ghost">Cancel</button><button class="btn btn-primary">Save</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Review viewer — empty state</h2>
+      <div class="viewer" style="height:260px">
+        <div class="viewer-empty">
+          <p class="empty-title">No question selected.</p>
+          <p class="empty-body">Generate a new review or pick one from the list to view it here.</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>

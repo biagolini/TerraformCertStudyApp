@@ -1,0 +1,41 @@
+{
+  "name": "HashiCorp Certified: Terraform Authoring and Operations Advanced",
+  "version": "",
+  "color": "#5C4EE5",
+  "description": "Advanced, hands-on (lab-based) HashiCorp certification for practitioners with extensive production experience developing Terraform configuration and using it to manage infrastructure over time. Assumes deep knowledge of the configuration language, best practices, and the CLI, plus advanced experience with a cloud provider (currently AWS; Azure in development for late 2026). Assesses managing resource lifecycle, developing and troubleshooting dynamic configuration, collaborative workflows, modules, providers, and collaboration on IaC using HCP Terraform. This is the updated successor to the Terraform Authoring and Operations Professional exam.",
+  "exportIntroQuestions": "## About this document\n\nThis document is a collection of practice exam questions for the **HashiCorp Certified: Terraform Authoring and Operations Advanced** certification. The questions were selected because they represent the advanced authoring and operational skills required to develop dynamic Terraform configuration and run scalable, collaborative workflows in production.\n\n### Certification context\n\nThis is a hands-on, lab-based certification that assumes deep Terraform expertise and advanced cloud-provider experience. It validates the ability to develop best-practice, dynamic HCL configuration and establish collaborative workflows, including topics such as:\n\n* Managing the resource lifecycle (init, plan, apply, destroy) and reconciling state, imports, and drift\n* Developing and troubleshooting dynamic configuration (validation, data sources, functions, meta-arguments, complex types, sensitive data)\n* Collaborative workflows (version constraints, remote state, automation, sharing data across configurations and workspaces)\n* Creating, maintaining, and refactoring modules, and using module versioning\n* Configuring and troubleshooting providers, and collaborating on IaC using HCP Terraform\n\n### About the questions\n\nEach question in this document is independent and should be analyzed as a standalone scenario. Practice exams intentionally present isolated situations, and questions may appear in any order during the actual certification exam. Information from one question should never be assumed to apply to another.\n\nFor each scenario, this document includes:\n\n* The original practice exam question.\n* An explanation of the reasoning behind the correct answer.\n* A discussion of why the remaining options are less appropriate for the stated requirements.\n\n### Learning objective\n\nThe primary goal of this material is to develop advanced, applied judgment for authoring dynamic Terraform configuration and operating it at scale rather than memorization. Because the exam is hands-on, the focus should be on making correct real-world decisions about lifecycle, dynamic configuration, collaboration, modules, and providers.\n\nBy studying the reasoning behind each answer, readers can build the advanced skills expected for the HashiCorp Certified: Terraform Authoring and Operations Advanced certification exam.",
+  "exportIntroTranscripts": "## About this document\n\nThis document contains technical summaries of lesson transcripts related to the **HashiCorp Certified: Terraform Authoring and Operations Advanced** certification.\n\n### Purpose\nOrganizes and synthesizes lesson content in a structured format for quick review and deeper understanding of the concepts presented.",
+  "exportIntroChat": "## About this document\n\nThis document contains AI study conversations related to the **HashiCorp Certified: Terraform Authoring and Operations Advanced** certification.\n\n### Purpose\nRecords discussions and explanations generated during interactive AI study sessions, serving as complementary reference material.",
+  "domains": [
+    {
+      "name": "Manage resource lifecycle",
+      "order": 1,
+      "description": "Objective 1: Initialize a configuration with terraform init; generate an execution plan with terraform plan; apply changes with terraform apply; destroy resources with terraform destroy; and manage resource state, including importing resources and reconciling drift (import and moved blocks)."
+    },
+    {
+      "name": "Develop and troubleshoot dynamic configuration",
+      "order": 2,
+      "description": "Objective 2: Use language features to validate configuration (tests, checks, type constraints, custom conditions); query providers using data sources; compute and interpolate data with HCL functions; use meta-arguments; configure input variables and outputs including complex types; and analyze best practices for managing sensitive data (for example, using Vault)."
+    },
+    {
+      "name": "Develop collaborative Terraform workflows",
+      "order": 3,
+      "description": "Objective 3: Manage the Terraform binary, providers, and modules using version constraints and the dependency lock file; configure remote state; use the Terraform workflow in automation (including state locking); and share data across configurations and workspaces (terraform_remote_state, tfe_outputs)."
+    },
+    {
+      "name": "Create, maintain, and use Terraform modules",
+      "order": 4,
+      "description": "Objective 4: Create a module following recommended patterns; use a module in configuration (sourcing and declaring); refactor a module and use module versioning; and refactor an existing configuration into modules (moved blocks)."
+    },
+    {
+      "name": "Configure and use Terraform providers",
+      "order": 5,
+      "description": "Objective 5: Understand Terraform's plugin-based architecture; configure providers including aliasing, versioning, sourcing, and managing upgrades; manage provider authentication; and troubleshoot provider errors."
+    },
+    {
+      "name": "Collaborate on IaC using HCP Terraform",
+      "order": 6,
+      "description": "Objective 6 (multiple-choice only): Analyze the HCP Terraform run workflow; understand workspaces and their configuration options including access management; manage provider credentials in HCP Terraform (including dynamic provider credentials); and analyze policy as code and governance features."
+    }
+  ]
+}

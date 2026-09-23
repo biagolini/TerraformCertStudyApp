@@ -1,0 +1,140 @@
+# Architecture
+
+AI-powered certification exam preparation using Amazon Bedrock with streaming responses.
+
+## Overview
+
+```mermaid
+graph TB
+    subgraph Client
+        Browser["Angular SPA<br/>(cert.yourdomain.com)"]
+    end
+
+    subgraph AWS Cloud
+        CF["CloudFront<br/>Distribution"]
+        S3["S3 Bucket<br/>(static frontend)"]
+        APIGW["API Gateway<br/>(REST API)"]
+        Cognito["Cognito<br/>User Pool"]
+        LConverse["Lambda converse<br/>(Flask + Web Adapter)"]
+        LData["Lambda data<br/>(Flask + Web Adapter)"]
+        Bedrock["Amazon Bedrock<br/>(dynamic model list)"]
+        DynamoDB["DynamoDB<br/>(user data)"]
+        R53["Route53<br/>cert.yourdomain.com"]
+        ACM["ACM Certificate"]
+        Assets["S3 Bucket<br/>(private: uploads/scratch/images)"]
+        SFN["Step Functions<br/>study-import-exam"]
+        LImport["3x Lambda<br/>import-preprocess/extract/finalize"]
+    end
+
+    Browser -->|HTTPS| CF
+    CF -->|OAC| S3
+    R53 -->|Alias| CF
+    ACM -.->|TLS| CF
+
+    Browser -->|"POST /converse<br/>Bearer token"| APIGW
+    Browser -->|"GET/PUT /data<br/>PUT/DELETE /data/{entity}/{id}<br/>POST/GET /data/imports*<br/>Bearer token"| APIGW
+    APIGW -->|Cognito Authorizer| Cognito
+    APIGW -->|"Streaming (NDJSON)"| LConverse
+    APIGW -->|"Buffered (JSON)"| LData
+    LConverse -->|converse_stream| Bedrock
+    LData -->|ListFoundationModels<br/>ListInferenceProfiles| Bedrock
+    LData -->|CRUD| DynamoDB
+    LData -->|"presigned PUT (exam upload,<br/>manual image upload)<br/>presigned GET (images)"| Assets
+    Browser -->|"PUT raw exam file<br/>(presigned URL, direct)"| Assets
+    Browser -->|"POST /data/imports/{id}/process<br/>(explicit, user-triggered)"| APIGW
+    LData -->|StartExecution| SFN
+    SFN -->|invoke| LImport
+    LImport -->|converse (vision + tool-use)| Bedrock
+    LImport -->|CRUD| DynamoDB
+    LImport <-->|images/scratch/uploads| Assets
+```
+
+## Components
+
+| Component | Service | Purpose |
+|-----------|---------|---------|
+| Frontend | S3 + CloudFront | Angular 21 SPA with Cognito SRP auth |
+| Auth | Cognito User Pool | Email/password login, JWT tokens |
+| API | API Gateway (REST) | Routes with Cognito authorizer, streaming support |
+| Converse | Lambda + Web Adapter | Flask app, Bedrock `converse_stream` via NDJSON |
+| Data | Lambda + Web Adapter | CRUD for packs/questions/scripts, model discovery |
+| Storage | DynamoDB | Single-table design for user data |
+| AI | Amazon Bedrock | Dynamic model list (Nova, Claude, etc.) |
+| DNS | Route53 + ACM | Custom domain with TLS |
+| Assets | S3 (private) | Uploaded exam files + extracted question images, presigned-URL only |
+| Import pipeline | Step Functions + 3 Lambdas | Explicitly started by the user (`POST /data/imports/{id}/process`) — chunk → per-question Bedrock extraction (Map fan-out) → finalize — see [bulk import pipeline](./question-import-pipeline.md) |
+
+## Authentication Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant App as Angular App
+    participant Auth as AuthService (SRP)
+    participant C as Cognito User Pool
+
+    U->>App: Access site
+    App->>Auth: ensureTokenValid()
+    alt No token
+        Auth-->>App: redirect /login
+        U->>App: Enter email + password
+        App->>Auth: login(email, pwd)
+        Auth->>C: InitiateAuth (USER_SRP_AUTH)
+        C-->>Auth: JWT tokens (id, access, refresh)
+        Auth-->>App: authenticated
+    else Token valid
+        Auth-->>App: proceed
+    end
+    App->>U: Show main app
+```
+
+## Streaming Request Flow
+
+```mermaid
+sequenceDiagram
+    participant App as Angular App
+    participant APIGW as API Gateway
+    participant Lambda as Lambda converse
+    participant BR as Bedrock
+
+    App->>APIGW: POST /converse<br/>Authorization: Bearer idToken<br/>{model_id, system_prompt, messages}
+    APIGW->>APIGW: Validate JWT (Cognito)
+    APIGW->>Lambda: Invoke (RESPONSE_STREAM)
+    Lambda->>BR: converse_stream(modelId, messages, system, inferenceConfig)
+    loop For each token
+        BR-->>Lambda: contentBlockDelta
+        Lambda-->>APIGW: {"type":"TOKEN","text":"..."}
+        APIGW-->>App: NDJSON line
+    end
+    BR-->>Lambda: messageStop
+    Lambda-->>App: {"type":"END","stopReason":"end_turn"}
+```
+
+## Deploy
+
+### Prerequisites
+
+- AWS CLI configured with profile
+- Terraform >= 1.10
+- Node.js + npm
+- Amazon Nova models enabled in Bedrock (us-east-1)
+
+### Steps
+
+```bash
+cd backend/environments/production
+cp backend.hcl.example backend.hcl          # fill values
+cp terraform.tfvars.example terraform.tfvars # fill values
+terraform init -backend-config=backend.hcl
+terraform apply
+```
+
+Setting `frontend_deploy_enabled = true` automatically: generates `environment.ts` → builds Angular → syncs to S3 → invalidates CloudFront.
+
+## Related docs
+
+- [Question ingestion pipeline](./question-ingestion.md)
+- [Bulk exam import pipeline](./question-import-pipeline.md)
+- [DynamoDB schema](./dynamodb-schema.md)
+- [Backend documentation](./backend.md)
+- [Frontend documentation](./frontend.md)
