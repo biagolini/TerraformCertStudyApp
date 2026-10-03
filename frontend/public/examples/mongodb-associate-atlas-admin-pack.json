@@ -1,0 +1,36 @@
+{
+  "name": "MongoDB Associate Atlas Administrator",
+  "version": "",
+  "color": "#001E2B",
+  "description": "MongoDB certification for administrators of MongoDB Atlas, the fully managed multi-cloud database service. Validates the ability to deploy, manage, monitor, and optimize Atlas clusters using the Atlas UI and CLI. Covers Atlas cluster configuration and tiers (M0/M2/M5/M10+), security, backup and recovery, performance monitoring, database and user management, and reading logs. Designed for individuals with foundational MongoDB and Atlas knowledge and about one year of hands-on experience. Online proctored exam, 81 questions, pass/fail grade.",
+  "exportIntroQuestions": "## About this document\n\nThis document is a collection of practice exam questions for the **MongoDB Associate Atlas Administrator** certification. The questions were selected because they represent the operational skills required to administer MongoDB Atlas, the fully managed cloud database service.\n\n### Certification context\n\nThis certification validates the ability to deploy, manage, monitor, and optimize MongoDB Atlas clusters, including topics such as:\n\n* Atlas overview and cluster deployment: cluster tiers (Free M0, Shared M2/M5, Dedicated M10+), configuration, and scaling\n* Security: network access, authentication and authorization, database users, and access management\n* Backup and recovery: snapshot policies, continuous cloud backup, and point-in-time restore\n* Performance monitoring: metrics, alerts, the Performance Advisor, and reading logs\n* Database and user management using the Atlas UI and CLI\n\n### About the questions\n\nEach question in this document is independent and should be analyzed as a standalone scenario. Practice exams intentionally present isolated situations, and questions may appear in any order during the actual certification exam. Information from one question should never be assumed to apply to another.\n\nFor each scenario, this document includes:\n\n* The original practice exam question.\n* An explanation of the reasoning behind the correct answer.\n* A discussion of why the remaining options are less appropriate for the stated requirements.\n\n### Learning objective\n\nThe primary goal of this material is to develop applied operational judgment for managing Atlas rather than memorization. The focus should be on configuring clusters correctly, securing access, setting up backups and restores, and monitoring and optimizing performance through the Atlas UI and CLI.\n\nBy studying the reasoning behind each answer, readers can build the administration skills expected for the MongoDB Associate Atlas Administrator certification exam.",
+  "exportIntroTranscripts": "## About this document\n\nThis document contains technical summaries of lesson transcripts related to the **MongoDB Associate Atlas Administrator** certification.\n\n### Purpose\nOrganizes and synthesizes lesson content in a structured format for quick review and deeper understanding of the concepts presented.",
+  "exportIntroChat": "## About this document\n\nThis document contains AI study conversations related to the **MongoDB Associate Atlas Administrator** certification.\n\n### Purpose\nRecords discussions and explanations generated during interactive AI study sessions, serving as complementary reference material.",
+  "domains": [
+    {
+      "name": "Atlas Overview and Cluster Deployment",
+      "order": 1,
+      "description": "Domain 1: Atlas fundamentals and the multi-cloud data platform; cluster tiers (Free M0, Shared M2/M5, Dedicated M10+); cluster configuration, sizing, and scaling using the Atlas UI and CLI."
+    },
+    {
+      "name": "Security",
+      "order": 2,
+      "description": "Domain 2: Network access (IP access lists, peering, private endpoints), authentication and authorization, database users and roles, and access management."
+    },
+    {
+      "name": "Backup and Recovery",
+      "order": 3,
+      "description": "Domain 3: Snapshot backup policies and frequencies, continuous cloud backup, retention, and point-in-time restore of clusters."
+    },
+    {
+      "name": "Performance Monitoring",
+      "order": 4,
+      "description": "Domain 4: Monitoring cluster health and status, metrics and alerts, the Performance Advisor, and accessing and reading deployment logs."
+    },
+    {
+      "name": "Database and Data Management",
+      "order": 5,
+      "description": "Domain 5: Database and user management, and administering data within the Atlas ecosystem through the UI and CLI."
+    }
+  ]
+}

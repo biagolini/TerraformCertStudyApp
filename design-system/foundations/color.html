@@ -1,0 +1,48 @@
+<!-- @dsCard group="Foundations" -->
+<!doctype html>
+<html class="theme-light">
+<head>
+  <meta charset="utf-8">
+  <title>Color</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    .swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-md); }
+    .swatch { border-radius: var(--radius-md); border: 1px solid var(--bg-border); overflow: hidden; background: var(--bg-surface); }
+    .swatch-color { height: 64px; }
+    .swatch-label { padding: var(--space-sm) var(--space-md); font-size: var(--font-size-sm); }
+    .swatch-name { display: block; font-weight: 600; color: var(--text-primary); }
+    .swatch-value { display: block; color: var(--text-muted); font-family: var(--font-mono); font-size: var(--font-size-xs); margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <div class="ds-toolbar"><button class="ds-theme-toggle" onclick="document.documentElement.classList.toggle('theme-dark'); document.documentElement.classList.toggle('theme-light');">Toggle theme</button></div>
+  <div class="ds-page">
+    <section class="ds-section">
+      <h2>Accent colors</h2>
+      <p class="ds-hint">Same across both themes. Purple is the primary brand accent (CTAs, active states); the rest are semantic.</p>
+      <div class="swatch-grid">
+        <div class="swatch"><div class="swatch-color" style="background:var(--color-purple)"></div><div class="swatch-label"><span class="swatch-name">Purple — primary</span><span class="swatch-value">#6c5ce7</span></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:var(--color-blue)"></div><div class="swatch-label"><span class="swatch-name">Blue — links</span><span class="swatch-value">#0984e3</span></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:var(--color-green)"></div><div class="swatch-label"><span class="swatch-name">Green — success</span><span class="swatch-value">#00b894</span></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:var(--color-amber)"></div><div class="swatch-label"><span class="swatch-name">Amber — warning</span><span class="swatch-value">#e17055</span></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:var(--color-red)"></div><div class="swatch-label"><span class="swatch-name">Red — danger</span><span class="swatch-value">#d63031</span></div></div>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Surface &amp; text tokens</h2>
+      <p class="ds-hint">Click "Toggle theme" above — every token here re-resolves live, exactly like <code>html.theme-light</code> / <code>html.theme-dark</code> in the app.</p>
+      <div class="swatch-grid">
+        <div class="swatch"><div class="swatch-color" style="background:var(--bg-base); border-bottom:1px solid var(--bg-border)"></div><div class="swatch-label"><span class="swatch-name">bg-base</span></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:var(--bg-surface); border-bottom:1px solid var(--bg-border)"></div><div class="swatch-label"><span class="swatch-name">bg-surface</span></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:var(--bg-elevated); border-bottom:1px solid var(--bg-border)"></div><div class="swatch-label"><span class="swatch-name">bg-elevated</span></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:var(--bg-subtle); border-bottom:1px solid var(--bg-border)"></div><div class="swatch-label"><span class="swatch-name">bg-subtle</span></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:var(--text-primary)"></div><div class="swatch-label"><span class="swatch-name">text-primary</span></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:var(--text-secondary)"></div><div class="swatch-label"><span class="swatch-name">text-secondary</span></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:var(--text-muted)"></div><div class="swatch-label"><span class="swatch-name">text-muted</span></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:var(--text-faint)"></div><div class="swatch-label"><span class="swatch-name">text-faint</span></div></div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

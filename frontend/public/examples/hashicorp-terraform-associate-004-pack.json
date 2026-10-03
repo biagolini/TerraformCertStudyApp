@@ -1,0 +1,51 @@
+{
+  "name": "HashiCorp Certified: Terraform Associate (004)",
+  "version": "004",
+  "color": "#7B42BC",
+  "description": "Foundational HashiCorp certification for cloud engineers in operations, IT, or development who know the basic concepts and skills of Terraform. Validates understanding of infrastructure as code, Terraform fundamentals, the core workflow, configuration language, modules, state management, maintaining infrastructure, and HCP Terraform. Provider-specific knowledge is not required; performing the objectives in a demo environment can be sufficient to pass. Multiple-choice and multiple-answer format. The 004 version is the current exam (replacing 003 after January 8, 2026).",
+  "exportIntroQuestions": "## About this document\n\nThis document is a collection of practice exam questions for the **HashiCorp Certified: Terraform Associate (004)** certification. The questions were selected because they represent the foundational infrastructure as code concepts and Terraform skills that every practitioner should understand.\n\n### Certification context\n\nThis certification validates foundational Terraform knowledge and skills, including topics such as:\n\n* Infrastructure as Code (IaC) concepts and the advantages of IaC patterns\n* Terraform fundamentals: providers, plugin architecture, and how Terraform manages state\n* The core Terraform workflow (init, validate, plan, apply, destroy, fmt)\n* Writing configuration: resources, data sources, variables, outputs, expressions, functions, and complex types\n* Modules, state management (backends, locking, remote state, drift), maintaining infrastructure, and HCP Terraform\n\n### About the questions\n\nEach question in this document is independent and should be analyzed as a standalone scenario. Practice exams intentionally present isolated situations, and questions may appear in any order during the actual certification exam. Information from one question should never be assumed to apply to another.\n\nFor each scenario, this document includes:\n\n* The original practice exam question.\n* An explanation of the reasoning behind the correct answer.\n* A discussion of why the remaining options are less appropriate for the stated requirements.\n\n### Learning objective\n\nThe primary goal of this material is to develop a solid understanding of Terraform fundamentals and the core workflow rather than memorization. The focus should be on understanding how Terraform manages infrastructure as code, writing correct configuration, and applying the right command or feature for common tasks.\n\nBy studying the reasoning behind each answer, readers can build the foundational knowledge expected for the HashiCorp Certified: Terraform Associate (004) certification exam.",
+  "exportIntroTranscripts": "## About this document\n\nThis document contains technical summaries of lesson transcripts related to the **HashiCorp Certified: Terraform Associate (004)** certification.\n\n### Purpose\nOrganizes and synthesizes lesson content in a structured format for quick review and deeper understanding of the concepts presented.",
+  "exportIntroChat": "## About this document\n\nThis document contains AI study conversations related to the **HashiCorp Certified: Terraform Associate (004)** certification.\n\n### Purpose\nRecords discussions and explanations generated during interactive AI study sessions, serving as complementary reference material.",
+  "domains": [
+    {
+      "name": "Infrastructure as Code (IaC) with Terraform",
+      "order": 1,
+      "description": "Objective 1: Explain what IaC is, describe the advantages of IaC patterns, and explain how Terraform manages multi-cloud, hybrid cloud, and service-agnostic workflows."
+    },
+    {
+      "name": "Terraform fundamentals",
+      "order": 2,
+      "description": "Objective 2: Install and version Terraform providers, describe how Terraform uses providers, write configuration using multiple providers, and explain how Terraform uses and manages state."
+    },
+    {
+      "name": "Core Terraform workflow",
+      "order": 3,
+      "description": "Objective 3: Describe the Terraform workflow; initialize a working directory; validate configuration; generate and review an execution plan; apply changes; destroy managed infrastructure; and apply formatting with fmt."
+    },
+    {
+      "name": "Terraform configuration",
+      "order": 4,
+      "description": "Objective 4: Use and differentiate resource and data blocks; reference resource attributes and cross-resource references; use variables and outputs; understand complex types; write dynamic configuration with expressions and functions; define resource dependencies; validate using custom conditions; and manage sensitive data (including secrets management with Vault)."
+    },
+    {
+      "name": "Terraform modules",
+      "order": 5,
+      "description": "Objective 5: Explain how Terraform sources modules, describe variable scope within modules, use modules in configuration, and manage module versions."
+    },
+    {
+      "name": "Terraform state management",
+      "order": 6,
+      "description": "Objective 6: Describe the local backend, describe state locking, configure remote state using the backend block, and manage resource drift and Terraform state."
+    },
+    {
+      "name": "Maintain infrastructure with Terraform",
+      "order": 7,
+      "description": "Objective 7: Import existing infrastructure into your Terraform workspace, use the CLI to inspect state, and describe when and how to use verbose logging."
+    },
+    {
+      "name": "HCP Terraform",
+      "order": 8,
+      "description": "Objective 8: Use HCP Terraform to create infrastructure, describe collaboration and governance features, organize and use workspaces and projects, and configure and use HCP Terraform integration."
+    }
+  ]
+}

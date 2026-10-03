@@ -1,0 +1,76 @@
+<!-- @dsCard group="Components" -->
+<!doctype html>
+<html class="theme-light">
+<head>
+  <meta charset="utf-8">
+  <title>Cards, badges &amp; disclaimers</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    /* Lifted from question-input/question-list/domain-badge/ai-disclaimer components */
+    .card { background: var(--bg-surface); border-radius: var(--radius-lg); padding: var(--space-lg); box-shadow: var(--shadow-sm); width: 340px; }
+    .card h3 { margin: 0 0 4px; font-size: var(--font-size-lg); }
+
+    .badge { display: inline-flex; align-items: center; padding: 3px var(--space-md); border-radius: var(--radius-lg); font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #fff; }
+    /* First 5 positional colors from domain-badge.component.ts — maximally distinguishable for the common case */
+    .badge-1 { background: #2563eb; } .badge-2 { background: #dc2626; } .badge-3 { background: #059669; }
+    .badge-4 { background: #d97706; } .badge-5 { background: #7c3aed; }
+
+    .row { display: grid; grid-template-columns: auto 1fr; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); border: 1px solid transparent; }
+    .row.active { border-color: var(--color-purple); background: var(--bg-elevated); }
+    .check-box { width: 20px; height: 20px; margin-top: 2px; border-radius: var(--radius-sm); border: 1.5px solid var(--bg-border); background: var(--bg-input); }
+    .check-box.checked { background: var(--color-purple); border-color: var(--color-purple); }
+    .q-title { font-size: var(--font-size-base); font-weight: 500; }
+
+    .disclaimer { display: flex; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); background: var(--bg-elevated); border-radius: var(--radius-md); color: var(--text-muted); font-size: var(--font-size-xs); line-height: 1.5; width: 320px; }
+    .disclaimer svg { flex-shrink: 0; margin-top: 1px; color: var(--text-faint); }
+  </style>
+</head>
+<body>
+  <div class="ds-toolbar"><button class="ds-theme-toggle" onclick="document.documentElement.classList.toggle('theme-dark'); document.documentElement.classList.toggle('theme-light');">Toggle theme</button></div>
+  <div class="ds-page">
+    <section class="ds-section">
+      <h2>Card</h2>
+      <p class="ds-hint">The one container shape in the app: <code>bg-surface</code>, <code>radius-lg</code>, <code>shadow-sm</code>, <code>space-lg</code> padding. No left-border accents, no nested cards.</p>
+      <div class="card">
+        <h3>Reviewed Questions</h3>
+        <p style="color:var(--text-muted); font-size:var(--font-size-sm); margin:0">3 questions in this pack.</p>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Domain badges</h2>
+      <p class="ds-hint">Color is assigned by position in the pack's domain list (first 5 are maximally distinct), not by hashing the name — so badge colors stay stable as domains are added.</p>
+      <div class="ds-row">
+        <span class="badge badge-1">Networking</span>
+        <span class="badge badge-2">Security</span>
+        <span class="badge badge-3">Storage</span>
+        <span class="badge badge-4">Compute</span>
+        <span class="badge badge-5">Databases</span>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Question list row</h2>
+      <div class="card" style="padding: var(--space-sm)">
+        <div class="row active">
+          <span class="check-box checked"></span>
+          <div><span class="q-title">VPC Peering vs Transit Gateway routing</span><div style="margin-top:4px"><span class="badge badge-1">Networking</span></div></div>
+        </div>
+        <div class="row">
+          <span class="check-box"></span>
+          <div><span class="q-title">S3 versioning and lifecycle rules</span><div style="margin-top:4px"><span class="badge badge-3">Storage</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>AI disclaimer</h2>
+      <p class="ds-hint">Every AI-generated surface carries one of these — <code>ai-disclaimer.component.ts</code>. Not decorative; it is the app's core trust signal.</p>
+      <div class="disclaimer">
+        <svg viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 9v4M12 16.5h.01M10.3 3.9L2.5 18a2 2 0 001.7 3h15.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+        <span>Generated reviews are produced by AI and can contain mistakes or hallucinations. Always verify against the official certification material.</span>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

@@ -1,0 +1,228 @@
+<!-- @dsCard group="Screens" -->
+<!doctype html>
+<html class="theme-light">
+<head>
+  <meta charset="utf-8">
+  <title>Question list</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    /* Lifted verbatim from question-list.component.ts + question-item.component.ts */
+    .list-card { display: flex; flex-direction: column; gap: var(--space-md); padding: var(--space-lg); background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); width: 420px; }
+    .card-header { display: flex; flex-direction: column; gap: var(--space-xs); }
+    .title-row { display: flex; align-items: center; gap: var(--space-sm); }
+    .title-row h2 { font-size: var(--font-size-xl); margin: 0; }
+    .count { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; padding: 0 var(--space-sm); height: 22px; border-radius: var(--radius-pill); background: var(--bg-elevated); color: var(--text-secondary); font-size: var(--font-size-sm); font-weight: 600; }
+    .actions { display: flex; align-items: center; gap: var(--space-sm); font-size: var(--font-size-sm); }
+    .link { color: var(--color-blue); background: none; border: none; padding: 0; min-height: auto; font-weight: 500; font-family: var(--font-family); cursor: pointer; }
+    .link:hover { text-decoration: underline; }
+    .dot { color: var(--text-faint); }
+
+    .search-bar { display: flex; align-items: center; gap: var(--space-xs); padding: 0 var(--space-sm); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); height: 36px; }
+    .search-bar:focus-within { border-color: var(--color-purple); }
+    .search-icon { flex-shrink: 0; color: var(--text-muted); }
+    .search-input { flex: 1; min-width: 0; border: none; background: transparent; color: var(--text-primary); font-size: var(--font-size-sm); outline: none; font-family: var(--font-family); }
+    .search-input::placeholder { color: var(--text-faint); }
+    .search-clear { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--bg-elevated); color: var(--text-muted); flex-shrink: 0; border: none; cursor: pointer; }
+    .search-clear:hover { background: var(--bg-border); color: var(--text-primary); }
+    .search-toggle { display: flex; align-items: center; gap: var(--space-xs); font-size: var(--font-size-sm); color: var(--text-muted); cursor: pointer; }
+    .search-toggle input { width: 14px; height: 14px; }
+    .no-results { padding: var(--space-md); color: var(--text-muted); font-size: var(--font-size-sm); text-align: center; }
+
+    .empty { padding: var(--space-xl); text-align: center; color: var(--text-muted); background: var(--bg-elevated); border-radius: var(--radius-md); border: 1px dashed var(--bg-border); }
+    .empty-title { font-size: var(--font-size-base); color: var(--text-secondary); margin: 0 0 var(--space-xs); }
+    .empty-body { font-size: var(--font-size-sm); margin: 0; }
+
+    .list { display: flex; flex-direction: column; gap: var(--space-xs); list-style: none; margin: 0; padding: 0; }
+
+    /* question-item.component.ts */
+    .row { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); background: var(--bg-surface); border-radius: var(--radius-md); border: 1px solid transparent; transition: background var(--transition-fast), border-color var(--transition-fast); }
+    .row:hover { background: var(--bg-elevated); }
+    .row.active { border-color: var(--color-purple); background: var(--bg-elevated); }
+    .content { min-width: 0; display: flex; flex-direction: column; gap: var(--space-xs); padding: var(--space-xs) 0; }
+    .check { display: inline-flex; align-items: center; justify-content: center; width: var(--touch-min); height: var(--touch-min); cursor: pointer; position: relative; }
+    .check-box { width: 20px; height: 20px; border-radius: var(--radius-sm); border: 1.5px solid var(--bg-border); background: var(--bg-input); display: inline-flex; align-items: center; justify-content: center; }
+    .check-box.checked { background: var(--color-purple); border-color: var(--color-purple); }
+    .check-box.checked::after { content: ''; width: 10px; height: 6px; border-left: 2px solid #ffffff; border-bottom: 2px solid #ffffff; transform: rotate(-45deg) translate(0, -2px); }
+    .title-btn { text-align: left; background: none; border: none; padding: 0; color: var(--text-primary); font-size: var(--font-size-base); font-weight: 500; line-height: 1.35; min-width: 0; width: 100%; font-family: var(--font-family); cursor: pointer; }
+    .title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+    .domain-control { display: inline-flex; max-width: 100%; }
+    .badge-btn { display: inline-flex; align-items: center; padding: 0; background: none; border: none; max-width: 100%; cursor: pointer; }
+    .domain-select { height: 32px; max-width: 100%; padding: 0 var(--space-sm); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary); font-size: var(--font-size-sm); font-family: var(--font-family); }
+
+    .badge { display: inline-flex; align-items: center; padding: 3px var(--space-md); border-radius: var(--radius-lg); font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #fff; }
+    .badge-1 { background: #2563eb; } .badge-2 { background: #dc2626; } .badge-3 { background: #059669; }
+    .badge-4 { background: #d97706; } .badge-5 { background: #7c3aed; }
+  </style>
+</head>
+<body>
+  <div class="ds-toolbar"><button class="ds-theme-toggle" onclick="document.documentElement.classList.toggle('theme-dark'); document.documentElement.classList.toggle('theme-light');">Toggle theme</button></div>
+  <div class="ds-page">
+
+    <section class="ds-section">
+      <h2>Question list — default</h2>
+      <p class="ds-hint">Left-pane list in the question workflow: search, bulk select/deselect, one row per reviewed question. <code>question-list.component.ts</code> + <code>question-item.component.ts</code>.</p>
+      <div class="list-card">
+        <header class="card-header">
+          <div class="title-row">
+            <h2>Reviewed Questions</h2>
+            <span class="count">6</span>
+          </div>
+          <div class="actions">
+            <button type="button" class="link">Select all</button>
+            <span class="dot" aria-hidden="true">·</span>
+            <button type="button" class="link">Deselect all</button>
+          </div>
+        </header>
+
+        <div class="search-bar">
+          <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.35-4.35"/>
+          </svg>
+          <input type="text" class="search-input" placeholder="Search questions..." aria-label="Search questions">
+        </div>
+
+        <ul class="list">
+          <li>
+            <div class="row active">
+              <label class="check" aria-label="Deselect question">
+                <span class="check-box checked" aria-hidden="true"></span>
+              </label>
+              <div class="content">
+                <button type="button" class="title-btn"><span class="title">VPC Peering vs Transit Gateway routing for multi-account traffic</span></button>
+                <div class="domain-control"><button type="button" class="badge-btn"><span class="badge badge-1">Networking</span></button></div>
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="row">
+              <label class="check" aria-label="Select question">
+                <span class="check-box" aria-hidden="true"></span>
+              </label>
+              <div class="content">
+                <button type="button" class="title-btn"><span class="title">Least-privilege IAM role for a cross-account Lambda invocation</span></button>
+                <div class="domain-control"><button type="button" class="badge-btn"><span class="badge badge-2">Security</span></button></div>
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="row">
+              <label class="check" aria-label="Select question">
+                <span class="check-box" aria-hidden="true"></span>
+              </label>
+              <div class="content">
+                <button type="button" class="title-btn"><span class="title">S3 storage class transition for infrequently accessed logs</span></button>
+                <div class="domain-control"><button type="button" class="badge-btn"><span class="badge badge-3">Storage</span></button></div>
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="row">
+              <label class="check" aria-label="Select question">
+                <span class="check-box checked" aria-hidden="true"></span>
+              </label>
+              <div class="content">
+                <button type="button" class="title-btn"><span class="title">Auto Scaling group health check grace period tuning</span></button>
+                <div class="domain-control"><button type="button" class="badge-btn"><span class="badge badge-4">Compute</span></button></div>
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="row">
+              <label class="check" aria-label="Select question">
+                <span class="check-box" aria-hidden="true"></span>
+              </label>
+              <div class="content">
+                <button type="button" class="title-btn"><span class="title">Choosing between RDS read replicas and DynamoDB global tables</span></button>
+                <div class="domain-control"><button type="button" class="badge-btn"><span class="badge badge-5">Databases</span></button></div>
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="row">
+              <label class="check" aria-label="Select question">
+                <span class="check-box" aria-hidden="true"></span>
+              </label>
+              <div class="content">
+                <button type="button" class="title-btn"><span class="title">CloudFront cache invalidation strategy after a deploy</span></button>
+                <div class="domain-control"><button type="button" class="badge-btn"><span class="badge badge-1">Networking</span></button></div>
+              </div>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Question list — domain picker open</h2>
+      <p class="ds-hint">Clicking a row's domain badge swaps it for a <code>&lt;select&gt;</code> inline (<code>showPicker()</code> in <code>question-item.component.ts</code>).</p>
+      <div class="list-card" style="width: 380px;">
+        <ul class="list">
+          <li>
+            <div class="row active">
+              <label class="check" aria-label="Deselect question">
+                <span class="check-box checked" aria-hidden="true"></span>
+              </label>
+              <div class="content">
+                <button type="button" class="title-btn"><span class="title">VPC Peering vs Transit Gateway routing for multi-account traffic</span></button>
+                <div class="domain-control">
+                  <select class="domain-select" aria-label="Change domain">
+                    <option selected>Networking</option>
+                    <option>Security</option>
+                    <option>Storage</option>
+                    <option>Compute</option>
+                    <option>Databases</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Question list — searching (all packs)</h2>
+      <p class="ds-hint">The "Search all packs" checkbox only appears while a query is active (<code>questionsService.isSearching()</code>), letting a search span every pack instead of just the active one.</p>
+      <div class="list-card" style="width: 380px;">
+        <div class="search-bar">
+          <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.35-4.35"/>
+          </svg>
+          <input type="text" class="search-input" value="transit gateway" aria-label="Search questions">
+          <button type="button" class="search-clear" aria-label="Clear search">
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <label class="search-toggle">
+          <input type="checkbox">
+          <span>Search all packs</span>
+        </label>
+        <p class="no-results">No questions match your search.</p>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Question list — empty state</h2>
+      <div class="list-card" style="width: 380px;">
+        <header class="card-header">
+          <div class="title-row">
+            <h2>Reviewed Questions</h2>
+            <span class="count">0</span>
+          </div>
+        </header>
+        <div class="search-bar">
+          <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.35-4.35"/>
+          </svg>
+          <input type="text" class="search-input" placeholder="Search questions..." aria-label="Search questions">
+        </div>
+        <div class="empty">
+          <p class="empty-title">No questions yet.</p>
+          <p class="empty-body">Paste a question in the Input tab to generate your first review.</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,51 @@
+{
+  "name": "MongoDB Associate Data Modeler",
+  "version": "",
+  "color": "#13AA52",
+  "description": "MongoDB certification focused on designing data structures and applying MongoDB design patterns. Given data requirements, query needs, and constraints, the candidate selects the pattern that best fits the use case (embed versus reference, and the 12 MongoDB schema design patterns). Covers requirements gathering, entities, relationships, workload analysis, data model design, modeling for technical requirements, indexing, and monitoring/evolving data models. Online proctored exam, 70 multiple-choice questions (60 scored), 105 minutes, 70% passing score.",
+  "exportIntroQuestions": "## About this document\n\nThis document is a collection of practice exam questions for the **MongoDB Associate Data Modeler** certification. The questions were selected because they represent the schema design decisions a data modeler makes when translating requirements into an effective MongoDB document model.\n\n### Certification context\n\nThis certification validates the ability to design MongoDB data models, including topics such as:\n\n* Gathering requirements and analyzing workload (read/write patterns, explain() and executionStats, historical data with TTL indexes)\n* Entities and relationships (one-to-one, one-to-few, one-to-many, many-to-many; embedding versus referencing)\n* Data model design with MongoDB's schema design patterns (the core of the exam), plus JSON schema validation (validationLevel, validationAction)\n* Modeling for technical requirements, including limitations and tradeoffs of each model\n* Indexing (compound, multikey, partial, sparse, clustered, TTL) and monitoring/evolving data models over time\n\n### About the questions\n\nEach question in this document is independent and should be analyzed as a standalone scenario. Practice exams intentionally present isolated situations, and questions may appear in any order during the actual certification exam. Information from one question should never be assumed to apply to another.\n\nFor each scenario, this document includes:\n\n* The original practice exam question.\n* An explanation of the reasoning behind the correct answer.\n* A discussion of why the remaining options are less appropriate for the stated requirements.\n\n### Learning objective\n\nThe primary goal of this material is to develop sound data-modeling judgment rather than memorization. Because the answer is usually \"it depends,\" the focus should be on reading requirements carefully, recognizing the right pattern, and understanding the tradeoffs between embedding and referencing.\n\nBy studying the reasoning behind each answer, readers can build the schema design skills expected for the MongoDB Associate Data Modeler certification exam.",
+  "exportIntroTranscripts": "## About this document\n\nThis document contains technical summaries of lesson transcripts related to the **MongoDB Associate Data Modeler** certification.\n\n### Purpose\nOrganizes and synthesizes lesson content in a structured format for quick review and deeper understanding of the concepts presented.",
+  "exportIntroChat": "## About this document\n\nThis document contains AI study conversations related to the **MongoDB Associate Data Modeler** certification.\n\n### Purpose\nRecords discussions and explanations generated during interactive AI study sessions, serving as complementary reference material.",
+  "domains": [
+    {
+      "name": "Requirements Gathering",
+      "order": 1,
+      "description": "Domain 1 (10%): Read requirements carefully and detect clues (write-speed needs, scalability goals, on-the-fly versus pre-computed analytics) that constrain which patterns are viable."
+    },
+    {
+      "name": "Entities",
+      "order": 2,
+      "description": "Domain 2 (13%): Identify strong and weak entities and the relationships between them; map entities to document fields."
+    },
+    {
+      "name": "Relationships",
+      "order": 3,
+      "description": "Domain 3 (8.5%): Model one-to-one, one-to-few, one-to-many, and many-to-many relationships; decide when to embed versus reference and understand data duplication tradeoffs."
+    },
+    {
+      "name": "Workload / Usage Analysis",
+      "order": 4,
+      "description": "Domain 4 (10%): Identify read and write patterns; analyze queries with explain() and executionStats; manage historical data with TTL indexes; balance read versus write performance."
+    },
+    {
+      "name": "Data Model Design (Schema Patterns)",
+      "order": 5,
+      "description": "Domain 5 (28%): Apply MongoDB's 12 schema design patterns (embedded, subset, bucket, computed, and others); decide when to embed or reference; and use JSON schema validation (validationLevel, validationAction). This is the core domain of the exam."
+    },
+    {
+      "name": "Modeling for Technical Requirements",
+      "order": 6,
+      "description": "Domain 6 (10%): Account for each model's limitations, disadvantages, and tradeoffs; know when not to use a model. Tightly related to Requirements Gathering and Data Model Design."
+    },
+    {
+      "name": "Indexing",
+      "order": 7,
+      "description": "Domain 7 (13%): Understand and optimize indexes: compound, multikey, partial (partialFilterExpression), sparse, clustered, hidden, and TTL indexes."
+    },
+    {
+      "name": "Monitoring and Evolving Data Models",
+      "order": 8,
+      "description": "Domain 8 (7.5%): Recognize when and how a data model should evolve based on changing data, throughput, peaks, analytics, and new requirements; use db.collection.stats(), db.serverStatus(), and indexStats."
+    }
+  ]
+}

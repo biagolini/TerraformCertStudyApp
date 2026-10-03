@@ -1,0 +1,405 @@
+import { Injectable, inject } from '@angular/core';
+import { environment } from '../../../environments/environment';
+import { DEFAULT_MODEL, outputLanguageLabel } from '../models/settings.model';
+import { PackContext } from '../models/pack.model';
+import { buildTranscriptScriptPrompt } from '../utils/transcript-prompt.util';
+import { buildChatSystemPrompt, buildChatSummaryPrompt } from '../utils/chat-prompt.util';
+import { buildRelatedServicesPrompt, buildRelatedServicesUserMessage } from '../utils/enrichment-prompt.util';
+import { buildTranslateReviewPrompt } from '../utils/translate-prompt.util';
+import { ParsedAlternative } from '../utils/question-parse.util';
+import { AuthService } from './auth.service';
+import { PacksService } from './packs.service';
+
+interface BedrockMessage {
+  role: 'user' | 'assistant';
+  content: Array<{ text: string }>;
+}
+
+export interface TranslatedReviewContent {
+  stem: string;
+  alternatives: { letter: string; text: string; comment: string }[];
+  generalComment: string | null;
+}
+
+/**
+ * Talks to the API Gateway. /converse invokes a Lambda that calls Amazon
+ * Bedrock directly via converse_stream (chat, transcripts, titles, related-
+ * services extraction). /review invokes a Lambda that calls the AgentCore
+ * Runtime review agent instead (question review generation/refinement).
+ * Authentication is done with the Cognito id token (Bearer). Both endpoints
+ * stream responses as the same NDJSON envelope.
+ */
+@Injectable({ providedIn: 'root' })
+export class BedrockService {
+  private readonly auth = inject(AuthService);
+  private readonly packs = inject(PacksService);
+
+  /**
+   * Question review generation now runs on the AgentCore Runtime review
+   * agent (Strands, with skills + AWS-documentation MCP tool) instead of a
+   * client-built system prompt sent straight to Bedrock — see /review's
+   * Lambda and backend/infrastructure/agent/review_agent/. The agent still
+   * streams the same Markdown template, so response parsing
+   * (question-parse.util.ts) and everything downstream is unchanged.
+   */
+  async *streamReview(
+    question: string,
+    pack: PackContext,
+    model: string | undefined,
+    signal: AbortSignal,
+    outputLanguage?: string,
+  ): AsyncGenerator<string, void, void> {
+    const trimmedQuestion = question.trim();
+    if (!trimmedQuestion) throw new Error('Question cannot be empty.');
+    yield* this.streamReviewRequest(
+      { mode: 'from_scratch', questionText: trimmedQuestion, pack, outputLanguage },
+      signal,
+    );
+  }
+
+  async *streamTranscriptScript(
+    transcripts: string[],
+    model: string | undefined,
+    signal: AbortSignal,
+    outputLanguage?: string,
+  ): AsyncGenerator<string, void, void> {
+    const cleaned = transcripts.map((t) => t.trim()).filter((t) => t.length > 0);
+    if (cleaned.length === 0) throw new Error('At least one transcript is required.');
+
+    const system = buildTranscriptScriptPrompt(outputLanguage);
+    const joined = cleaned
+      .map((text, i) => `--- LESSON ${i + 1} TRANSCRIPT ---\n${text}`)
+      .join('\n\n');
+    const userMessage = `Below are ${cleaned.length} lesson transcript${cleaned.length === 1 ? '' : 's'}. Use them as the source material for the technical summary, following the format in your system instructions.\n\n${joined}`;
+
+    yield* this.streamConverse(
+      system,
+      [{ role: 'user', content: [{ text: userMessage }] }],
+      model,
+      signal,
+      'transcriptScript',
+    );
+  }
+
+  async *streamRefineReview(
+    currentReview: string,
+    feedback: string,
+    pack: PackContext,
+    model: string | undefined,
+    signal: AbortSignal,
+    outputLanguage?: string,
+  ): AsyncGenerator<string, void, void> {
+    const trimmedFeedback = feedback.trim();
+    if (!trimmedFeedback) throw new Error('Feedback cannot be empty.');
+    if (!currentReview.trim()) throw new Error('No review to refine.');
+
+    yield* this.streamReviewRequest(
+      { mode: 'refine', currentReview, feedback: trimmedFeedback, pack, outputLanguage },
+      signal,
+    );
+  }
+
+  async *streamChat(
+    history: { role: 'user' | 'assistant'; content: string }[],
+    pack: PackContext,
+    model: string | undefined,
+    signal: AbortSignal,
+    outputLanguage?: string,
+  ): AsyncGenerator<string, void, void> {
+    if (history.length === 0) throw new Error('Conversation history cannot be empty.');
+    const system = buildChatSystemPrompt(pack, outputLanguage);
+    const messages: BedrockMessage[] = history.map((m) => ({
+      role: m.role,
+      content: [{ text: m.content }],
+    }));
+    yield* this.streamConverse(system, messages, model, signal, 'chat');
+  }
+
+  async *streamChatSummary(
+    history: { role: 'user' | 'assistant'; content: string }[],
+    existingSummary: string,
+    pack: PackContext,
+    model: string | undefined,
+    signal: AbortSignal,
+    outputLanguage?: string,
+  ): AsyncGenerator<string, void, void> {
+    if (history.length === 0) throw new Error('No conversation to summarize.');
+    const system = buildChatSummaryPrompt(pack, outputLanguage);
+    const transcript = history
+      .map((m) => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.content}`)
+      .join('\n\n');
+    const previousSummaryBlock = existingSummary.trim()
+      ? `\n\n=== EXISTING SUMMARY (update this with new content from the conversation below) ===\n${existingSummary.trim()}`
+      : '';
+    const userMessage = `Below is the full tutoring conversation. Produce the summary following your system instructions.${previousSummaryBlock}\n\n=== CONVERSATION ===\n${transcript}`;
+
+    yield* this.streamConverse(
+      system,
+      [{ role: 'user', content: [{ text: userMessage }] }],
+      model,
+      signal,
+      'chatSummary',
+    );
+  }
+
+  async generateTitle(
+    sourceText: string,
+    model: string | undefined,
+    signal: AbortSignal,
+    outputLanguage?: string,
+  ): Promise<string> {
+    const clean = sourceText.trim();
+    if (!clean) throw new Error('No content to generate a title from.');
+    const system = buildTitlePrompt(outputLanguage);
+    let accumulated = '';
+    for await (const chunk of this.streamConverse(
+      system,
+      [{ role: 'user', content: [{ text: clean.slice(0, 6000) }] }],
+      model,
+      signal,
+      'titleGeneration',
+    )) {
+      accumulated += chunk;
+    }
+    return accumulated
+      .trim()
+      .replace(/^["'`*_\s]+|["'`*_\s]+$/g, '')
+      .slice(0, 80)
+      .trim();
+  }
+
+  /** One-shot, non-streaming extraction of the vendor services/products a question references. */
+  async extractRelatedServices(
+    stem: string,
+    alternatives: ParsedAlternative[],
+    model: string | undefined,
+    signal: AbortSignal,
+  ): Promise<string[]> {
+    const system = buildRelatedServicesPrompt();
+    const userMessage = buildRelatedServicesUserMessage(stem, alternatives);
+    let accumulated = '';
+    for await (const chunk of this.streamConverse(
+      system,
+      [{ role: 'user', content: [{ text: userMessage }] }],
+      model,
+      signal,
+      'relatedServices',
+    )) {
+      accumulated += chunk;
+    }
+    try {
+      const parsed = JSON.parse(accumulated.trim());
+      return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** One-shot, non-streaming translation of an already-reviewed question's
+   * content — see ReviewViewerComponent's "Translate with AI" button.
+   * Deliberately hardcodes Nova Lite (DEFAULT_MODEL) rather than the user's
+   * configured default model — translation should stay fast/cheap
+   * regardless of which (possibly heavier/reasoning) model reviews use. */
+  async translateReview(
+    content: TranslatedReviewContent,
+    targetLanguageLabel: string,
+    signal: AbortSignal,
+  ): Promise<TranslatedReviewContent> {
+    const system = buildTranslateReviewPrompt(targetLanguageLabel);
+    let accumulated = '';
+    for await (const chunk of this.streamConverse(
+      system,
+      [{ role: 'user', content: [{ text: JSON.stringify(content) }] }],
+      DEFAULT_MODEL,
+      signal,
+      'translate',
+    )) {
+      accumulated += chunk;
+    }
+    const jsonText = accumulated.trim().replace(/^```(?:json)?\s*|\s*```$/g, '').trim();
+    const parsed = JSON.parse(jsonText);
+    if (!parsed || typeof parsed.stem !== 'string' || !Array.isArray(parsed.alternatives)) {
+      throw new Error('Translation returned an unexpected shape.');
+    }
+    return parsed as TranslatedReviewContent;
+  }
+
+  private async *streamConverse(
+    system: string,
+    messages: BedrockMessage[],
+    model: string | undefined,
+    signal: AbortSignal,
+    action: string,
+  ): AsyncGenerator<string, void, void> {
+    const token = await this.auth.getValidToken();
+
+    const response = await fetch(`${environment.apiUrl}/converse`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        model_id: model || DEFAULT_MODEL,
+        system_prompt: system,
+        messages,
+        // Tags the usage row this call logs server-side for the Costs page
+        // (see converse/app.py's _write_usage_event) — purely informational,
+        // has no effect on the Bedrock call itself. This is the CURRENTLY
+        // active pack, not necessarily "the" pack a given prompt is about
+        // (e.g. a chat message) — good enough for "which exam was I working
+        // in" context on the Costs page without threading pack info through
+        // every single caller's own signature. name/version are sent
+        // (not just the id) so that row still shows a real label even after
+        // the pack itself is later deleted — see converse/app.py's comment.
+        action,
+        pack_id: this.activePackMeta().id,
+        pack_name: this.activePackMeta().name,
+        pack_version: this.activePackMeta().version,
+        // max_tokens intentionally omitted: Bedrock then defaults to the
+        // model's maximum allowed output (10K for Amazon Nova).
+      }),
+      signal,
+    });
+
+    if (!response.ok) throw new Error(await this.extractError(response));
+    yield* this.readNdjsonStream(response);
+  }
+
+  /**
+   * Question review generation — POSTs to /review, which invokes the
+   * AgentCore Runtime review agent and relays its SSE output as the same
+   * NDJSON envelope /converse uses, so response parsing is identical.
+   */
+  private async *streamReviewRequest(
+    body: {
+      mode: 'from_scratch' | 'refine';
+      pack: PackContext;
+      outputLanguage?: string;
+      questionText?: string;
+      currentReview?: string;
+      feedback?: string;
+    },
+    signal: AbortSignal,
+  ): AsyncGenerator<string, void, void> {
+    const token = await this.auth.getValidToken();
+
+    const response = await fetch(`${environment.apiUrl}/review`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        ...body,
+        packId: this.activePackMeta().id,
+        packName: this.activePackMeta().name,
+        packVersion: this.activePackMeta().version,
+      }),
+      signal,
+    });
+
+    if (!response.ok) throw new Error(await this.extractError(response));
+    yield* this.readNdjsonStream(response);
+  }
+
+  /** The active pack's id/name/version, or all `undefined` for the
+   * placeholder pre-load pack (see PacksService.placeholder) — never
+   * logged as a real pack. */
+  private activePackMeta(): { id: string | undefined; name: string | undefined; version: string | undefined } {
+    const pack = this.packs.activePack();
+    if (!pack.id || pack.id === '__placeholder__') return { id: undefined, name: undefined, version: undefined };
+    return { id: pack.id, name: pack.name, version: pack.version || undefined };
+  }
+
+  private async *readNdjsonStream(response: Response): AsyncGenerator<string, void, void> {
+    if (!response.body) throw new Error('Streaming is not supported in this environment.');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex;
+        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+          const line = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
+          const text = parseNdjsonLine(line);
+          if (text) yield text;
+        }
+      }
+      if (buffer.trim()) {
+        const text = parseNdjsonLine(buffer);
+        if (text) yield text;
+      }
+    } finally {
+      try {
+        reader.releaseLock();
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  private async extractError(response: Response): Promise<string> {
+    try {
+      const text = await response.text();
+      // Body may be NDJSON with an ERROR line, or plain JSON.
+      for (const raw of text.split('\n')) {
+        const line = raw.trim();
+        if (!line) continue;
+        try {
+          const evt = JSON.parse(line) as { type?: string; message?: string };
+          if (evt.message) return evt.message;
+        } catch {
+          // not JSON, ignore
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return `Request failed with status ${response.status}.`;
+  }
+}
+
+function buildTitlePrompt(outputLanguage?: string): string {
+  const lang = outputLanguage
+    ? `Write the title in ${outputLanguageLabel(outputLanguage)}.`
+    : 'Write the title in the same language as the content.';
+  return `You generate a concise title for an exam question study note. Read the content the user provides and output ONLY a short, descriptive title of 4 to 8 words capturing the main topic or scenario. ${lang}
+
+STRICT OUTPUT RULES:
+- Output only the title text, nothing else.
+- No quotes, no markdown, no bullet points.
+- No prefixes such as "Title:", "Question:", or "Scenario:".
+- No trailing punctuation.
+- No explanation or commentary.`;
+}
+
+/**
+ * Parses a single NDJSON line from the Lambda stream.
+ * Returns the token text for TOKEN events, throws for ERROR events,
+ * and returns null for END/METADATA/empty lines.
+ */
+function parseNdjsonLine(line: string): string | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+  try {
+    const evt = JSON.parse(trimmed) as { type?: string; text?: string; message?: string };
+    if (evt.type === 'TOKEN') return evt.text ?? null;
+    if (evt.type === 'ERROR') throw new Error(evt.message || 'Generation failed.');
+    // END, METADATA, or unknown → no text
+    return null;
+  } catch (err) {
+    // Re-throw ERROR events; ignore JSON parse failures on partial lines.
+    if (err instanceof Error && err.message && !err.message.includes('JSON')) {
+      throw err;
+    }
+    return null;
+  }
+}

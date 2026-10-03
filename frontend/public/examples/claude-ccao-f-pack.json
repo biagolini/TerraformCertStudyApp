@@ -1,0 +1,46 @@
+{
+  "name": "Claude Certified Associate — Foundations (CCAO-F)",
+  "version": "",
+  "color": "#e17055",
+  "description": "Entry-level Anthropic certification for non-technical professionals who use Claude for everyday business, communication, research, and productivity work (product/program managers, consultants, marketers, HR, operations, analysts). Validates practical prompting, output evaluation, product/model selection, workflow integration, project configuration, responsible use, and troubleshooting. No coding required. 60 questions, 120 minutes, 720/1000 passing score. Proctored via Pearson VUE; credential valid 12 months.",
+  "exportIntroQuestions": "## About this document\n\nThis document is a collection of practice exam questions for the **Claude Certified Associate — Foundations (CCAO-F)** certification. The questions were selected because they represent the practical, everyday decisions any professional makes when applying Claude to real business and productivity work.\n\n### Certification context\n\nThis certification validates the ability to use Claude effectively in professional workflows, including topics such as:\n\n* Structured prompting and task decomposition for analysis, research, drafting, and brainstorming\n* Evaluating and verifying generated output, including spotting bias, hallucinations, and unsupported claims\n* Selecting appropriate Claude products and models (Chat, Projects, research mode, Artifacts; Haiku, Sonnet, Opus)\n* Configuring Projects and knowledge sources, and integrating Claude into existing workflows\n* Responsible use, privacy, data sensitivity, and knowing when human review or escalation is required\n\n### About the questions\n\nEach question in this document is independent and should be analyzed as a standalone scenario. Practice exams intentionally present isolated situations, and questions may appear in any order during the actual certification exam. Information from one question should never be assumed to apply to another.\n\nFor each scenario, this document includes:\n\n* The original practice exam question.\n* An explanation of the reasoning behind the correct answer.\n* A discussion of why the remaining options are less appropriate for the stated requirements.\n\n### Learning objective\n\nThe primary goal of this material is to develop sound, practical judgment for applying Claude to work rather than memorization. The focus should be on writing effective prompts, evaluating outputs, choosing the right product and model, and applying responsible AI practices in realistic scenarios.\n\nBy studying the reasoning behind each answer, readers can build the everyday-use skills expected for the Claude Certified Associate — Foundations certification exam.",
+  "exportIntroTranscripts": "## About this document\n\nThis document contains technical summaries of lesson transcripts related to the **Claude Certified Associate — Foundations (CCAO-F)** certification.\n\n### Purpose\nOrganizes and synthesizes lesson content in a structured format for quick review and deeper understanding of the concepts presented.",
+  "exportIntroChat": "## About this document\n\nThis document contains AI study conversations related to the **Claude Certified Associate — Foundations (CCAO-F)** certification.\n\n### Purpose\nRecords discussions and explanations generated during interactive AI study sessions, serving as complementary reference material.",
+  "domains": [
+    {
+      "name": "Prompting and Task Execution",
+      "order": 1,
+      "description": "Domain 1 (14%): Write clear prompts with context, instructions, constraints, and expected output; break complex requests into smaller steps; refine and adapt prompts for research, analysis, drafting, and brainstorming."
+    },
+    {
+      "name": "Output Evaluation and Validation",
+      "order": 2,
+      "description": "Domain 2 (21%): Assess generated content for accuracy, completeness, consistency, and relevance; identify unsupported claims, bias, or conflicting information; determine when external validation or human review is needed; refine and present output in an appropriate format."
+    },
+    {
+      "name": "Product and Model Selection",
+      "order": 3,
+      "description": "Domain 3 (12%): Choose among Claude Chat, Projects, research mode, and Artifacts based on the task; select Haiku, Sonnet, or Opus by balancing complexity, quality, speed, and cost; manage context across conversations."
+    },
+    {
+      "name": "Workflow Integration and Solution Design",
+      "order": 4,
+      "description": "Domain 4 (16%): Analyze business requirements and identify tasks Claude can support; apply Claude to research, planning, process improvement, and iterative refinement; align stakeholders on expected value, limitations, risks, and required human involvement."
+    },
+    {
+      "name": "Configuration and Knowledge Management",
+      "order": 5,
+      "description": "Domain 5 (12%): Configure Claude Projects with clear instructions and reference materials; organize and maintain uploaded content and connected sources (Google Drive, Gmail); keep instructions and settings accurate as requirements change."
+    },
+    {
+      "name": "Governance, Risk, and Responsible Use",
+      "order": 6,
+      "description": "Domain 6 (15%): Recognize suitable versus high-risk use cases; consider data sensitivity, confidentiality, regulatory obligations, and organizational policies; account for bias, misinformation, transparency, and the consequences of AI-generated content."
+    },
+    {
+      "name": "Troubleshooting and Optimization",
+      "order": 7,
+      "description": "Domain 7 (10%): Diagnose whether weak results stem from unclear instructions, missing context, unsuitable source material, or an ineffective approach; apply corrective adjustments; optimize Claude-supported processes for efficiency and reliability."
+    }
+  ]
+}

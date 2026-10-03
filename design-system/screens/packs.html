@@ -1,0 +1,268 @@
+<!-- @dsCard group="Screens" -->
+<!doctype html>
+<html class="theme-light">
+<head>
+  <meta charset="utf-8">
+  <title>Packs (drawer &amp; editor)</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    /* Lifted verbatim from packs-drawer.component.ts and pack-editor.component.ts inline styles */
+
+    /* --- Drawer (packs-drawer.component.ts) --- */
+    .drawer { display: flex; flex-direction: column; width: 360px; height: 520px; background: var(--bg-surface); color: var(--text-primary); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-md); }
+    .drawer-header { display: flex; align-items: center; justify-content: space-between; padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--bg-border); background: var(--bg-surface); }
+    .drawer-header h2 { font-size: var(--font-size-xl); }
+    .close-btn { display: inline-flex; align-items: center; justify-content: center; width: var(--touch-min); height: var(--touch-min); border-radius: var(--radius-md); color: var(--text-muted); background: transparent; border: none; cursor: pointer; }
+    .close-btn:hover { background: var(--bg-subtle); color: var(--text-primary); }
+    .drawer-body { flex: 1; overflow-y: auto; padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md); }
+    .hint { font-size: var(--font-size-sm); color: var(--text-muted); line-height: 1.5; }
+    .pack-list { display: flex; flex-direction: column; gap: var(--space-xs); list-style: none; margin: 0; padding: 0; }
+    .pack-row { display: grid; grid-template-columns: 1fr auto; align-items: stretch; background: var(--bg-elevated); border: 1px solid var(--bg-border); border-radius: var(--radius-md); overflow: hidden; }
+    .pack-row.active { border-color: var(--pack-color, var(--color-purple)); box-shadow: 0 0 0 1px var(--pack-color, var(--color-purple)); }
+    .select-btn { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); background: transparent; border: none; text-align: left; color: var(--text-primary); min-height: var(--touch-min); cursor: pointer; width: 100%; }
+    .select-btn:hover { background: var(--bg-subtle); }
+    .dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+    .meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .name { font-weight: 600; font-size: var(--font-size-base); color: var(--text-primary); overflow-wrap: anywhere; }
+    .version { font-size: var(--font-size-sm); color: var(--text-secondary); }
+    .count { font-size: var(--font-size-xs); color: var(--text-muted); }
+    .check { display: inline-flex; align-items: center; justify-content: center; color: var(--pack-color, var(--color-purple)); flex-shrink: 0; }
+    .edit-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0 var(--space-md); color: var(--text-muted); border-left: 1px solid var(--bg-border); background: transparent; border-top: none; border-right: none; border-bottom: none; cursor: pointer; }
+    .edit-btn:hover { background: var(--bg-subtle); color: var(--text-primary); }
+    .new-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-xs); min-height: var(--touch-min); border-radius: var(--radius-md); border: 1px dashed var(--bg-border); color: var(--text-secondary); background: transparent; margin-top: var(--space-sm); cursor: pointer; width: 100%; }
+    .new-btn:hover { border-color: var(--color-purple); color: var(--color-purple); background: var(--bg-subtle); }
+
+    /* --- Editor (pack-editor.component.ts) --- */
+    .card { position: relative; background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: min(480px, 100%); max-height: 90dvh; display: flex; flex-direction: column; overflow: hidden; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--bg-border); }
+    .card-header h2 { font-size: var(--font-size-xl); }
+    .card-body { flex: 1; overflow-y: auto; padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md); max-height: 640px; }
+    .field { display: flex; flex-direction: column; gap: var(--space-xs); }
+    .field-label { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-primary); }
+    .field-hint { font-size: var(--font-size-sm); color: var(--text-muted); }
+    .text-input { height: var(--touch-min); padding: 0 var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary); font-size: var(--font-size-base); width: 100%; font-family: var(--font-family); }
+    .text-input:focus-visible { outline: none; border-color: var(--color-purple); }
+    .textarea { height: auto; padding: var(--space-sm) var(--space-md); resize: vertical; font-family: inherit; line-height: 1.45; }
+    .intro-textarea { min-height: 90px; font-family: var(--font-mono); font-size: var(--font-size-sm); }
+    .color-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--space-xs); max-width: 320px; }
+    .color-swatch { width: 100%; aspect-ratio: 1; border-radius: var(--radius-md); border: 2px solid transparent; cursor: pointer; }
+    .color-swatch.selected { border-color: var(--text-primary); box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--text-primary); }
+    .custom-swatch { display: inline-flex; align-items: center; justify-content: center; background: var(--bg-elevated); border: 1px dashed var(--bg-border); color: var(--text-muted); }
+    .field-label-row { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
+    .btn-import-json { display: inline-flex; align-items: center; gap: 4px; padding: 3px var(--space-sm); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-elevated); color: var(--text-secondary); font-size: var(--font-size-sm); font-weight: 500; cursor: pointer; white-space: nowrap; }
+    .btn-import-json:hover { border-color: var(--color-purple); color: var(--color-purple); }
+    .btn-templates { border-color: var(--color-purple); color: var(--color-purple); background: rgba(108, 92, 231, 0.06); }
+    .domain-list { display: flex; flex-direction: column; gap: var(--space-xs); list-style: none; margin: 0; padding: 0; }
+    .domain-item { background: var(--bg-elevated); border: 1px solid var(--bg-border); border-radius: var(--radius-md); padding: var(--space-xs) var(--space-sm); }
+    .domain-item-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-xs); }
+    .domain-order { font-size: var(--font-size-xs); font-weight: 600; color: var(--text-faint); min-width: 16px; flex-shrink: 0; }
+    .domain-item-name { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-primary); flex: 1; min-width: 0; }
+    .domain-item-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+    .domain-action-btn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: var(--radius-sm); color: var(--text-faint); background: transparent; border: none; cursor: pointer; }
+    .domain-action-btn:hover { color: var(--color-blue); background: var(--bg-subtle); }
+    .chip-remove { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: var(--radius-pill); color: var(--text-muted); background: transparent; border: none; cursor: pointer; }
+    .chip-remove:hover { background: var(--color-red); color: #ffffff; }
+    .domain-item-desc { font-size: var(--font-size-sm); color: var(--text-muted); line-height: 1.4; margin-top: 2px; white-space: pre-wrap; }
+    .count-label { font-size: var(--font-size-sm); color: var(--text-faint); }
+    .card-footer { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-md) var(--space-lg); border-top: 1px solid var(--bg-border); }
+    .spacer { flex: 1; }
+    .btn { min-height: var(--touch-min); padding: 0 var(--space-md); border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-base); white-space: nowrap; border: none; cursor: pointer; font-family: var(--font-family); }
+    .btn-primary { background: var(--color-purple); color: #ffffff; }
+    .btn-primary:hover { background: var(--color-blue); }
+    .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--bg-border); }
+    .btn-ghost:hover { background: var(--bg-subtle); }
+    .btn-danger { background: transparent; color: var(--color-red); border: 1px solid var(--color-red); }
+    .btn-danger:hover { background: var(--color-red); color: #ffffff; }
+
+    .confirm { background: var(--bg-surface); border-radius: var(--radius-lg); padding: var(--space-lg); box-shadow: var(--shadow-lg); max-width: 360px; display: flex; flex-direction: column; gap: var(--space-md); }
+    .confirm h3 { font-size: var(--font-size-lg); }
+    .confirm p { font-size: var(--font-size-base); color: var(--text-secondary); line-height: 1.5; }
+    .confirm-actions { display: flex; justify-content: flex-end; gap: var(--space-sm); }
+  </style>
+</head>
+<body>
+  <div class="ds-toolbar"><button class="ds-theme-toggle" onclick="document.documentElement.classList.toggle('theme-dark'); document.documentElement.classList.toggle('theme-light');">Toggle theme</button></div>
+  <div class="ds-page">
+
+    <section class="ds-section">
+      <h2>Packs drawer</h2>
+      <p class="ds-hint">packs-drawer.component.ts — lists every pack (the app's certification/exam containers), highlights the active one with its own color as the border/check accent, and opens <code>app-pack-editor</code> for create/edit.</p>
+      <div class="drawer">
+        <header class="drawer-header">
+          <h2>Exam Packs</h2>
+          <button type="button" class="close-btn" aria-label="Close packs">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M5 5l14 14M19 5L5 19"/></svg>
+          </button>
+        </header>
+        <div class="drawer-body">
+          <p class="hint">Each pack is its own collection of reviewed questions, domains, and color. Switch packs to keep different certifications or simulado batches separated.</p>
+          <ul class="pack-list">
+            <li class="pack-row active" style="--pack-color:#6c5ce7">
+              <button type="button" class="select-btn" aria-pressed="true" aria-label="Switch to AWS Solutions Architect · SAA-C03">
+                <span class="dot" style="background:#6c5ce7"></span>
+                <span class="meta">
+                  <span class="name">AWS Solutions Architect</span>
+                  <span class="version">SAA-C03</span>
+                  <span class="count">42 questions</span>
+                </span>
+                <span class="check"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M5 12l5 5L20 7"/></svg></span>
+              </button>
+              <button type="button" class="edit-btn" aria-label="Edit AWS Solutions Architect · SAA-C03">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4l10-10-4-4L4 16v4zM14 6l4 4"/></svg>
+              </button>
+            </li>
+            <li class="pack-row" style="--pack-color:#00b894">
+              <button type="button" class="select-btn" aria-pressed="false" aria-label="Switch to AWS Cloud Practitioner · CLF-C02">
+                <span class="dot" style="background:#00b894"></span>
+                <span class="meta">
+                  <span class="name">AWS Cloud Practitioner</span>
+                  <span class="version">CLF-C02</span>
+                  <span class="count">18 questions</span>
+                </span>
+              </button>
+              <button type="button" class="edit-btn" aria-label="Edit AWS Cloud Practitioner · CLF-C02">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4l10-10-4-4L4 16v4zM14 6l4 4"/></svg>
+              </button>
+            </li>
+            <li class="pack-row" style="--pack-color:#e17055">
+              <button type="button" class="select-btn" aria-pressed="false" aria-label="Switch to Claude Certified Architect Foundations">
+                <span class="dot" style="background:#e17055"></span>
+                <span class="meta">
+                  <span class="name">Claude Certified Architect Foundations</span>
+                  <span class="count">7 questions</span>
+                </span>
+              </button>
+              <button type="button" class="edit-btn" aria-label="Edit Claude Certified Architect Foundations">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 20h4l10-10-4-4L4 16v4zM14 6l4 4"/></svg>
+              </button>
+            </li>
+          </ul>
+          <button type="button" class="new-btn">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
+            <span>New pack</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Pack editor — form fields &amp; color</h2>
+      <p class="ds-hint">pack-editor.component.ts — modal opened from the drawer (create or edit). Color grid uses the real 11-swatch <code>PACK_COLORS</code> palette from pack.model.ts, plus a dashed "custom" swatch that opens the native color picker. Import file / Paste JSON / Templates load one of the 13 bundled example packs shown in <code>public/examples/</code>.</p>
+      <div class="card" style="box-shadow:var(--shadow-md)">
+        <header class="card-header">
+          <h2>Edit pack</h2>
+          <button type="button" class="close-btn" aria-label="Close editor">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M5 5l14 14M19 5L5 19"/></svg>
+          </button>
+        </header>
+        <div class="card-body">
+          <label class="field">
+            <span class="field-label">Name</span>
+            <input class="text-input" type="text" value="AWS Solutions Architect" aria-label="Pack name">
+          </label>
+          <label class="field">
+            <span class="field-label">Version (optional)</span>
+            <input class="text-input" type="text" value="SAA-C03" aria-label="Pack version">
+            <span class="field-hint">Shown after the name in the switcher.</span>
+          </label>
+          <label class="field">
+            <span class="field-label">Certification description (optional)</span>
+            <textarea class="text-input textarea" rows="3" aria-label="Certification description">Validates the ability to design available, cost-efficient, fault-tolerant, and scalable distributed systems on AWS.</textarea>
+            <span class="field-hint">Injected into the AI prompt to improve classification and explanation quality.</span>
+          </label>
+          <div class="field">
+            <span class="field-label">Color</span>
+            <div class="color-grid" role="radiogroup" aria-label="Pack color">
+              <button type="button" class="color-swatch selected" role="radio" aria-checked="true" aria-label="Purple" style="background:#6c5ce7"></button>
+              <button type="button" class="color-swatch" role="radio" aria-checked="false" aria-label="Blue" style="background:#0984e3"></button>
+              <button type="button" class="color-swatch" role="radio" aria-checked="false" aria-label="Sky" style="background:#74b9ff"></button>
+              <button type="button" class="color-swatch" role="radio" aria-checked="false" aria-label="Cyan" style="background:#00cec9"></button>
+              <button type="button" class="color-swatch" role="radio" aria-checked="false" aria-label="Green" style="background:#00b894"></button>
+              <button type="button" class="color-swatch" role="radio" aria-checked="false" aria-label="Yellow" style="background:#fdcb6e"></button>
+              <button type="button" class="color-swatch" role="radio" aria-checked="false" aria-label="Amber" style="background:#e17055"></button>
+              <button type="button" class="color-swatch" role="radio" aria-checked="false" aria-label="Red" style="background:#d63031"></button>
+              <button type="button" class="color-swatch" role="radio" aria-checked="false" aria-label="Pink" style="background:#e84393"></button>
+              <button type="button" class="color-swatch" role="radio" aria-checked="false" aria-label="Lavender" style="background:#a29bfe"></button>
+              <button type="button" class="color-swatch" role="radio" aria-checked="false" aria-label="Slate" style="background:#7f8c9c"></button>
+              <button type="button" class="color-swatch custom-swatch" role="radio" aria-checked="false" aria-label="Custom color">
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-label-row">
+              <span class="field-label">Knowledge Domains</span>
+              <button type="button" class="btn-import-json">
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                Import file
+              </button>
+              <button type="button" class="btn-import-json">
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2"/></svg>
+                Paste JSON
+              </button>
+              <button type="button" class="btn-import-json btn-templates">
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                Templates
+              </button>
+            </div>
+            <span class="field-hint">The AI classifies each question into one of these. Leave empty to label every question as General.</span>
+            <p class="count-label">4 / 20 domains</p>
+            <ul class="domain-list">
+              <li class="domain-item">
+                <div class="domain-item-header">
+                  <span class="domain-order">1</span>
+                  <span class="domain-item-name">Design Secure Architectures</span>
+                  <div class="domain-item-actions">
+                    <button type="button" class="domain-action-btn" aria-label="Move up" disabled><svg viewBox="0 0 24 24" width="13" height="13"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+                    <button type="button" class="domain-action-btn" aria-label="Move down"><svg viewBox="0 0 24 24" width="13" height="13"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12l7 7 7-7"/></svg></button>
+                    <button type="button" class="domain-action-btn" aria-label="Edit"><svg viewBox="0 0 24 24" width="13" height="13"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                    <button type="button" class="chip-remove" aria-label="Remove"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M5 5l14 14M19 5L5 19"/></svg></button>
+                  </div>
+                </div>
+                <p class="domain-item-desc">30% of the exam — VPCs, IAM, encryption, security groups.</p>
+              </li>
+              <li class="domain-item">
+                <div class="domain-item-header">
+                  <span class="domain-order">2</span>
+                  <span class="domain-item-name">Design Resilient Architectures</span>
+                  <div class="domain-item-actions">
+                    <button type="button" class="domain-action-btn" aria-label="Move up"><svg viewBox="0 0 24 24" width="13" height="13"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+                    <button type="button" class="domain-action-btn" aria-label="Move down"><svg viewBox="0 0 24 24" width="13" height="13"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12l7 7 7-7"/></svg></button>
+                    <button type="button" class="domain-action-btn" aria-label="Edit"><svg viewBox="0 0 24 24" width="13" height="13"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                    <button type="button" class="chip-remove" aria-label="Remove"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M5 5l14 14M19 5L5 19"/></svg></button>
+                  </div>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <label class="field">
+            <span class="field-label">Questions export intro</span>
+            <textarea class="text-input textarea intro-textarea" rows="3" placeholder="## Sobre este documento&#10;&#10;Este documento contém questões de simulado..." aria-label="Questions export intro"></textarea>
+            <span class="field-hint">Markdown inserted at the top of exported files (also available for Transcripts and Chat exports).</span>
+          </label>
+        </div>
+        <footer class="card-footer">
+          <button type="button" class="btn btn-danger">Delete pack</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn btn-ghost">Cancel</button>
+          <button type="button" class="btn btn-primary">Save</button>
+        </footer>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Pack editor — delete confirmation</h2>
+      <p class="ds-hint">Inline confirm overlay shown over the editor card after "Delete pack", not a separate route.</p>
+      <div class="confirm">
+        <h3>Delete pack?</h3>
+        <p>This deletes <strong>AWS Solutions Architect</strong> and its 42 questions permanently. Other packs are not affected.</p>
+        <div class="confirm-actions">
+          <button type="button" class="btn btn-ghost">Cancel</button>
+          <button type="button" class="btn btn-danger">Delete</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,97 @@
+<!-- @dsCard group="Screens" -->
+<!doctype html>
+<html class="theme-light">
+<head>
+  <meta charset="utf-8">
+  <title>Login</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    /* Lifted from login.component.ts — the ONE known holdout still using hardcoded
+       hex colors instead of the app's --bg-*/--text-*/--color-* tokens (tracked,
+       not-yet-done fix). Values below are copied verbatim, not tokenized, so this
+       preview matches what actually ships today. */
+    .login-page { display: flex; align-items: center; justify-content: center; min-height: 480px; background: #1a1a2e; padding: 40px 0; }
+    .login-card { background: #fff; border-radius: 16px; padding: 48px 40px; width: 400px; max-width: 90vw; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.2); }
+    .login-card h1 { margin: 0 0 8px; font-size: 24px; color: #1a1a2e; }
+    .login-card .subtitle { color: #666; font-size: 14px; margin: 0 0 24px; }
+    .login-card .info { color: #333; font-size: 14px; margin: 0 0 16px; }
+    .login-card .error { background: #fee; color: #c00; padding: 10px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+    .login-card form { display: flex; flex-direction: column; gap: 12px; }
+    .login-card input { padding: 12px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; outline: none; font-family: var(--font-family); }
+    .login-card input:focus { border-color: #4b64ff; }
+    .login-card button { padding: 12px; font-size: 16px; font-weight: 600; background: #4b64ff; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-family: var(--font-family); }
+    .login-card button:hover:not(:disabled) { background: #3a50d9; }
+    .login-card button:disabled { opacity: 0.6; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div class="ds-toolbar"><button class="ds-theme-toggle" onclick="document.documentElement.classList.toggle('theme-dark'); document.documentElement.classList.toggle('theme-light');">Toggle theme</button></div>
+  <div class="ds-page">
+    <section class="ds-section">
+      <h2>Login — default</h2>
+      <p class="ds-hint">login.component.ts renders on its own, outside the app shell — no header, no theme awareness (it has no <code>html.theme-*</code> class dependency, since every color here is a hardcoded hex, not a token). The theme toggle above only affects the rest of this page, not the card itself.</p>
+      <div class="login-page">
+        <div class="login-card">
+          <h1>Cert Study Assistant</h1>
+          <p class="subtitle">AI-powered certification exam preparation</p>
+          <form>
+            <input type="email" placeholder="Email" autocomplete="username">
+            <input type="password" placeholder="Password" autocomplete="current-password">
+            <button type="submit">Sign In</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Login — error</h2>
+      <p class="ds-hint">Shown when <code>AuthService.login()</code> rejects (bad credentials, network failure, etc.) — the raw error message is displayed as-is.</p>
+      <div class="login-page">
+        <div class="login-card">
+          <h1>Cert Study Assistant</h1>
+          <p class="subtitle">AI-powered certification exam preparation</p>
+          <div class="error">Incorrect username or password.</div>
+          <form>
+            <input type="email" placeholder="Email" autocomplete="username" value="user@example.com">
+            <input type="password" placeholder="Password" autocomplete="current-password">
+            <button type="submit">Sign In</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Login — signing in (loading)</h2>
+      <p class="ds-hint">Button label swaps to a progress string and disables; there is no spinner in this component (unlike buttons elsewhere in the app that use <code>mat-spinner</code>).</p>
+      <div class="login-page">
+        <div class="login-card">
+          <h1>Cert Study Assistant</h1>
+          <p class="subtitle">AI-powered certification exam preparation</p>
+          <form>
+            <input type="email" placeholder="Email" autocomplete="username" value="user@example.com">
+            <input type="password" placeholder="Password" autocomplete="current-password" value="••••••••">
+            <button type="submit" disabled>Signing in...</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>Login — new password required</h2>
+      <p class="ds-hint">Cognito's <code>NEW_PASSWORD_REQUIRED</code> challenge (first login after an admin-created account) swaps the form for a set-password form via <code>needsNewPassword()</code>.</p>
+      <div class="login-page">
+        <div class="login-card">
+          <h1>Cert Study Assistant</h1>
+          <p class="subtitle">AI-powered certification exam preparation</p>
+          <p class="info">Please set a new password</p>
+          <form>
+            <input type="password" placeholder="New password" autocomplete="new-password">
+            <input type="password" placeholder="Confirm password" autocomplete="new-password">
+            <button type="submit">Set Password</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

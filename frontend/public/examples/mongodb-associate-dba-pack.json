@@ -1,0 +1,46 @@
+{
+  "name": "MongoDB Associate Database Administrator",
+  "version": "",
+  "color": "#00684A",
+  "description": "MongoDB certification for administrators of self-managed MongoDB deployments. Validates the skills to size, deploy, upgrade, manage, and tune MongoDB in a mission-critical environment. Covers MongoDB philosophy and features, CRUD and indexing from an operational standpoint, replication, sharding, application administration, and server administration (security, backup and recovery, monitoring, performance tuning). Online proctored exam with a pass/fail grade. Recommended: hands-on operational experience with MongoDB.",
+  "exportIntroQuestions": "## About this document\n\nThis document is a collection of practice exam questions for the **MongoDB Associate Database Administrator** certification. The questions were selected because they represent the operational skills required to run self-managed MongoDB deployments reliably.\n\n### Certification context\n\nThis certification validates the ability to administer self-managed MongoDB deployments, including topics such as:\n\n* MongoDB philosophy and features, and the document model from an operational perspective\n* CRUD and indexing as they relate to database operations and performance\n* Replication: replica set architecture, elections, failover, and read/write concerns\n* Sharding: shard keys, chunk distribution, balancing, and scaling out\n* Application administration: users, roles, authentication, and authorization\n* Server administration: configuration, security, backup and recovery, monitoring, logging, and performance tuning\n\n### About the questions\n\nEach question in this document is independent and should be analyzed as a standalone scenario. Practice exams intentionally present isolated situations, and questions may appear in any order during the actual certification exam. Information from one question should never be assumed to apply to another.\n\nFor each scenario, this document includes:\n\n* The original practice exam question.\n* An explanation of the reasoning behind the correct answer.\n* A discussion of why the remaining options are less appropriate for the stated requirements.\n\n### Learning objective\n\nThe primary goal of this material is to develop applied operational judgment for administering MongoDB rather than memorization. The focus should be on deploying, securing, backing up, monitoring, and tuning MongoDB, and on understanding replication and sharding behavior in production.\n\nBy studying the reasoning behind each answer, readers can build the administration skills expected for the MongoDB Associate Database Administrator certification exam.",
+  "exportIntroTranscripts": "## About this document\n\nThis document contains technical summaries of lesson transcripts related to the **MongoDB Associate Database Administrator** certification.\n\n### Purpose\nOrganizes and synthesizes lesson content in a structured format for quick review and deeper understanding of the concepts presented.",
+  "exportIntroChat": "## About this document\n\nThis document contains AI study conversations related to the **MongoDB Associate Database Administrator** certification.\n\n### Purpose\nRecords discussions and explanations generated during interactive AI study sessions, serving as complementary reference material.",
+  "domains": [
+    {
+      "name": "Philosophy and Features",
+      "order": 1,
+      "description": "Domain 1: MongoDB philosophy, the document model, BSON, and core features from an operational perspective."
+    },
+    {
+      "name": "CRUD Operations",
+      "order": 2,
+      "description": "Domain 2: CRUD operations, query operators, and cursors as they relate to database operations and troubleshooting."
+    },
+    {
+      "name": "Indexing",
+      "order": 3,
+      "description": "Domain 3: Index types, index management, and using indexes to diagnose and improve query performance."
+    },
+    {
+      "name": "Replication",
+      "order": 4,
+      "description": "Domain 4: Replica set architecture, elections and failover, oplog, and read/write concerns for high availability."
+    },
+    {
+      "name": "Sharding",
+      "order": 5,
+      "description": "Domain 5: Sharded cluster architecture, shard key selection, chunk distribution and balancing, and scaling out horizontally."
+    },
+    {
+      "name": "Application Administration",
+      "order": 6,
+      "description": "Domain 6: Users, roles, authentication, and authorization; managing application access to the database."
+    },
+    {
+      "name": "Server Administration",
+      "order": 7,
+      "description": "Domain 7: Deployment, configuration, security hardening, backup and recovery, monitoring and logging, upgrades, and performance tuning of self-managed MongoDB."
+    }
+  ]
+}

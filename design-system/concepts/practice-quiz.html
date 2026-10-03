@@ -1,0 +1,431 @@
+<!-- @dsCard group="Concepts (proposed, not yet built)" -->
+<!doctype html>
+<html class="theme-light">
+<head>
+  <meta charset="utf-8">
+  <title>Practice Quiz (concept)</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    /* Speculative screens — no Angular component exists yet. Built from the same
+       tokens/patterns as components/*.html (cards-badges, buttons-inputs, header). */
+
+    .notice { display: flex; gap: var(--space-sm); padding: var(--space-md); background: var(--bg-elevated); border: 1px dashed var(--bg-border); border-radius: var(--radius-md); color: var(--text-muted); font-size: var(--font-size-sm); line-height: 1.55; }
+    .notice svg { flex-shrink: 0; margin-top: 2px; color: var(--color-amber); }
+
+    .quiz-screen { background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: var(--space-lg); width: 640px; }
+    .quiz-screen h3 { margin: 0 0 var(--space-xs); font-size: var(--font-size-lg); }
+    .quiz-sub { color: var(--text-muted); font-size: var(--font-size-sm); margin: 0 0 var(--space-lg); }
+
+    /* Setup — scope + mode */
+    .field-label { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-secondary); margin-bottom: var(--space-sm); display: block; }
+    .scope-group { display: flex; gap: var(--space-md); margin-bottom: var(--space-lg); }
+    .scope-card { flex: 1; padding: var(--space-md); border-radius: var(--radius-md); border: 1.5px solid var(--bg-border); background: var(--bg-input); cursor: pointer; }
+    .scope-card:hover { border-color: var(--color-purple); }
+    .scope-card.selected { border-color: var(--color-purple); background: var(--bg-elevated); }
+    .scope-title { font-weight: 600; font-size: var(--font-size-base); color: var(--text-primary); }
+    .scope-count { font-size: var(--font-size-xs); color: var(--text-muted); margin-top: 4px; }
+
+    .mode-toggle { display: inline-flex; gap: 2px; padding: 3px; background: var(--bg-elevated); border-radius: var(--radius-md); border: 1px solid var(--bg-border); margin-bottom: var(--space-lg); }
+    .mode-btn { padding: 0 var(--space-md); min-height: 34px; border-radius: var(--radius-sm); background: transparent; border: none; color: var(--text-secondary); font-family: var(--font-family); font-size: var(--font-size-sm); font-weight: 600; cursor: pointer; }
+    .mode-btn.active { background: var(--bg-surface); color: var(--color-purple); box-shadow: var(--shadow-sm); }
+
+    .filters-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-lg); }
+    .filter-chip { padding: 4px var(--space-md); border-radius: var(--radius-pill); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-secondary); font-size: var(--font-size-sm); cursor: pointer; }
+    .filter-chip.selected { background: var(--color-purple); border-color: var(--color-purple); color: #fff; }
+
+    .stepper { display: inline-flex; align-items: center; gap: var(--space-sm); border: 1px solid var(--bg-border); border-radius: var(--radius-md); background: var(--bg-input); padding: 0 var(--space-xs); height: 36px; }
+    .stepper button { width: 28px; height: 28px; border: none; background: transparent; color: var(--text-secondary); font-size: var(--font-size-lg); cursor: pointer; border-radius: var(--radius-sm); }
+    .stepper button:hover { background: var(--bg-subtle); }
+    .stepper span { min-width: 20px; text-align: center; font-weight: 600; font-size: var(--font-size-sm); }
+
+    .switch-row { display: flex; align-items: center; gap: var(--space-sm); }
+    .switch { width: 38px; height: 22px; border-radius: 999px; background: var(--bg-border); position: relative; cursor: pointer; flex-shrink: 0; }
+    .switch.on { background: var(--color-purple); }
+    .switch .thumb { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left var(--transition-fast); }
+    .switch.on .thumb { left: 18px; }
+    .switch-label { font-size: var(--font-size-sm); color: var(--text-secondary); }
+
+    .start-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm); width: 100%; min-height: 48px; padding: 0 var(--space-lg); border-radius: var(--radius-md); border: none; background: linear-gradient(135deg, var(--color-purple), var(--color-blue)); color: #fff; font-family: var(--font-family); font-weight: 600; font-size: var(--font-size-lg); cursor: pointer; }
+    .start-btn:hover { filter: brightness(1.08); }
+
+    /* Question screens */
+    .quiz-header { display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-lg); }
+    .progress-track { flex: 1; height: 6px; border-radius: 999px; background: var(--bg-border); overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(135deg, var(--color-purple), var(--color-blue)); border-radius: 999px; }
+    .progress-text { font-size: var(--font-size-xs); color: var(--text-muted); white-space: nowrap; }
+    .score-pill { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-secondary); background: var(--bg-elevated); padding: 4px var(--space-md); border-radius: var(--radius-pill); white-space: nowrap; }
+
+    .q-domain { margin-bottom: var(--space-sm); }
+    .q-stem { font-size: var(--font-size-base); line-height: 1.55; color: var(--text-primary); margin: 0 0 var(--space-lg); }
+
+    .option-card { display: flex; gap: var(--space-sm); align-items: flex-start; padding: var(--space-md); border-radius: var(--radius-md); border: 1.5px solid var(--bg-border); background: var(--bg-input); cursor: pointer; margin-bottom: var(--space-sm); }
+    .option-card:hover { border-color: var(--color-purple); }
+    .option-card.selected { border-color: var(--color-purple); background: var(--bg-elevated); }
+    .option-card.correct { border-color: var(--color-green); background: rgba(0, 184, 148, 0.08); }
+    .option-card.incorrect { border-color: var(--color-red); background: rgba(214, 48, 49, 0.08); }
+    .option-letter { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: var(--font-size-sm); background: var(--bg-elevated); color: var(--text-secondary); flex-shrink: 0; }
+    .option-card.selected .option-letter { background: var(--color-purple); color: #fff; }
+    .option-card.correct .option-letter { background: var(--color-green); color: #fff; }
+    .option-card.incorrect .option-letter { background: var(--color-red); color: #fff; }
+    .option-text { flex: 1; font-size: var(--font-size-base); color: var(--text-primary); line-height: 1.5; padding-top: 2px; }
+    .option-status { flex-shrink: 0; margin-top: 3px; }
+
+    .explanation-panel { margin: var(--space-md) 0; padding: var(--space-md); border-radius: var(--radius-md); background: var(--bg-elevated); border: 1px solid var(--bg-border); }
+    .explanation-panel h4 { margin: 0 0 4px; font-size: var(--font-size-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .explanation-panel p { margin: 0; font-size: var(--font-size-base); line-height: 1.55; color: var(--text-primary); }
+
+    .disclaimer { display: flex; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); background: var(--bg-elevated); border-radius: var(--radius-md); color: var(--text-muted); font-size: var(--font-size-xs); line-height: 1.5; margin-top: var(--space-md); }
+    .disclaimer svg { flex-shrink: 0; margin-top: 1px; color: var(--text-faint); }
+
+    .screen-actions { display: flex; justify-content: flex-end; gap: var(--space-sm); margin-top: var(--space-lg); }
+    .btn-ghost { min-height: var(--touch-min); padding: 0 var(--space-md); border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-base); background: transparent; color: var(--text-secondary); border: 1px solid var(--bg-border); font-family: var(--font-family); cursor: pointer; }
+    .btn-ghost:hover { background: var(--bg-subtle); }
+    .btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary-sm { min-height: var(--touch-min); padding: 0 var(--space-lg); border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-base); background: linear-gradient(135deg, var(--color-purple), var(--color-blue)); color: #fff; border: none; font-family: var(--font-family); cursor: pointer; }
+    .btn-primary-sm:hover { filter: brightness(1.08); }
+
+    /* Exam simulation layout */
+    .exam-layout { display: flex; gap: var(--space-lg); align-items: flex-start; }
+    .exam-main { flex: 1; min-width: 0; }
+    .palette { width: 176px; flex-shrink: 0; background: var(--bg-elevated); border-radius: var(--radius-md); padding: var(--space-md); border: 1px solid var(--bg-border); }
+    .palette h4 { margin: 0 0 var(--space-sm); font-size: var(--font-size-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .palette-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+    .palette-dot { width: 28px; height: 28px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: var(--font-size-xs); font-weight: 600; background: var(--bg-input); border: 1.5px solid var(--bg-border); color: var(--text-muted); cursor: pointer; }
+    .palette-dot.answered { background: var(--color-purple); border-color: var(--color-purple); color: #fff; }
+    .palette-dot.current { box-shadow: 0 0 0 2px var(--color-blue) inset; }
+    .palette-legend { margin-top: var(--space-md); display: flex; flex-direction: column; gap: 6px; font-size: var(--font-size-xs); color: var(--text-muted); }
+    .palette-legend-row { display: flex; align-items: center; gap: 6px; }
+    .legend-swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+
+    /* Results screen */
+    .score-hero { display: flex; align-items: center; gap: var(--space-lg); margin-bottom: var(--space-lg); }
+    .score-ring { --pct: 78; width: 96px; height: 96px; border-radius: 50%; background: conic-gradient(var(--color-purple) calc(var(--pct) * 1%), var(--bg-border) 0); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .score-ring-inner { width: 76px; height: 76px; border-radius: 50%; background: var(--bg-surface); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .score-ring-inner strong { font-size: var(--font-size-xl); color: var(--text-primary); line-height: 1; }
+    .score-ring-inner span { font-size: var(--font-size-xs); color: var(--text-muted); }
+    .score-meta p { margin: 0 0 4px; font-size: var(--font-size-sm); color: var(--text-muted); }
+    .score-meta strong { color: var(--text-primary); }
+
+    .domain-row { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-sm); }
+    .domain-name { width: 150px; font-size: var(--font-size-sm); color: var(--text-secondary); flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .domain-track { flex: 1; height: 8px; border-radius: 999px; background: var(--bg-border); overflow: hidden; }
+    .domain-fill { height: 100%; border-radius: 999px; background: var(--color-green); }
+    .domain-fill.warn { background: var(--color-amber); }
+    .domain-fraction { font-size: var(--font-size-xs); color: var(--text-muted); width: 36px; text-align: right; flex-shrink: 0; }
+
+    .result-list { margin-top: var(--space-lg); }
+    .result-row { border-radius: var(--radius-md); border: 1px solid var(--bg-border); margin-bottom: var(--space-sm); overflow: hidden; }
+    .result-row-header { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); cursor: pointer; background: var(--bg-input); }
+    .status-icon { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #fff; }
+    .result-row.correct .status-icon { background: var(--color-green); }
+    .result-row.incorrect .status-icon { background: var(--color-red); }
+    .result-row-title { flex: 1; font-size: var(--font-size-sm); font-weight: 500; color: var(--text-primary); }
+    .chevron { color: var(--text-muted); transition: transform var(--transition-fast); flex-shrink: 0; }
+    .result-row.expanded .chevron { transform: rotate(180deg); }
+    .result-row-body { display: none; padding: var(--space-md); border-top: 1px solid var(--bg-border); font-size: var(--font-size-sm); color: var(--text-secondary); line-height: 1.55; }
+    .result-row.expanded .result-row-body { display: block; }
+
+    .badge { display: inline-flex; align-items: center; padding: 3px var(--space-md); border-radius: var(--radius-lg); font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #fff; }
+    .badge-1 { background: #2563eb; } .badge-2 { background: #dc2626; } .badge-3 { background: #059669; }
+    .badge-4 { background: #d97706; } .badge-5 { background: #7c3aed; }
+  </style>
+</head>
+<body>
+  <div class="ds-toolbar"><button class="ds-theme-toggle" onclick="document.documentElement.classList.toggle('theme-dark'); document.documentElement.classList.toggle('theme-light');">Toggle theme</button></div>
+  <div class="ds-page">
+
+    <section class="ds-section">
+      <div class="notice">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 9v4M12 16.5h.01M10.3 3.9L2.5 18a2 2 0 001.7 3h15.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+        <span><strong>Concept, not yet implemented.</strong> "Practice Quiz" does not exist in the Angular app. These screens reuse the app's real tokens and component patterns to explore turning reviewed questions into a self-quiz, answered from the question's existing Markdown review (Question / Alternatives / Correct answer / Incorrect answers sections). Kept in this project for visibility during evaluation — expect this group to change or be removed once (if) the feature ships.</span>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>1 — Setup: scope, mode &amp; filters</h2>
+      <p class="ds-hint">Scope and mode as radio-card / segmented groups — same interaction shape as the existing Generate/Ready-made toggle. Counts next to each scope are computed client-side; no new backend query needed since <code>GET /data</code> already returns every pack and question.</p>
+      <div class="quiz-screen">
+        <h3>Start a practice quiz</h3>
+        <p class="quiz-sub">Answer your own reviewed questions as a quiz.</p>
+
+        <span class="field-label">Scope</span>
+        <div class="scope-group">
+          <div class="scope-card selected" onclick="document.querySelectorAll('#scopeGroup .scope-card').forEach(c=>c.classList.remove('selected')); this.classList.add('selected')" id="scopeGroup">
+            <div class="scope-title">This pack</div>
+            <div class="scope-count">AWS Solutions Architect · SAA-C03 — 42 questions</div>
+          </div>
+          <div class="scope-card" onclick="document.querySelectorAll('#scopeGroup .scope-card').forEach(c=>c.classList.remove('selected')); this.classList.add('selected')">
+            <div class="scope-title">All packs for this exam</div>
+            <div class="scope-count">AWS Solutions Architect (SAA-C02 + SAA-C03) — 96 questions</div>
+          </div>
+          <div class="scope-card" onclick="document.querySelectorAll('#scopeGroup .scope-card').forEach(c=>c.classList.remove('selected')); this.classList.add('selected')">
+            <div class="scope-title">All packs</div>
+            <div class="scope-count">Every certification you track — 214 questions</div>
+          </div>
+        </div>
+
+        <span class="field-label">Mode</span>
+        <div class="mode-toggle">
+          <button class="mode-btn active" onclick="this.parentElement.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active')); this.classList.add('active')">Instant feedback</button>
+          <button class="mode-btn" onclick="this.parentElement.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active')); this.classList.add('active')">Exam simulation</button>
+        </div>
+
+        <span class="field-label">Filters</span>
+        <div class="filters-row">
+          <span class="filter-chip selected" onclick="this.classList.toggle('selected')">Networking</span>
+          <span class="filter-chip selected" onclick="this.classList.toggle('selected')">Security</span>
+          <span class="filter-chip selected" onclick="this.classList.toggle('selected')">Storage</span>
+          <span class="filter-chip" onclick="this.classList.toggle('selected')">Compute</span>
+          <span class="filter-chip" onclick="this.classList.toggle('selected')">Databases</span>
+        </div>
+        <div class="filters-row">
+          <span class="switch-label">Questions</span>
+          <div class="stepper">
+            <button onclick="var s=this.nextElementSibling; s.textContent=Math.max(5,parseInt(s.textContent)-5)">−</button>
+            <span>20</span>
+            <button onclick="var s=this.previousElementSibling; s.textContent=parseInt(s.textContent)+5">+</button>
+          </div>
+          <span style="color:var(--text-faint); font-size:var(--font-size-xs)">of 42 available</span>
+        </div>
+        <div class="filters-row">
+          <div class="switch on" onclick="this.classList.toggle('on')"><div class="thumb"></div></div>
+          <span class="switch-label">Shuffle order</span>
+        </div>
+
+        <button class="start-btn" style="margin-top:var(--space-md)">Start quiz</button>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>2 — Instant feedback: unanswered</h2>
+      <p class="ds-hint">Default mode. Options are parsed out of the question's <code>#### Alternatives:</code> section; clicking one selects it (radio behavior, or multi-select when the question says "select two/three").</p>
+      <div class="quiz-screen">
+        <div class="quiz-header">
+          <div class="progress-track"><div class="progress-fill" style="width:20%"></div></div>
+          <span class="progress-text">Question 4 of 20</span>
+          <span class="score-pill">Score 2/3</span>
+        </div>
+        <div class="q-domain"><span class="badge badge-1">Networking</span></div>
+        <p class="q-stem">A company runs a three-tier web application across two Availability Zones. The operations team wants requests to keep being served automatically if one entire Availability Zone becomes unavailable, with no manual intervention. Which change should they make?</p>
+
+        <div class="option-card" onclick="document.querySelectorAll('#opts2 .option-card').forEach(o=>o.classList.remove('selected')); this.classList.add('selected')" id="opts2">
+          <span class="option-letter">A</span>
+          <span class="option-text">Deploy the application in a single, larger Availability Zone</span>
+        </div>
+        <div class="option-card" onclick="document.querySelectorAll('#opts2 .option-card').forEach(o=>o.classList.remove('selected')); this.classList.add('selected')">
+          <span class="option-letter">B</span>
+          <span class="option-text">Place an Application Load Balancer in front of instances spread across both Availability Zones, in an Auto Scaling group</span>
+        </div>
+        <div class="option-card" onclick="document.querySelectorAll('#opts2 .option-card').forEach(o=>o.classList.remove('selected')); this.classList.add('selected')">
+          <span class="option-letter">C</span>
+          <span class="option-text">Take a manual snapshot of the instances every night</span>
+        </div>
+
+        <div class="screen-actions">
+          <button class="btn-ghost" disabled>Check answer</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>2b — Instant feedback: checked (correct)</h2>
+      <p class="ds-hint">Correct option turns green; the explanation is the review's "Correct answer and explanation" section, reusing the AI-disclaimer strip already used everywhere AI content appears.</p>
+      <div class="quiz-screen">
+        <div class="quiz-header">
+          <div class="progress-track"><div class="progress-fill" style="width:20%"></div></div>
+          <span class="progress-text">Question 4 of 20</span>
+          <span class="score-pill">Score 3/4</span>
+        </div>
+        <div class="q-domain"><span class="badge badge-1">Networking</span></div>
+        <p class="q-stem">A company runs a three-tier web application across two Availability Zones. The operations team wants requests to keep being served automatically if one entire Availability Zone becomes unavailable, with no manual intervention. Which change should they make?</p>
+
+        <div class="option-card">
+          <span class="option-letter">A</span>
+          <span class="option-text">Deploy the application in a single, larger Availability Zone</span>
+        </div>
+        <div class="option-card correct selected">
+          <span class="option-letter">B</span>
+          <span class="option-text">Place an Application Load Balancer in front of instances spread across both Availability Zones, in an Auto Scaling group</span>
+          <span class="option-status"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="none" stroke="var(--color-green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7"/></svg></span>
+        </div>
+        <div class="option-card">
+          <span class="option-letter">C</span>
+          <span class="option-text">Take a manual snapshot of the instances every night</span>
+        </div>
+
+        <div class="explanation-panel">
+          <h4>Why B is correct</h4>
+          <p>An <strong>Application Load Balancer</strong> spanning both zones, paired with an <strong>Auto Scaling group</strong>, automatically detects unhealthy targets and reroutes traffic to the healthy zone without any manual step — meeting the "no intervention" requirement directly.</p>
+        </div>
+        <div class="disclaimer">
+          <svg viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 9v4M12 16.5h.01M10.3 3.9L2.5 18a2 2 0 001.7 3h15.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+          <span>This review was generated by AI and may contain errors. Treat it as study support, not as an authoritative source.</span>
+        </div>
+
+        <div class="screen-actions">
+          <button class="btn-primary-sm">Next question</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>2c — Instant feedback: checked (incorrect)</h2>
+      <p class="ds-hint">The chosen wrong option turns red; the actual correct option is still highlighted green so the gap is obvious at a glance.</p>
+      <div class="quiz-screen">
+        <div class="quiz-header">
+          <div class="progress-track"><div class="progress-fill" style="width:20%"></div></div>
+          <span class="progress-text">Question 4 of 20</span>
+          <span class="score-pill">Score 2/4</span>
+        </div>
+        <div class="q-domain"><span class="badge badge-1">Networking</span></div>
+        <p class="q-stem">A company runs a three-tier web application across two Availability Zones. The operations team wants requests to keep being served automatically if one entire Availability Zone becomes unavailable, with no manual intervention. Which change should they make?</p>
+
+        <div class="option-card">
+          <span class="option-letter">A</span>
+          <span class="option-text">Deploy the application in a single, larger Availability Zone</span>
+        </div>
+        <div class="option-card correct">
+          <span class="option-letter">B</span>
+          <span class="option-text">Place an Application Load Balancer in front of instances spread across both Availability Zones, in an Auto Scaling group</span>
+          <span class="option-status"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="none" stroke="var(--color-green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7"/></svg></span>
+        </div>
+        <div class="option-card incorrect selected">
+          <span class="option-letter">C</span>
+          <span class="option-text">Take a manual snapshot of the instances every night</span>
+          <span class="option-status"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="none" stroke="var(--color-red)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6L6 18"/></svg></span>
+        </div>
+
+        <div class="explanation-panel">
+          <h4>Why C is incorrect</h4>
+          <p>A manual nightly snapshot requires human intervention to restore and does nothing to reroute live traffic during an outage — it fails the "automatic, no intervention" requirement entirely.</p>
+        </div>
+        <div class="disclaimer">
+          <svg viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 9v4M12 16.5h.01M10.3 3.9L2.5 18a2 2 0 001.7 3h15.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+          <span>This review was generated by AI and may contain errors. Treat it as study support, not as an authoritative source.</span>
+        </div>
+
+        <div class="screen-actions">
+          <button class="btn-primary-sm">Next question</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>3 — Exam simulation</h2>
+      <p class="ds-hint">No feedback until the end. The side palette mirrors real exam platforms — click a number to jump to that question. Only Previous/Next/Finish are ghost buttons; "Finish exam" is the one gradient action, shown once all questions are answered (or with a confirm step if some are still blank).</p>
+      <div class="quiz-screen" style="width: 816px;">
+        <div class="quiz-header">
+          <div class="progress-track"><div class="progress-fill" style="width:60%"></div></div>
+          <span class="progress-text">Question 12 of 20</span>
+        </div>
+        <div class="exam-layout">
+          <div class="exam-main">
+            <div class="q-domain"><span class="badge badge-3">Storage</span></div>
+            <p class="q-stem">An application writes small configuration files that are read frequently but change only a few times a year. Which storage approach minimizes cost while keeping read latency low?</p>
+
+            <div class="option-card" onclick="document.querySelectorAll('#opts3 .option-card').forEach(o=>o.classList.remove('selected')); this.classList.add('selected')" id="opts3">
+              <span class="option-letter">A</span>
+              <span class="option-text">Amazon S3 with CloudFront in front of it</span>
+            </div>
+            <div class="option-card selected" onclick="document.querySelectorAll('#opts3 .option-card').forEach(o=>o.classList.remove('selected')); this.classList.add('selected')">
+              <span class="option-letter">B</span>
+              <span class="option-text">Amazon EBS Provisioned IOPS volume</span>
+            </div>
+            <div class="option-card" onclick="document.querySelectorAll('#opts3 .option-card').forEach(o=>o.classList.remove('selected')); this.classList.add('selected')">
+              <span class="option-letter">C</span>
+              <span class="option-text">Amazon RDS Multi-AZ instance</span>
+            </div>
+
+            <div class="screen-actions" style="justify-content:space-between">
+              <button class="btn-ghost">Previous</button>
+              <div style="display:flex; gap:var(--space-sm)">
+                <button class="btn-ghost">Next</button>
+                <button class="btn-primary-sm">Finish exam</button>
+              </div>
+            </div>
+          </div>
+          <div class="palette">
+            <h4>Questions</h4>
+            <div class="palette-grid">
+              <div class="palette-dot answered">1</div><div class="palette-dot answered">2</div><div class="palette-dot answered">3</div><div class="palette-dot answered">4</div><div class="palette-dot answered">5</div>
+              <div class="palette-dot answered">6</div><div class="palette-dot answered">7</div><div class="palette-dot answered">8</div><div class="palette-dot answered">9</div><div class="palette-dot answered">10</div>
+              <div class="palette-dot answered">11</div><div class="palette-dot answered current">12</div><div class="palette-dot">13</div><div class="palette-dot">14</div><div class="palette-dot">15</div>
+              <div class="palette-dot">16</div><div class="palette-dot">17</div><div class="palette-dot">18</div><div class="palette-dot">19</div><div class="palette-dot">20</div>
+            </div>
+            <div class="palette-legend">
+              <div class="palette-legend-row"><span class="legend-swatch" style="background:var(--color-purple)"></span> Answered</div>
+              <div class="palette-legend-row"><span class="legend-swatch" style="background:var(--bg-input); border:1.5px solid var(--bg-border)"></span> Unanswered</div>
+              <div class="palette-legend-row"><span class="legend-swatch" style="background:transparent; border:2px solid var(--color-blue)"></span> Current</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section">
+      <h2>4 — Results summary</h2>
+      <p class="ds-hint">Shown at the end of an exam-simulation run (or on demand at the end of instant-feedback mode). Per-domain breakdown reuses the same domain badge colors as the rest of the app. Each question row expands into the same explanation panel from screens 2b/2c.</p>
+      <div class="quiz-screen" style="width: 680px;">
+        <h3>Quiz results</h3>
+        <p class="quiz-sub">AWS Solutions Architect · SAA-C03 — All packs for this exam, 20 questions</p>
+
+        <div class="score-hero">
+          <div class="score-ring"><div class="score-ring-inner"><strong>78%</strong><span>score</span></div></div>
+          <div class="score-meta">
+            <p><strong>16</strong> correct out of <strong>20</strong></p>
+            <p>Weakest domain: <strong>Storage</strong> (2/4)</p>
+            <p>Completed in 24 min</p>
+          </div>
+        </div>
+
+        <span class="field-label">By domain</span>
+        <div class="domain-row"><span class="domain-name">Networking</span><div class="domain-track"><div class="domain-fill" style="width:88%"></div></div><span class="domain-fraction">7/8</span></div>
+        <div class="domain-row"><span class="domain-name">Security</span><div class="domain-track"><div class="domain-fill" style="width:100%"></div></div><span class="domain-fraction">5/5</span></div>
+        <div class="domain-row"><span class="domain-name">Storage</span><div class="domain-track"><div class="domain-fill warn" style="width:50%"></div></div><span class="domain-fraction">2/4</span></div>
+        <div class="domain-row"><span class="domain-name">Compute</span><div class="domain-track"><div class="domain-fill" style="width:66%"></div></div><span class="domain-fraction">2/3</span></div>
+
+        <div class="result-list">
+          <span class="field-label">All questions</span>
+
+          <div class="result-row incorrect expanded">
+            <div class="result-row-header" onclick="this.parentElement.classList.toggle('expanded')">
+              <span class="status-icon"><svg viewBox="0 0 24 24" width="12" height="12"><path fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg></span>
+              <span class="result-row-title">Q9 — Minimizing cost for small, rarely-changing config files</span>
+              <span class="badge badge-3">Storage</span>
+              <svg class="chevron" viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="result-row-body">
+              You chose <strong>B — Amazon EBS Provisioned IOPS volume</strong>. Correct answer: <strong>A — Amazon S3 with CloudFront in front of it</strong>. EBS is attached to a single instance and adds cost with no caching benefit for this access pattern; S3 + CloudFront serves the small, rarely-changing file from the edge at near-zero cost.
+            </div>
+          </div>
+
+          <div class="result-row correct">
+            <div class="result-row-header" onclick="this.parentElement.classList.toggle('expanded')">
+              <span class="status-icon"><svg viewBox="0 0 24 24" width="12" height="12"><path fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7"/></svg></span>
+              <span class="result-row-title">Q4 — Automatic failover across Availability Zones</span>
+              <span class="badge badge-1">Networking</span>
+              <svg class="chevron" viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="result-row-body">
+              Correct — <strong>B — Application Load Balancer + Auto Scaling group across both zones</strong>.
+            </div>
+          </div>
+
+          <div class="result-row correct">
+            <div class="result-row-header" onclick="this.parentElement.classList.toggle('expanded')">
+              <span class="status-icon"><svg viewBox="0 0 24 24" width="12" height="12"><path fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7"/></svg></span>
+              <span class="result-row-title">Q2 — Least-privilege access for a cross-account job</span>
+              <span class="badge badge-2">Security</span>
+              <svg class="chevron" viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="result-row-body">
+              Correct — <strong>C — Assume an IAM role scoped to the job</strong>.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>

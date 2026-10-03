@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(terraform version)",
+      "Bash(terraform fmt *)",
+      "Bash(terraform validate *)",
+      "Bash(terraform plan *)",
+      "Bash(terraform init *)",
+      "Bash(npm start)",
+      "Bash(npm test *)",
+      "Bash(npm run *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$(terraform version 2>/dev/null | head -1) · node $(node -v 2>/dev/null)\"",
+            "timeout": 15,
+            "statusMessage": "Checking toolchain"
+          }
+        ]
+      }
+    ]
+  }
+}
