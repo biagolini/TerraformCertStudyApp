@@ -273,14 +273,23 @@ def get_all():
 
     items = _query_all_items(table, pk)
 
-    result = {"packs": [], "questions": [], "scripts": [], "chats": [], "settings": None}
+    result = {
+        "packs": [], "banks": [], "questions": [], "scripts": [], "chats": [], "notes": [],
+        "settings": None, "profile": None,
+    }
     for item in items:
         sk = item["sk"]
         data = json.loads(item["data"]) if isinstance(item.get("data"), str) else item.get("data", {})
         if sk == "SETTINGS":
             result["settings"] = data
+        elif sk == "PROFILE":
+            result["profile"] = data
         elif sk.startswith("PACK#"):
             result["packs"].append(data)
+        elif sk.startswith("BANK#"):
+            result["banks"].append(data)
+        elif sk.startswith("NOTE#"):
+            result["notes"].append(data)
         elif sk.startswith("SCRIPT#"):
             result["scripts"].append(data)
         elif sk.startswith("CHAT#"):
@@ -309,6 +318,10 @@ def put_all():
         for pack in body.get("packs", []):
             if pack.get("id"):
                 batch.put_item(Item={"pk": pk, "sk": f"PACK#{pack['id']}", "data": json.dumps(pack)})
+
+        for b in body.get("banks", []):
+            if b.get("id"):
+                batch.put_item(Item={"pk": pk, "sk": f"BANK#{b['id']}", "data": json.dumps(b)})
 
         for s in body.get("scripts", []):
             if s.get("id"):
@@ -345,6 +358,143 @@ def put_pack(item_id):
     data["id"] = item_id
     table.put_item(Item={"pk": pk, "sk": f"PACK#{item_id}", "data": json.dumps(data)})
     return _json({"ok": True})
+
+
+@app.route("/data/banks/<item_id>", methods=["PUT"])
+def put_bank(item_id):
+    """A question bank is one source of questions (one practice exam, one
+    instructor's set) inside a certification (`PACK#`). The pack is not
+    checked here on purpose: the frontend debounces a new pack and its first
+    bank as two independent PUTs, so the bank can legitimately arrive first.
+    The import path (create_import) is where pack/bank ownership is enforced."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    data = request.get_json(force=True) or {}
+    data["id"] = item_id
+    if not data.get("packId"):
+        return _error("packId is required", 400)
+    table.put_item(Item={"pk": pk, "sk": f"BANK#{item_id}", "data": json.dumps(data)})
+    return _json({"ok": True})
+
+
+@app.route("/data/profile", methods=["PUT"])
+def put_profile():
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    data = request.get_json(force=True) or {}
+    table.put_item(Item={"pk": pk, "sk": "PROFILE", "data": json.dumps(data)})
+    return _json({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Study notes — metadata as NOTE#{id} in the general table, Markdown body and
+# images in the assets bucket under notes/{sub}/{noteId}/. The body is kept
+# out of DynamoDB so a long note never hits the 400 KB item limit and is not
+# re-sent by every GET /data.
+# ---------------------------------------------------------------------------
+
+NOTE_MAX_BYTES = 1024 * 1024
+
+
+def _note_exists(pk, note_id):
+    return bool(SAFE_KEY_SEGMENT_RE.fullmatch(note_id or "")) and bool(
+        table.get_item(Key={"pk": pk, "sk": f"NOTE#{note_id}"}).get("Item")
+    )
+
+
+@app.route("/data/notes/<item_id>", methods=["PUT"])
+def put_note(item_id):
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    if not SAFE_KEY_SEGMENT_RE.fullmatch(item_id):
+        return _error("Invalid note id", 400)
+    data = request.get_json(force=True) or {}
+    data["id"] = item_id
+    if not data.get("packId"):
+        return _error("packId is required", 400)
+    table.put_item(Item={"pk": pk, "sk": f"NOTE#{item_id}", "data": json.dumps(data)})
+    return _json({"ok": True})
+
+
+@app.route("/data/notes/<item_id>", methods=["DELETE"])
+def delete_note(item_id):
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    if not SAFE_KEY_SEGMENT_RE.fullmatch(item_id):
+        return _error("Invalid note id", 400)
+    sub = pk.removeprefix("USER#")
+    _delete_s3_prefix(f"notes/{sub}/{item_id}/")
+    table.delete_item(Key={"pk": pk, "sk": f"NOTE#{item_id}"})
+    return _json({"ok": True})
+
+
+@app.route("/data/notes/<item_id>/content", methods=["GET"])
+def get_note_content(item_id):
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    if not _note_exists(pk, item_id):
+        return _error("Note not found", 404)
+    sub = pk.removeprefix("USER#")
+    try:
+        obj = s3.get_object(Bucket=ASSETS_BUCKET_NAME, Key=f"notes/{sub}/{item_id}/document.md")
+    except ClientError as err:
+        if err.response.get("Error", {}).get("Code") in ("NoSuchKey", "404"):
+            return _error("No content yet", 404)
+        raise
+    return _json({"markdown": obj["Body"].read().decode("utf-8")})
+
+
+@app.route("/data/notes/<item_id>/content", methods=["PUT"])
+def put_note_content(item_id):
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    if not _note_exists(pk, item_id):
+        return _error("Note not found", 404)
+    body = request.get_json(force=True) or {}
+    markdown = body.get("markdown")
+    if not isinstance(markdown, str):
+        return _error("markdown must be a string", 400)
+    encoded = markdown.encode("utf-8")
+    if len(encoded) > NOTE_MAX_BYTES:
+        return _error("Note is too large (1 MB max)", 413)
+    sub = pk.removeprefix("USER#")
+    s3.put_object(
+        Bucket=ASSETS_BUCKET_NAME,
+        Key=f"notes/{sub}/{item_id}/document.md",
+        Body=encoded,
+        ContentType="text/markdown; charset=utf-8",
+    )
+    return _json({"ok": True})
+
+
+@app.route("/data/notes/<item_id>/images", methods=["POST"])
+def upload_note_image(item_id):
+    """Presigned PUT for one image attached to a note. The returned `ref`
+    (`note/{noteId}/{filename}`) is what the editor embeds as `![alt](ref)`
+    and what GET /data/assets/presign resolves back to this object."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    if not _note_exists(pk, item_id):
+        return _error("Note not found", 404)
+    body = request.get_json(force=True) or {}
+    filename = _safe_image_filename(body.get("filename"))
+    if not filename:
+        return _error("filename must be a .png, .jpg, .jpeg, .gif, or .webp image", 400)
+    filename = f"{uuid.uuid4().hex[:8]}-{filename}"
+    sub = pk.removeprefix("USER#")
+    upload_url = s3.generate_presigned_url(
+        "put_object",
+        Params={"Bucket": ASSETS_BUCKET_NAME, "Key": f"notes/{sub}/{item_id}/images/{filename}"},
+        ExpiresIn=900,
+    )
+    return _json({"ref": f"note/{item_id}/{filename}", "uploadUrl": upload_url})
 
 
 @app.route("/data/questions/<item_id>", methods=["PUT"])
@@ -431,6 +581,24 @@ def delete_pack(item_id):
             ExclusiveStartKey=resp["LastEvaluatedKey"],
         )
 
+    # Banks, notes, transcripts and chats scoped to this pack. Notes also own
+    # an S3 prefix (document + images).
+    resp = table.query(KeyConditionExpression=Key("pk").eq(pk))
+    while True:
+        for item in resp.get("Items", []):
+            sk = item["sk"]
+            if not sk.startswith(("BANK#", "NOTE#", "SCRIPT#", "CHAT#")):
+                continue
+            data = json.loads(item["data"]) if isinstance(item.get("data"), str) else item.get("data", {})
+            if data.get("packId") != item_id:
+                continue
+            if sk.startswith("NOTE#"):
+                _delete_s3_prefix(f"notes/{sub}/{sk.removeprefix('NOTE#')}/")
+            table.delete_item(Key={"pk": pk, "sk": sk})
+        if "LastEvaluatedKey" not in resp:
+            break
+        resp = table.query(KeyConditionExpression=Key("pk").eq(pk), ExclusiveStartKey=resp["LastEvaluatedKey"])
+
     # Quiz attempt history for this pack — no longer actionable once the
     # pack (and its questions) are gone.
     resp = quiz_attempts_table.query(KeyConditionExpression=Key("pk").eq(pk))
@@ -479,6 +647,25 @@ def _delete_question_images(sub, data):
             s3.delete_object(Bucket=ASSETS_BUCKET_NAME, Key=f"images/{sub}/{key}")
         except Exception:
             pass
+
+
+@app.route("/data/banks/<item_id>", methods=["DELETE"])
+def delete_bank(item_id):
+    """Cascades to the bank's own questions (and their images). Import jobs
+    and attempts are left alone: a job is history of an upload, and an
+    attempt can mix several banks, so neither belongs to just this bank."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    sub = pk.removeprefix("USER#")
+    for q_item in _query_all_items(questions_table, pk):
+        data = json.loads(q_item["data"]) if isinstance(q_item.get("data"), str) else q_item.get("data", {})
+        if data.get("bankId") != item_id:
+            continue
+        _delete_question_images(sub, data)
+        questions_table.delete_item(Key={"pk": pk, "sk": q_item["sk"]})
+    table.delete_item(Key={"pk": pk, "sk": f"BANK#{item_id}"})
+    return _json({"ok": True})
 
 
 @app.route("/data/questions/<item_id>", methods=["DELETE"])
@@ -750,6 +937,12 @@ def create_import():
         return _error("packId is required", 400)
     if not table.get_item(Key={"pk": pk, "sk": f"PACK#{pack_id}"}).get("Item"):
         return _error("Pack not found", 400)
+    # Every promoted question lands in one bank, so the bank is fixed at
+    # job creation and must belong to the same pack.
+    bank_id = body.get("bankId")
+    bank_item = table.get_item(Key={"pk": pk, "sk": f"BANK#{bank_id}"}).get("Item") if bank_id else None
+    if not bank_item or json.loads(bank_item["data"]).get("packId") != pack_id:
+        return _error("Bank not found in this pack", 400)
 
     filename = _safe_import_filename(body.get("filename"))
     if not filename:
@@ -765,6 +958,7 @@ def create_import():
     job = {
         "id": job_id,
         "packId": pack_id,
+        "bankId": bank_id,
         "filename": filename,
         "status": "AWAITING_UPLOAD",
         "totalQuestions": None,
@@ -1425,6 +1619,7 @@ def generate_explanations(item_id):
             "jobId": item_id,
             "sub": sub,
             "packId": job_data.get("packId"),
+            "bankId": job_data.get("bankId"),
             "draftIndices": indices,
         }),
     )
@@ -1502,6 +1697,7 @@ def save_drafts_as_is(item_id):
         question = {
             "id": question_id,
             "packId": pack_id,
+            "bankId": job_data.get("bankId"),
             "title": draft.get("title") or "Imported question",
             "domain": draft.get("domain") or "General",
             "language": draft.get("language") or "en",
@@ -1555,9 +1751,13 @@ def presign_asset():
     if not relative_key:
         return _error("Invalid key", 400)
 
+    # `note/{noteId}/{filename}` is a study-note image (see upload_note_image);
+    # every other 3-segment key is a question image.
+    head, mid, tail = relative_key.split("/")
+    s3_key = f"notes/{sub}/{mid}/images/{tail}" if head == "note" else f"images/{sub}/{relative_key}"
     url = s3.generate_presigned_url(
         "get_object",
-        Params={"Bucket": ASSETS_BUCKET_NAME, "Key": f"images/{sub}/{relative_key}"},
+        Params={"Bucket": ASSETS_BUCKET_NAME, "Key": s3_key},
         ExpiresIn=300,
     )
     return _json({"url": url})

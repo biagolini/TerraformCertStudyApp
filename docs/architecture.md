@@ -21,7 +21,7 @@ graph TB
         DynamoDB["DynamoDB<br/>(user data)"]
         R53["Route53<br/>cert.yourdomain.com"]
         ACM["ACM Certificate"]
-        Assets["S3 Bucket<br/>(private: uploads/scratch/images)"]
+        Assets["S3 Bucket<br/>(private: uploads/scratch/images/notes)"]
         SFN["Step Functions<br/>study-import-exam"]
         LImport["3x Lambda<br/>import-preprocess/extract/finalize"]
     end
@@ -57,11 +57,11 @@ graph TB
 | Auth | Cognito User Pool | Email/password login, JWT tokens |
 | API | API Gateway (REST) | Routes with Cognito authorizer, streaming support |
 | Converse | Lambda + Web Adapter | Flask app, Bedrock `converse_stream` via NDJSON |
-| Data | Lambda + Web Adapter | CRUD for packs/questions/scripts, model discovery |
+| Data | Lambda + Web Adapter | CRUD for certifications, banks, questions, notes, scripts, chats, profile; note bodies in S3; model discovery |
 | Storage | DynamoDB | Single-table design for user data |
 | AI | Amazon Bedrock | Dynamic model list (Nova, Claude, etc.) |
 | DNS | Route53 + ACM | Custom domain with TLS |
-| Assets | S3 (private) | Uploaded exam files + extracted question images, presigned-URL only |
+| Assets | S3 (private) | Uploaded exam files, question images, study notes (`notes/{sub}/{noteId}/`), presigned-URL or Lambda-mediated only |
 | Import pipeline | Step Functions + 3 Lambdas | Explicitly started by the user (`POST /data/imports/{id}/process`) — chunk → per-question Bedrock extraction (Map fan-out) → finalize — see [bulk import pipeline](./question-import-pipeline.md) |
 
 ## Authentication Flow

@@ -10,11 +10,18 @@ Questions are the largest, most structured, and most actively-evolving entity (t
 
 | pk | sk | `data` payload |
 |----|----|-----------------|
-| `USER#{sub}` | `SETTINGS` | `AppSettings` (theme, defaultModel, importExtractionModel, activePackId, activeMethod, outputLanguage, defaultReviewMode) |
-| `USER#{sub}` | `PACK#{id}` | `Pack` (name, description, version, domains, color, export intros) — see `frontend/src/app/core/models/pack.model.ts` |
-| `USER#{sub}` | `SCRIPT#{id}` | `Script` (transcript-summary session) — see `frontend/src/app/core/models/script.model.ts` |
-| `USER#{sub}` | `CHAT#{id}` | `ChatSession` (messages + summary) — see `frontend/src/app/core/models/chat.model.ts` |
+| `USER#{sub}` | `SETTINGS` | `AppSettings` (theme, models, activePackId, languages, review/quiz defaults, workspace tab order) |
+| `USER#{sub}` | `PROFILE` | `StudentProfile` (identity, interests, per-certification track status, accommodation default) — see `frontend/src/app/core/models/profile.model.ts` |
+| `USER#{sub}` | `PACK#{id}` | `Pack`, i.e. a **certification** (name, code, provider, level, domains, timing, pass mark, catalog id, color, export intros) — see `frontend/src/app/core/models/pack.model.ts` |
+| `USER#{sub}` | `BANK#{id}` | `QuestionBank` (packId, name, author, version, sourceUrl, description) — see `frontend/src/app/core/models/bank.model.ts` |
+| `USER#{sub}` | `NOTE#{id}` | `Note` metadata (packId, title, tags, excerpt, wordCount); the body is in S3 (below) — see `frontend/src/app/core/models/note.model.ts` |
+| `USER#{sub}` | `SCRIPT#{id}` | `Script` (transcript summary, with `packId`) — see `frontend/src/app/core/models/script.model.ts` |
+| `USER#{sub}` | `CHAT#{id}` | `ChatSession` (messages + summary, with `packId`) — see `frontend/src/app/core/models/chat.model.ts` |
 | `USER#{sub}` | `IMPORTJOB#{id}` | Bulk exam-import job status (below) |
+
+**Hierarchy.** A certification (`PACK#`) owns banks, notes, transcripts, chats, import jobs, questions and attempts, all linked by `packId` inside their JSON. `DELETE /data/packs/{id}` cascades to every one of them (and to the notes' S3 prefixes and the questions' images). A bank (`BANK#`) owns questions through `Question.bankId`; `DELETE /data/banks/{id}` cascades to its questions and their images.
+
+**Note bodies** are not in DynamoDB: `GET`/`PUT /data/notes/{id}/content` read and write `notes/{sub}/{noteId}/document.md` in the assets bucket (1 MB cap), and note images live under `notes/{sub}/{noteId}/images/`, referenced in Markdown as `![alt](note/{noteId}/{filename})` and resolved by `GET /data/assets/presign`. This keeps long notes clear of the 400 KB item limit and out of the `GET /data` payload.
 
 Billing: `PAY_PER_REQUEST`. Keys: `pk` (S, hash), `sk` (S, range).
 
@@ -27,6 +34,7 @@ Tracks a [bulk exam import](./question-import-pipeline.md) across both pipeline 
 {
   id: string;
   packId: string;
+  bankId: string;   // every promoted question lands in this bank; validated against packId at creation
   filename: string;
   status: 'AWAITING_UPLOAD' | 'UPLOADED' | 'EXTRACTING' | 'AWAITING_REVIEW'
         | 'GENERATING' | 'SUCCEEDED' | 'PARTIAL' | 'FAILED';
@@ -122,6 +130,7 @@ export interface QuestionMetadata {
 export interface Question {
   id: string;
   packId: string;
+  bankId: string;                   // the QuestionBank (source) inside the certification
   title: string;
   domain: string;
   stem: string;                     // scenario + question text (inline markdown: **bold**/*italic*/![alt](key))
@@ -174,7 +183,7 @@ Example item (`data` attribute, pretty-printed):
 
 | pk | sk | `data` payload |
 |----|----|-----------------|
-| `USER#{sub}` | `ATTEMPT#{examSlug}#{startedAt:013d}#{id}` | `QuizAttempt` (below) |
+| `USER#{sub}` | `ATTEMPT#{examSlug}#{startedAt:013d}#{id}` | `QuizAttempt` (below). `examSlug` is the certification's pack id (it used to be a slug of the pack name, which broke when two certifications shared a name or one was renamed) |
 
 Billing: `PAY_PER_REQUEST`. Keys: `pk` (S, hash), `sk` (S, range). The sk embeds `examSlug` + a zero-padded 13-digit `startedAt` + `id` so listing a user's attempts newest-first (`GET /data/attempts`, optionally filtered to one exam) is a cheap `begins_with` prefix `Query` with `ScanIndexForward: false` — no GSI needed. `examSlug`/`startedAt` are fixed once at quiz-start time and never change for the life of a session, so repeated `PUT /data/attempts/{id}` calls with the same triple overwrite the exact same item — **this is how one row serves both the in-progress autosave and the eventual finished record**; only the `status` field (and everything that changed since the last save) differs between calls.
 
@@ -201,6 +210,7 @@ export interface QuizAttemptAnswer {
   note: string;
   timeSpentSeconds: number;
   markedForReview: boolean;
+  tutor?: { role: 'user' | 'assistant'; content: string; at: number }[]; // AI tutor Q&A about this question
 }
 
 export interface QuizAttempt {
@@ -222,6 +232,8 @@ export interface QuizAttempt {
   startedAt: number;
   finishedAt?: number;       // only present once status is FINISHED
   timeLimitReachedAt?: number; // epoch ms — set once if the exam clock ever hit zero
+  passingScorePercent?: number; // pass mark snapshot, so the verdict survives edits to the certification
+  bankIds?: string[];           // banks the questions were drawn from (empty = all)
 }
 ```
 

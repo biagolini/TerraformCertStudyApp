@@ -1,10 +1,12 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import {
+  CertificationLevel,
   DEFAULT_PACK_COLOR,
   DEFAULT_PACK_NAME,
   MAX_PACK_DOMAINS,
   Pack,
   PackDomain,
+  ProviderCategory,
   isAcceptablePackColor,
 } from '../models/pack.model';
 import { SettingsService } from './settings.service';
@@ -23,6 +25,12 @@ export interface PackDraft {
   examTotalQuestions?: number;
   examDurationMinutes?: number;
   accommodationMinutes?: number;
+  code?: string;
+  provider?: ProviderCategory;
+  level?: CertificationLevel;
+  officialUrl?: string;
+  passingScorePercent?: number;
+  catalogId?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -31,6 +39,8 @@ export class PacksService {
   private readonly settings = inject(SettingsService);
 
   private readonly state = signal<Pack[]>([]);
+  /** True once the first load from storage has happened (even if the list is empty). */
+  readonly loaded = signal(false);
 
   /** Stable placeholder returned when no packs exist yet (before storage is ready). */
   private readonly placeholder: Pack = {
@@ -70,21 +80,14 @@ export class PacksService {
       if (this.storage.ready()) {
         const stored = this.storage.getPacks();
         const settings = this.storage.getSettings();
-        console.debug('[PacksService] storage ready, stored packs:', stored.length, 'activePackId from storage:', settings.activePackId);
 
-        if (stored.length > 0) {
-          this.state.set(stored);
-          // Validate that activePackId references an existing pack
-          const found = settings.activePackId ? stored.find((p) => p.id === settings.activePackId) : null;
-          if (!found) {
-            console.debug('[PacksService] activePackId not found in packs, setting to first pack:', stored[0].id);
-            this.settings.setActivePackId(stored[0].id);
-          }
-        } else {
-          const seed = this.makeSeedPack();
-          this.state.set([seed]);
-          this.storage.savePacks([seed]);
-          this.settings.setActivePackId(seed.id);
+        // No seeding: an empty list is a real state now (Home shows the
+        // empty state and the starter kit instead of a fake "My first exam").
+        this.state.set(stored);
+        this.loaded.set(true);
+        const found = settings.activePackId ? stored.find((p) => p.id === settings.activePackId) : null;
+        if (!found && stored.length > 0) {
+          this.settings.setActivePackId(stored[0].id);
         }
       }
     });
@@ -108,6 +111,7 @@ export class PacksService {
       examTotalQuestions: draft.examTotalQuestions,
       examDurationMinutes: draft.examDurationMinutes,
       accommodationMinutes: draft.accommodationMinutes,
+      ...this.certificationFields(draft),
     };
     const next = [...this.state(), pack];
     this.persist(next);
@@ -132,6 +136,7 @@ export class PacksService {
             examTotalQuestions: draft.examTotalQuestions,
             examDurationMinutes: draft.examDurationMinutes,
             accommodationMinutes: draft.accommodationMinutes,
+            ...this.certificationFields(draft),
             updatedAt: Date.now(),
           }
         : p,
@@ -144,21 +149,26 @@ export class PacksService {
     void this.storage.deletePack(id);
 
     const remaining = this.state().filter((p) => p.id !== id);
-    if (remaining.length === 0) {
-      const replacement = this.makeSeedPack();
-      this.persist([replacement]);
-      this.settings.setActivePackId(replacement.id);
-      return;
-    }
+    this.storage.purgePackLocal(id);
     this.persist(remaining);
     if (this.settings.activePackId() === id) {
-      this.settings.setActivePackId(remaining[0].id);
+      this.settings.setActivePackId(remaining[0]?.id ?? '');
     }
   }
 
   setActive(id: string): void {
     if (!this.state().some((p) => p.id === id)) return;
     this.settings.setActivePackId(id);
+  }
+
+  /** Records that the user opened this certification's workspace (Home sorts and shows "last studied" from it).
+   * Throttled to once per 10 minutes so navigating between tabs doesn't rewrite the pack on every click. */
+  touch(id: string): void {
+    const pack = this.getById(id);
+    if (!pack) return;
+    const now = Date.now();
+    if (pack.lastStudiedAt && now - pack.lastStudiedAt < 10 * 60_000) return;
+    this.persist(this.state().map((p) => (p.id === id ? { ...p, lastStudiedAt: now } : p)));
   }
 
   /** Swaps this pack with the one immediately before it in drawer order. No-op if already first. */
@@ -210,17 +220,16 @@ export class PacksService {
     return result;
   }
 
-  private makeSeedPack(): Pack {
-    const now = Date.now();
+  private certificationFields(draft: PackDraft): Partial<Pack> {
+    const passing = draft.passingScorePercent;
     return {
-      id: this.uuid(),
-      name: DEFAULT_PACK_NAME,
-      description: '',
-      version: '',
-      domains: [],
-      color: DEFAULT_PACK_COLOR,
-      createdAt: now,
-      updatedAt: now,
+      code: draft.code?.trim() || undefined,
+      provider: draft.provider,
+      level: draft.level,
+      officialUrl: draft.officialUrl?.trim() || undefined,
+      passingScorePercent:
+        typeof passing === 'number' && Number.isFinite(passing) ? Math.max(1, Math.min(100, Math.round(passing))) : undefined,
+      catalogId: draft.catalogId || undefined,
     };
   }
 

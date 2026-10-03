@@ -232,7 +232,7 @@ export class QuestionListComponent {
   readonly questionsService = inject(QuestionsService);
   protected readonly i18n = inject(I18nService);
 
-  readonly questions = this.questionsService.questions;
+  readonly questions = this.questionsService.visible;
   readonly count = this.questionsService.count;
   readonly selectedIds = this.questionsService.selectedIds;
 
@@ -240,7 +240,7 @@ export class QuestionListComponent {
     if (this.questionsService.isSearching()) {
       return this.questionsService.searchResults().map((r) => r.question);
     }
-    return this.questionsService.questions();
+    return this.questionsService.visible();
   });
 
   readonly activeId = input<string | null>(null);

@@ -6,7 +6,7 @@ Everything below is declared in `backend/infrastructure/`, one file per service 
 
 | Service | Declared in | Purpose in this stack |
 |---------|-------------|----------------------|
-| **S3** | `aws_s3.tf`, `aws_s3_assets.tf` | Two buckets. The frontend bucket holds the built Angular static site. The assets bucket holds user uploads (exam files), scratch working data for the import pipeline, and extracted question images. |
+| **S3** | `aws_s3.tf`, `aws_s3_assets.tf` | Two buckets. The frontend bucket holds the built Angular static site. The assets bucket holds user uploads (exam files), scratch working data for the import pipeline, question images, and study notes (`notes/{sub}/{noteId}/document.md` plus the note's images). |
 | **CloudFront** | `aws_cloudfront.tf` | The only public entry point to the site. Serves the SPA from S3 over HTTPS via Origin Access Control, and rewrites 403/404 to `/index.html` so client-side routing works. |
 | **ACM** | `aws_acm.tf` | TLS certificate for the custom domain, with DNS validation, consumed by the CloudFront distribution. |
 | **Route 53** | `aws_route53.tf` | Alias record pointing the custom domain at CloudFront, plus the DNS records that validate the ACM certificate. |

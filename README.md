@@ -6,17 +6,26 @@ AI-powered study app for IT certification exams (AWS, Anthropic CCAF, and others
 
 ## Features
 
-- **Question Reviews** — paste a multiple-choice question, get a structured Markdown review (concepts, correct answer reasoning, incorrect alternatives analysis)
-- **Transcript Summaries** — paste lesson transcripts, get a layered technical summary
-- **Open Chat** — free-form tutor conversation focused on the active certification, with persisted sessions and regenerable NotebookLM-style summary
+The app is organized around the certification: **Certification → Question banks → Questions**, with everything else (mock exams, notes, transcripts, chat, performance) inside that certification's workspace.
+
+- **Home** — your certifications with question/bank/note/attempt counts, a catalog of suggested certifications filtered by ecosystem (AWS, Azure, Google Cloud, Kubernetes, Terraform, Linux, MongoDB, Anthropic, others) and ranked by your profile, an add/edit certification editor prefilled from the catalog, and a one-click starter kit with sample data
+- **Question banks** — one bank per source of questions (a practice exam, an instructor's set, your own), grouped by author, with a per-domain breakdown that doubles as a filter and a unified "all questions" view
+- **Question reviews** — paste a multiple-choice question, get a structured review (concepts, correct answer reasoning, incorrect alternatives analysis), or paste a ready-made one
+- **Bulk import** — upload an exam file into a bank; AI extracts every question for human review (see below)
+- **Mock exams** — draw from selected banks and domains, instant feedback or strict final review, exam clock and per-question budget with overtime, item navigator with filters and status badges, pause and resume up to five sessions, early finish with a blank/answered summary, pass/fail verdict against the certification's pass mark, per-domain results, an AI tutor per question
+- **Performance** — attempt history with filters, score evolution chart, domain mastery and weak-domain suggestions
+- **Notes** — Markdown notes stored privately in S3, with a toolbar, preview, image upload and an AI copilot that reads the note (polish, exam summary, flashcards, practice questions)
+- **Flashcards** — flip cards from questions or from Front/Back tables in notes
+- **Transcript summaries and tutor chat** — scoped to the certification, savable as notes
+- **Student profile** — identity, ecosystems of interest, per-certification status (want to do, studying, earned) and accommodation default
+- **Settings** — languages, theme, models, workspace tabs, quiz toolbar, password change, full JSON backup, AI costs and budget
 - **Streaming** — responses arrive token-by-token via NDJSON
-- **Pack System** — organize study by certification exam (domains, colors, version tracking)
-- **Export** — download Markdown files grouped by domain
+- **Multilingual** — English, Portuguese, Spanish and Italian
 - **Auth** — Cognito email/password login (no API keys needed)
 
 ## Adding Questions
 
-Three ways to get a question into a pack, from the "New Question" panel:
+Three ways to get a question into a bank (Question banks tab, "Add question" or "Import with AI"):
 
 - **Generate with AI** — paste one exam question, AI produces a structured review (concepts, correct answer reasoning, incorrect alternatives analysis).
 - **Add ready-made** — paste an already-written Markdown review (e.g. copied from Claude App) and save it directly, no AI call.
@@ -55,7 +64,8 @@ graph LR
 │   ├── src/app/
 │   │   ├── core/services/    # bedrock.service, auth.service, etc.
 │   │   └── features/         # login, question-input, review-viewer, etc.
-│   └── public/examples/      # Pack JSONs served by the app
+│   ├── public/examples/      # Certification templates + index.json (catalog)
+│   └── scripts/              # build_catalog_index.py, check-i18n-keys.mjs
 ├── docs/                     # Documentation
 │   ├── architecture.md       # System architecture + diagrams
 │   ├── backend.md            # Backend (Terraform, Lambdas, API, DynamoDB)
@@ -153,9 +163,9 @@ Models that support reasoning are marked with **(reasoning)** in the model selec
 - During the reasoning phase, the user sees a brief pause before text starts streaming (the model is "thinking" internally). This is expected behavior, not an error.
 - Reasoning tokens are **charged** even though the reasoning content appears as `[REDACTED]` in the API response.
 
-## Pack Examples
+## Certification Catalog
 
-Pre-built study packs for all current AWS certifications are in [`frontend/public/examples/`](frontend/public/examples/). Import them in the app via Pack Editor → Import file or Templates.
+Certification templates (AWS, Anthropic, HashiCorp, MongoDB, Kubernetes, Google Cloud, Azure, CompTIA, LPI) are in [`frontend/public/examples/`](frontend/public/examples/). Home reads `index.json`, which `frontend/scripts/build_catalog_index.py` builds from the templates plus the catalog metadata kept in that script (code, ecosystem, level, duration, question count, pass mark, official link). Run it after adding or editing a template.
 
 ## Tech Stack
 

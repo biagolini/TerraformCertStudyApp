@@ -1,3 +1,4 @@
+import { SaveAsNoteComponent } from '../../shared/components/save-as-note.component';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Script } from '../../core/models/script.model';
@@ -9,7 +10,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 @Component({
   selector: 'app-script-viewer',
   standalone: true,
-  imports: [FormsModule, AiDisclaimerComponent, MarkdownRendererComponent],
+  imports: [SaveAsNoteComponent, FormsModule, AiDisclaimerComponent, MarkdownRendererComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="viewer">
@@ -69,6 +70,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
               [message]="i18n.t('scriptViewer.aiDisclaimer')"
             />
             <app-markdown-renderer [source]="s.content" />
+            <div class="note-row"><app-save-as-note [title]="s.title" [content]="s.content" [tags]="['transcript']" /></div>
             <details class="sources">
               <summary>{{ i18n.t('scriptViewer.sourceTranscripts', { count: s.sources.length }) }}</summary>
               <ol class="sources-list">
@@ -161,6 +163,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
         font-weight: 600;
         font-size: var(--font-size-base);
       }
+      .note-row { margin-top: var(--space-md); }
       .btn-primary { background: var(--color-purple); color: #ffffff; }
       .btn-primary:hover:not(:disabled) { background: var(--color-blue); }
       .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--bg-border); }

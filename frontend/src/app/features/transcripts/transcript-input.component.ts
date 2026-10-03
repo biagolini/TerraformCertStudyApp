@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Script, fullScriptTitle } from '../../core/models/script.model';
 import { BedrockService } from '../../core/services/bedrock.service';
 import { ModelsService } from '../../core/services/models.service';
+import { PacksService } from '../../core/services/packs.service';
 import { ScriptsService } from '../../core/services/scripts.service';
 import { SettingsService } from '../../core/services/settings.service';
 import {
@@ -219,6 +220,7 @@ export class TranscriptInputComponent {
   private readonly settings = inject(SettingsService);
   private readonly modelsService = inject(ModelsService);
   private readonly scripts = inject(ScriptsService);
+  private readonly packs = inject(PacksService);
   protected readonly i18n = inject(I18nService);
 
   protected readonly transcripts = signal<string[]>(['']);
@@ -291,6 +293,7 @@ export class TranscriptInputComponent {
         if (!script) {
           script = {
             id: crypto.randomUUID(),
+            packId: this.packs.activePack().id,
             title: this.i18n.t('transcriptInput.initialTitle'),
             content: chunk,
             sources: [...sources],

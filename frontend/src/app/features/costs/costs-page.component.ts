@@ -34,7 +34,7 @@ interface BreakdownRow {
 
 const KNOWN_ACTIONS = [
   'reviewGenerate', 'reviewRefine', 'chat', 'chatSummary', 'transcriptScript',
-  'titleGeneration', 'relatedServices', 'translate', 'importExtract', 'importExplain',
+  'titleGeneration', 'relatedServices', 'translate', 'importExtract', 'importExplain', 'tutor', 'noteCopilot',
 ];
 
 const DAY_MS = 24 * 60 * 60 * 1000;

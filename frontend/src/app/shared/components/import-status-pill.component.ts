@@ -135,6 +135,6 @@ export class ImportStatusPillComponent {
 
   onReview(job: ImportJob): void {
     this.panelOpen.set(false);
-    void this.router.navigate(['/questions', job.packId, 'import', job.id]);
+    void this.router.navigate(['/exam', job.packId, 'import', job.id]);
   }
 }

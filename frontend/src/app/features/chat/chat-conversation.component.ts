@@ -1,3 +1,4 @@
+import { SaveAsNoteComponent } from '../../shared/components/save-as-note.component';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -19,7 +20,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 @Component({
   selector: 'app-chat-conversation',
   standalone: true,
-  imports: [FormsModule, MatProgressSpinnerModule, DatePipe, AiDisclaimerComponent, MarkdownRendererComponent],
+  imports: [SaveAsNoteComponent, FormsModule, MatProgressSpinnerModule, DatePipe, AiDisclaimerComponent, MarkdownRendererComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="viewer">
@@ -207,6 +208,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
                 <button type="button" class="btn btn-ghost" (click)="onDownloadSummary(s)">
                   {{ i18n.t('chatConversation.download') }}
                 </button>
+                <app-save-as-note [title]="s.title" [content]="s.summary" [tags]="['chat']" />
               }
             </div>
           </section>

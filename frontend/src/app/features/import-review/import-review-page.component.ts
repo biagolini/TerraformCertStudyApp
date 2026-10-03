@@ -11,7 +11,7 @@ import { DiscardChangesDialogComponent } from '../../shared/components/discard-c
 import { ImportDraftItemComponent } from './import-draft-item.component';
 import { I18nService } from '../../core/i18n/i18n.service';
 
-/** Routed at /questions/:packId/import/:jobId — reached from
+/** Routed at /exam/:packId/import/:jobId — reached from
  * import-exam.component.ts's "Review N questions" link, never directly
  * part of the upload tab itself. One job's structure-only drafts (Phase 1
  * output), shown one at a time with an "Item Navigator" side panel to jump
@@ -65,7 +65,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
               <div class="promoted-card">
                 <p class="promoted-title">{{ draft.title || i18n.t('importReview.questionNumber', { number: draft.index + 1 }) }}</p>
                 <p class="status-line">{{ i18n.t('importReview.promotedHint') }}</p>
-                <a class="btn-ghost-sm" [routerLink]="['/questions', packId(), jobId() + '-' + padIndex(draft.index)]">{{ i18n.t('importReview.viewQuestion') }}</a>
+                <a class="btn-ghost-sm" [routerLink]="['/exam', packId(), 'banks', 'all', jobId() + '-' + padIndex(draft.index)]">{{ i18n.t('importReview.viewQuestion') }}</a>
               </div>
             } @else {
               <app-import-draft-item
@@ -481,6 +481,6 @@ export class ImportReviewPageComponent implements OnInit {
     // starting Phase 2, which used to dump them onto /questions instead
     // with no way to see whether the (still-running) explanation generation
     // succeeded without navigating back here by hand.
-    this.router.navigate(['/import', this.packId()]);
+    this.router.navigate(['/exam', this.packId(), 'import']);
   }
 }

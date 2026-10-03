@@ -1,16 +1,27 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { ImageAssetService } from '../../core/services/image-asset.service';
+import { LightboxService } from '../../core/services/lightbox.service';
 
 type InlineSegment =
   | { kind: 'text' | 'bold' | 'italic' | 'code'; value: string }
+  | { kind: 'link'; value: string; href: string }
   | { kind: 'img'; alt: string; ref: string };
+
+interface ListItem {
+  inline: InlineSegment[];
+  /** null = plain bullet, true/false = task-list checkbox. */
+  checked: boolean | null;
+}
 
 type Block =
   | { kind: 'h2' | 'h3'; inline: InlineSegment[] }
   | { kind: 'hr' }
   | { kind: 'p'; inline: InlineSegment[]; muted: boolean }
-  | { kind: 'ul'; items: InlineSegment[][] };
+  | { kind: 'ul' | 'ol'; items: ListItem[] }
+  | { kind: 'code'; text: string }
+  | { kind: 'quote'; lines: InlineSegment[][] }
+  | { kind: 'table'; header: InlineSegment[][]; rows: InlineSegment[][][] };
 
 @Component({
   selector: 'app-markdown-renderer',
@@ -43,9 +54,13 @@ type Block =
                 {{ seg.alt || 'Image unavailable' }}
               </span>
             } @else if (state !== 'pending') {
-              <img class="md-img" [src]="state" [alt]="seg.alt" />
+              <button type="button" class="md-img-btn" (click)="lightbox.open(state, seg.alt)" [attr.aria-label]="seg.alt || 'Open image'">
+                <img class="md-img" [src]="state" [alt]="seg.alt" />
+              </button>
             }
           }
+        } @else if (seg.kind === 'link') {
+          <a class="md-link" [href]="seg.href" target="_blank" rel="noopener noreferrer">{{ seg.value }}</a>
         } @else {
           <span>{{ seg.value }}</span>
         }
@@ -76,11 +91,55 @@ type Block =
           @case ('ul') {
             <ul class="md-ul">
               @for (item of asList(block).items; track $index) {
-                <li>
-                  <ng-container *ngTemplateOutlet="inline; context: { $implicit: item }" />
+                <li [class.task]="item.checked !== null">
+                  @if (item.checked !== null) {
+                    <input type="checkbox" [checked]="item.checked" disabled aria-hidden="true" />
+                  }
+                  <ng-container *ngTemplateOutlet="inline; context: { $implicit: item.inline }" />
                 </li>
               }
             </ul>
+          }
+          @case ('ol') {
+            <ol class="md-ol">
+              @for (item of asList(block).items; track $index) {
+                <li>
+                  <ng-container *ngTemplateOutlet="inline; context: { $implicit: item.inline }" />
+                </li>
+              }
+            </ol>
+          }
+          @case ('code') {
+            <pre class="md-pre"><code>{{ asCode(block) }}</code></pre>
+          }
+          @case ('quote') {
+            <blockquote class="md-quote">
+              @for (line of asQuote(block); track $index) {
+                <p><ng-container *ngTemplateOutlet="inline; context: { $implicit: line }" /></p>
+              }
+            </blockquote>
+          }
+          @case ('table') {
+            <div class="md-table-wrap">
+              <table class="md-table">
+                <thead>
+                  <tr>
+                    @for (cell of asTable(block).header; track $index) {
+                      <th><ng-container *ngTemplateOutlet="inline; context: { $implicit: cell }" /></th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of asTable(block).rows; track $index) {
+                    <tr>
+                      @for (cell of row; track $index) {
+                        <td><ng-container *ngTemplateOutlet="inline; context: { $implicit: cell }" /></td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
           }
         }
       }
@@ -133,6 +192,77 @@ type Block =
         color: var(--text-primary);
         font-weight: 700;
       }
+      .md-ol {
+        padding-left: var(--space-lg);
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xs);
+      }
+      .md-ol li {
+        list-style: decimal;
+      }
+      .md-ul li.task {
+        list-style: none;
+        margin-left: calc(-1 * var(--space-md));
+      }
+      .md-ul li.task input {
+        margin-right: 6px;
+      }
+      .md-pre {
+        background: var(--bg-elevated);
+        border: 1px solid var(--bg-border);
+        border-radius: var(--radius-md);
+        padding: var(--space-sm) var(--space-md);
+        overflow-x: auto;
+        font-size: 0.9em;
+        line-height: 1.5;
+      }
+      .md-pre code {
+        background: none;
+        padding: 0;
+        white-space: pre;
+      }
+      .md-quote {
+        border-left: 3px solid var(--pack-color, var(--color-purple));
+        background: var(--pack-color-soft, rgba(108, 92, 231, 0.08));
+        border-radius: 0 var(--radius-md) var(--radius-md) 0;
+        padding: var(--space-sm) var(--space-md);
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xs);
+      }
+      .md-table-wrap {
+        overflow-x: auto;
+      }
+      .md-table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.95em;
+      }
+      .md-table th,
+      .md-table td {
+        border: 1px solid var(--bg-border);
+        padding: 6px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      .md-table th {
+        background: var(--bg-elevated);
+        font-weight: 700;
+      }
+      .md-link {
+        color: var(--color-blue);
+        text-decoration: underline;
+        word-break: break-word;
+      }
+      .md-img-btn {
+        display: block;
+        padding: 0;
+        border: 0;
+        background: none;
+        cursor: zoom-in;
+        max-width: 100%;
+      }
       .md-img {
         display: block;
         max-width: 100%;
@@ -166,6 +296,7 @@ type Block =
 })
 export class MarkdownRendererComponent {
   protected readonly imageAssets = inject(ImageAssetService);
+  protected readonly lightbox = inject(LightboxService);
 
   readonly source = input.required<string>();
 
@@ -189,8 +320,17 @@ export class MarkdownRendererComponent {
   asParagraph(block: Block): { inline: InlineSegment[]; muted: boolean } {
     return block.kind === 'p' ? { inline: block.inline, muted: block.muted } : { inline: [], muted: false };
   }
-  asList(block: Block): { items: InlineSegment[][] } {
-    return block.kind === 'ul' ? { items: block.items } : { items: [] };
+  asList(block: Block): { items: ListItem[] } {
+    return block.kind === 'ul' || block.kind === 'ol' ? { items: block.items } : { items: [] };
+  }
+  asCode(block: Block): string {
+    return block.kind === 'code' ? block.text : '';
+  }
+  asQuote(block: Block): InlineSegment[][] {
+    return block.kind === 'quote' ? block.lines : [];
+  }
+  asTable(block: Block): { header: InlineSegment[][]; rows: InlineSegment[][][] } {
+    return block.kind === 'table' ? block : { header: [], rows: [] };
   }
 }
 
@@ -203,58 +343,116 @@ function collectImageRefs(blocks: Block[]): string[] {
   };
   for (const block of blocks) {
     if (block.kind === 'h2' || block.kind === 'h3' || block.kind === 'p') scan(block.inline);
-    else if (block.kind === 'ul') block.items.forEach(scan);
+    else if (block.kind === 'ul' || block.kind === 'ol') block.items.forEach((item) => scan(item.inline));
+    else if (block.kind === 'quote') block.lines.forEach(scan);
+    else if (block.kind === 'table') [...block.header, ...block.rows.flat()].forEach(scan);
   }
   return refs;
 }
 
-function parseMarkdown(source: string): Block[] {
+const TASK_RE = /^\[( |x|X)\]\s+/;
+
+function splitRow(line: string): string[] {
+  return line
+    .trim()
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map((c) => c.trim());
+}
+
+export function parseMarkdown(source: string): Block[] {
   const lines = source.replace(/\r\n/g, '\n').split('\n');
   const blocks: Block[] = [];
-  let listBuffer: InlineSegment[][] | null = null;
+  let list: { kind: 'ul' | 'ol'; items: ListItem[] } | null = null;
+  let quote: InlineSegment[][] | null = null;
 
-  const flushList = () => {
-    if (listBuffer && listBuffer.length > 0) {
-      blocks.push({ kind: 'ul', items: listBuffer });
-    }
-    listBuffer = null;
+  const flush = () => {
+    if (list && list.items.length > 0) blocks.push({ kind: list.kind, items: list.items });
+    if (quote && quote.length > 0) blocks.push({ kind: 'quote', lines: quote });
+    list = null;
+    quote = null;
   };
 
-  for (const rawLine of lines) {
-    const line = rawLine.replace(/\t/g, '  ');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].replace(/\t/g, '  ');
     const trimmed = line.trim();
 
+    // Fenced code block: everything verbatim up to the closing fence.
+    if (trimmed.startsWith('```')) {
+      flush();
+      const body: string[] = [];
+      i++;
+      while (i < lines.length && !lines[i].trim().startsWith('```')) {
+        body.push(lines[i]);
+        i++;
+      }
+      blocks.push({ kind: 'code', text: body.join('\n') });
+      continue;
+    }
     if (trimmed === '') {
-      flushList();
+      flush();
+      continue;
+    }
+    // Table: a `| a | b |` row followed by a `|---|---|` separator.
+    if (trimmed.startsWith('|') && i + 1 < lines.length && /^\|?\s*:?-{3,}/.test(lines[i + 1].trim())) {
+      flush();
+      const header = splitRow(trimmed).map(parseInline);
+      const rows: InlineSegment[][][] = [];
+      i += 2;
+      while (i < lines.length && lines[i].trim().startsWith('|')) {
+        rows.push(splitRow(lines[i]).map(parseInline));
+        i++;
+      }
+      i--;
+      blocks.push({ kind: 'table', header, rows });
       continue;
     }
     if (trimmed === '---' || /^[-*_]{3,}$/.test(trimmed)) {
-      flushList();
+      flush();
       blocks.push({ kind: 'hr' });
       continue;
     }
     const headingMatch = /^(#{1,6})\s+(.*)$/.exec(trimmed);
     if (headingMatch) {
-      flushList();
+      flush();
       const level = headingMatch[1].length;
       // Map: # and ## -> h2 (larger), ### and deeper -> h3 (smaller)
       const kind = level <= 2 ? 'h2' : 'h3';
       blocks.push({ kind, inline: parseInline(headingMatch[2]) });
       continue;
     }
-    if (/^[-*]\s+/.test(trimmed)) {
-      if (!listBuffer) listBuffer = [];
-      listBuffer.push(parseInline(trimmed.replace(/^[-*]\s+/, '')));
+    if (trimmed.startsWith('>')) {
+      if (list) flush();
+      if (!quote) quote = [];
+      const text = trimmed.replace(/^>\s?/, '');
+      if (text) quote.push(parseInline(text));
+      continue;
+    }
+    const bullet = /^[-*+]\s+(.*)$/.exec(trimmed);
+    const ordered = /^\d+[.)]\s+(.*)$/.exec(trimmed);
+    if (bullet || ordered) {
+      const kind = bullet ? 'ul' : 'ol';
+      if (quote || (list && list.kind !== kind)) flush();
+      if (!list) list = { kind, items: [] };
+      let text = (bullet ?? ordered)![1];
+      let checked: boolean | null = null;
+      const task = TASK_RE.exec(text);
+      if (bullet && task) {
+        checked = task[1].toLowerCase() === 'x';
+        text = text.replace(TASK_RE, '');
+      }
+      list.items.push({ inline: parseInline(text), checked });
       continue;
     }
 
-    flushList();
+    flush();
 
     const muted = /^\*[\s\S]+\*$/.test(trimmed) && !/\*\*/.test(trimmed);
     blocks.push({ kind: 'p', inline: parseInline(trimmed), muted });
   }
 
-  flushList();
+  flush();
   return blocks;
 }
 
@@ -283,6 +481,21 @@ function parseInline(text: string): InlineSegment[] {
             ref: text.slice(altEnd + 2, refEnd),
           });
           i = refEnd + 1;
+          continue;
+        }
+      }
+    }
+    if (text[i] === '[') {
+      const labelEnd = text.indexOf(']', i + 1);
+      if (labelEnd !== -1 && text[labelEnd + 1] === '(') {
+        const hrefEnd = text.indexOf(')', labelEnd + 2);
+        const href = hrefEnd !== -1 ? text.slice(labelEnd + 2, hrefEnd).trim() : '';
+        // Only absolute http(s) links become anchors; anything else (javascript:,
+        // data:, relative) stays plain text.
+        if (/^https?:\/\//i.test(href)) {
+          flushText();
+          segments.push({ kind: 'link', value: text.slice(i + 1, labelEnd), href });
+          i = hrefEnd + 1;
           continue;
         }
       }

@@ -1,0 +1,36 @@
+{
+  "name": "CompTIA Security+ (SY0-701)",
+  "version": "SY0-701",
+  "color": "#10b981",
+  "description": "Validates foundational cybersecurity skills assessing the security posture of an enterprise environment and recommending security solutions. 90 minutes.",
+  "exportIntroQuestions": "",
+  "exportIntroTranscripts": "",
+  "exportIntroChat": "",
+  "domains": [
+    {
+      "name": "General Security Concepts",
+      "description": "Domain 1 (12%): Compare security controls, apply authentication/authorization, understand PKI and cryptography.",
+      "order": 1
+    },
+    {
+      "name": "Threats, Vulnerabilities, and Mitigations",
+      "description": "Domain 2 (22%): Threat actors, attack vectors, vulnerabilities, and mitigation techniques.",
+      "order": 2
+    },
+    {
+      "name": "Security Architecture",
+      "description": "Domain 3 (18%): Security models, cloud infrastructure security, resilience and recovery.",
+      "order": 3
+    },
+    {
+      "name": "Security Operations",
+      "description": "Domain 4 (28%): Applying security baselines, monitoring, vulnerability scanning, and incident response.",
+      "order": 4
+    },
+    {
+      "name": "Security Program Management and Oversight",
+      "description": "Domain 5 (20%): Governance, compliance, risk management, and security awareness.",
+      "order": 5
+    }
+  ]
+}

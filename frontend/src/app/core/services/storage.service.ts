@@ -1,52 +1,24 @@
 import { Injectable, signal } from '@angular/core';
 import { Question } from '../models/question.model';
-import {
-  DEFAULT_PACK_COLOR,
-  DEFAULT_PACK_NAME,
-  Pack,
-  PackDomain,
-} from '../models/pack.model';
+import { Pack } from '../models/pack.model';
+import { QuestionBank } from '../models/bank.model';
+import { Note } from '../models/note.model';
+import { StudentProfile } from '../models/profile.model';
 import { Script } from '../models/script.model';
 import { ChatSession } from '../models/chat.model';
 import { QuizAttempt } from '../models/quiz-attempt.model';
-import { AppSettings, DEFAULT_SETTINGS, isReviewMode } from '../models/settings.model';
-import { isStudyMethod } from '../models/method.model';
-import { NAV_ITEMS, NavTabId } from '../models/nav-item.model';
-import { MAX_QUIZ_TOOLBAR_ROWS, isQuizToolId } from '../models/quiz-tool.model';
-import { isInterfaceLanguage } from '../models/i18n.model';
+import { AppSettings, DEFAULT_SETTINGS } from '../models/settings.model';
 import { environment } from '../../../environments/environment';
-
-function deserializeDomain(raw: unknown): PackDomain | null {
-  if (typeof raw === 'string' && raw.trim()) {
-    return { name: raw.trim(), description: '' };
-  }
-  if (raw && typeof raw === 'object') {
-    const obj = raw as Record<string, unknown>;
-    const name = typeof obj['name'] === 'string' ? obj['name'].trim() : '';
-    if (!name) return null;
-    const domain: PackDomain = { name, description: typeof obj['description'] === 'string' ? obj['description'] : '' };
-    if (typeof obj['order'] === 'number') domain.order = obj['order'] as number;
-    return domain;
-  }
-  return null;
-}
-
-const PREFIX = 'cert_study__';
-const KEY_QUESTIONS = `${PREFIX}questions`;
-const KEY_SETTINGS = `${PREFIX}settings`;
-const KEY_PACKS = `${PREFIX}packs`;
-const KEY_SCRIPTS = `${PREFIX}scripts`;
-/** Per-device, NEVER synced — see reconcileActivePackId(). Deliberately a
- * separate localStorage key from the synced settings blob, so this device's
- * own last-active pack survives a remote pull that disagrees with it. */
-const LOCAL_ACTIVE_PACK_KEY = `${PREFIX}local_active_pack_id`;
 
 interface ApiData {
   packs: Pack[];
+  banks?: QuestionBank[];
   questions: Question[];
   scripts: Script[];
   chats?: ChatSession[];
+  notes?: Note[];
   settings: AppSettings | null;
+  profile?: StudentProfile | null;
 }
 
 /** Minimum time between visibility-triggered refreshes, to avoid spamming the API on quick tab switches. */
@@ -62,13 +34,10 @@ export class StorageService {
   readonly lastError = signal<string | null>(null);
   readonly lastSyncedAt = signal<number | null>(null);
 
-  /** Set when a remote pull reports a different `activePackId` than this
-   * device's own local record — see reconcileActivePackId(). Consumed by
-   * PackSwitchBannerComponent, which only surfaces it once the user is off
-   * the /quiz route (never interrupting an in-progress attempt). */
-  readonly pendingPackSwitch = signal<{ packId: string; packName: string } | null>(null);
-
   private _packs = signal<Pack[]>([]);
+  private _banks = signal<QuestionBank[]>([]);
+  private _notes = signal<Note[]>([]);
+  private _profile = signal<StudentProfile | null>(null);
   private _questions = signal<Question[]>([]);
   private _scripts = signal<Script[]>([]);
   private _chats = signal<ChatSession[]>([]);
@@ -95,69 +64,25 @@ export class StorageService {
     return this.token;
   }
 
-  /**
-   * Called by AuthService after successful login.
-   * Loads remote data, migrates localStorage if needed.
-   */
+  /** Called by AuthService after successful login: loads the user's whole dataset from the API. */
   async initialize(idToken: string): Promise<void> {
     this.token = idToken;
-
     const remote = await this.fetchAll();
-    const hasRemoteData = remote.packs.length > 0 || remote.questions.length > 0 || remote.scripts.length > 0 || (remote.chats?.length ?? 0) > 0 || remote.settings !== null;
-
-    console.debug('[StorageService] initialize — remote data:', {
-      hasRemoteData,
-      packsCount: remote.packs.length,
-      settings: remote.settings,
-    });
-
-    if (hasRemoteData) {
-      // Use DynamoDB as source of truth
-      this._packs.set(remote.packs);
-      this._questions.set(remote.questions);
-      this._scripts.set(remote.scripts);
-      this._chats.set(remote.chats ?? []);
-      const merged = remote.settings ? { ...DEFAULT_SETTINGS, ...remote.settings } : { ...DEFAULT_SETTINGS };
-      this._settings.set(this.reconcileActivePackId(merged));
-      // Clear localStorage since cloud is canonical
-      this.clearLocalStorage();
-    } else {
-      // Check localStorage for migration
-      const localPacks = this.readLocalPacks();
-      const localQuestions = this.readLocalQuestions();
-      const localScripts = this.readLocalScripts();
-      const localSettings = this.readLocalSettings();
-
-      const hasLocal = localPacks.length > 0 || localQuestions.length > 0 || localScripts.length > 0;
-
-      if (hasLocal) {
-        // Migrate local → cloud
-        this._packs.set(localPacks);
-        this._questions.set(localQuestions);
-        this._scripts.set(localScripts);
-        this._chats.set([]);
-        this._settings.set(localSettings);
-
-        await this.pushAll({
-          packs: localPacks,
-          questions: localQuestions,
-          scripts: localScripts,
-          chats: [],
-          settings: localSettings,
-        });
-        this.clearLocalStorage();
-      } else {
-        // Fresh start
-        this._packs.set([]);
-        this._questions.set([]);
-        this._scripts.set([]);
-        this._chats.set([]);
-        this._settings.set(localSettings);
-      }
-    }
-
+    this.applyRemote(remote);
     this.ready.set(true);
     this.attachVisibilityListener();
+  }
+
+  private applyRemote(remote: ApiData): void {
+    this._packs.set(remote.packs ?? []);
+    this._banks.set(remote.banks ?? []);
+    this._questions.set(remote.questions ?? []);
+    this._scripts.set(remote.scripts ?? []);
+    this._chats.set(remote.chats ?? []);
+    this._notes.set(remote.notes ?? []);
+    this._profile.set(remote.profile ?? null);
+    const merged = remote.settings ? { ...DEFAULT_SETTINGS, ...remote.settings } : { ...DEFAULT_SETTINGS };
+    this._settings.set(merged);
   }
 
   /** Update token when refreshed */
@@ -178,12 +103,7 @@ export class StorageService {
     this.syncStatus.set('syncing');
     try {
       const remote = await this.fetchAll();
-      this._packs.set(remote.packs);
-      this._questions.set(remote.questions);
-      this._scripts.set(remote.scripts);
-      this._chats.set(remote.chats ?? []);
-      const merged = remote.settings ? { ...DEFAULT_SETTINGS, ...remote.settings } : { ...DEFAULT_SETTINGS };
-      this._settings.set(this.reconcileActivePackId(merged));
+      this.applyRemote(remote);
       this.syncStatus.set('idle');
       this.lastError.set(null);
       this.lastSyncedAt.set(Date.now());
@@ -192,39 +112,6 @@ export class StorageService {
       this.lastError.set(err instanceof Error ? err.message : 'Failed to sync with the server.');
       console.error('[StorageService] refresh failed:', err);
     }
-  }
-
-  /** Reconciles a just-pulled remote settings object's `activePackId` against
-   * THIS device's own last-known active pack, so a remote pull never
-   * silently swaps which pack the user is looking at (see
-   * pendingPackSwitch's doc comment). First-ever sync on a device (no local
-   * record yet) or an already-matching value passes through untouched. A
-   * genuine mismatch keeps the device's own pack active and flags the
-   * remote's choice via `pendingPackSwitch` for the banner to offer later —
-   * called with `_packs` already populated with `remote.packs` at both call
-   * sites, so the remote pack's name is available to look up here. */
-  private reconcileActivePackId(remoteSettings: AppSettings): AppSettings {
-    const localPackId = localStorage.getItem(LOCAL_ACTIVE_PACK_KEY);
-    const remotePackId = remoteSettings.activePackId;
-    if (!localPackId || localPackId === remotePackId) {
-      if (remotePackId) localStorage.setItem(LOCAL_ACTIVE_PACK_KEY, remotePackId);
-      return remoteSettings;
-    }
-    const remotePack = this._packs().find((p) => p.id === remotePackId);
-    if (remotePack) {
-      this.pendingPackSwitch.set({ packId: remotePackId, packName: remotePack.name });
-    }
-    return { ...remoteSettings, activePackId: localPackId };
-  }
-
-  /** Re-affirms THIS device's current settings (in particular activePackId)
-   * to the backend, bypassing SettingsService.setActivePackId's same-value
-   * guard — used by the "stay on my current pack" resolution of a pending
-   * pack-switch conflict, where the local value never actually changed (it
-   * was never overwritten in the first place) but still needs to overwrite
-   * the stale value the backend currently has. */
-  forceSyncSettings(): void {
-    void this.fire(`${this.apiUrl}/data/settings`, 'PUT', this._settings());
   }
 
   private attachVisibilityListener(): void {
@@ -268,6 +155,51 @@ export class StorageService {
     this.diffAndSync('packs', previous, packs, (id) => `${this.apiUrl}/data/packs/${id}`, () => this._packs());
   }
 
+  getBanks(): QuestionBank[] {
+    return this._banks();
+  }
+
+  saveBanks(banks: QuestionBank[]): void {
+    const previous = this._banks();
+    this._banks.set(banks);
+    this.diffAndSync('banks', previous, banks, (id) => `${this.apiUrl}/data/banks/${id}`, () => this._banks());
+  }
+
+  getNotes(): Note[] {
+    return this._notes();
+  }
+
+  saveNotes(notes: Note[]): void {
+    const previous = this._notes();
+    this._notes.set(notes);
+    this.diffAndSync('notes', previous, notes, (id) => `${this.apiUrl}/data/notes/${id}`, () => this._notes());
+  }
+
+  getProfile(): StudentProfile | null {
+    return this._profile();
+  }
+
+  saveProfile(profile: StudentProfile): void {
+    this._profile.set(profile);
+    this.schedulePush('profile', () => this.fire(`${this.apiUrl}/data/profile`, 'PUT', this._profile()));
+  }
+
+  /** Drops everything that belongs to a deleted certification from the local
+   * copy. The backend's DELETE /data/packs/{id} cascades on its own, so
+   * nothing here is pushed. */
+  purgePackLocal(packId: string): void {
+    this._banks.set(this._banks().filter((b) => b.packId !== packId));
+    this._questions.set(this._questions().filter((q) => q.packId !== packId));
+    this._scripts.set(this._scripts().filter((s) => s.packId !== packId));
+    this._chats.set(this._chats().filter((c) => c.packId !== packId));
+    this._notes.set(this._notes().filter((n) => n.packId !== packId));
+  }
+
+  /** Same idea as purgePackLocal, for DELETE /data/banks/{id}, which cascades to the bank's questions. */
+  purgeBankLocal(bankId: string): void {
+    this._questions.set(this._questions().filter((q) => q.bankId !== bankId));
+  }
+
   getScripts(): Script[] {
     return this._scripts();
   }
@@ -295,16 +227,36 @@ export class StorageService {
   saveSettings(settings: AppSettings): void {
     console.debug('[StorageService] saveSettings:', settings);
     this._settings.set(settings);
-    // Keeps this device's own per-device tracker current on every write —
-    // covers both the ordinary pack-switcher flow and the pack-switch
-    // banner's "Switch" resolution, in one place (see reconcileActivePackId).
-    if (settings.activePackId) localStorage.setItem(LOCAL_ACTIVE_PACK_KEY, settings.activePackId);
     void this.fire(`${this.apiUrl}/data/settings`, 'PUT', settings);
   }
 
   // ==========================================================================
   // Individual item API calls (for immediate backend persistence)
   // ==========================================================================
+
+  /** Authenticated request against the API (same token handling as the sync
+   * layer) for endpoints that are not plain entity sync, e.g. note bodies. */
+  async apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+    const token = await this.getAuthToken();
+    const headers = new Headers(init.headers);
+    headers.set('Authorization', `Bearer ${token}`);
+    if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+    return fetch(`${this.apiUrl}${path}`, { ...init, headers });
+  }
+
+  /** DELETE /data/{collection}/{id}. Returns true on success. */
+  async deleteItem(collection: 'banks' | 'notes', id: string): Promise<boolean> {
+    try {
+      const token = await this.getAuthToken();
+      const res = await fetch(`${this.apiUrl}/data/${collection}/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
 
   /** Delete a single question from DynamoDB. Returns true on success. */
   async deleteQuestion(id: string): Promise<boolean> {
@@ -448,27 +400,6 @@ export class StorageService {
     }
   }
 
-  private async pushAll(data: { packs: Pack[]; questions: Question[]; scripts: Script[]; chats: ChatSession[]; settings: AppSettings }): Promise<void> {
-    try {
-      const token = await this.getAuthToken();
-      const res = await fetch(`${this.apiUrl}/data`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) {
-        throw new Error(`Failed to save data to the server (HTTP ${res.status}).`);
-      }
-      this.lastError.set(null);
-      this.syncStatus.set('idle');
-      this.lastSyncedAt.set(Date.now());
-    } catch (err) {
-      this.syncStatus.set('error');
-      this.lastError.set(err instanceof Error ? err.message : 'Failed to save data to the server.');
-      console.error('[StorageService] pushAll failed — changes are only saved locally:', err);
-    }
-  }
-
   /** Debounced per-item sync — see diffAndSync below. Keyed by `${kind}:${id}`
    * so concurrent edits to different items (or different entity types) debounce
    * independently instead of coalescing into one another. */
@@ -545,131 +476,5 @@ export class StorageService {
       this.lastError.set(err instanceof Error ? err.message : 'Failed to save data to the server.');
       console.error('[StorageService] fire failed — changes are only saved locally:', err);
     }
-  }
-
-  // ==========================================================================
-  // localStorage read (for migration only)
-  // ==========================================================================
-
-  private readLocalPacks(): Pack[] {
-    const raw = localStorage.getItem(KEY_PACKS);
-    if (!raw) return [];
-    try {
-      const parsed = JSON.parse(raw) as Pack[];
-      if (!Array.isArray(parsed)) return [];
-      return parsed
-        .filter((p) => p && typeof p.id === 'string' && typeof p.name === 'string')
-        .map((p) => ({
-          id: p.id,
-          name: p.name,
-          description: typeof (p as any).description === 'string' ? (p as any).description : '',
-          version: typeof p.version === 'string' ? p.version : '',
-          domains: Array.isArray(p.domains) ? p.domains.map(deserializeDomain).filter((d): d is PackDomain => !!d) : [],
-          color: typeof p.color === 'string' && p.color ? p.color : DEFAULT_PACK_COLOR,
-          createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
-          updatedAt: typeof p.updatedAt === 'number' ? p.updatedAt : Date.now(),
-          exportIntroQuestions: typeof (p as any).exportIntroQuestions === 'string' ? (p as any).exportIntroQuestions : undefined,
-          exportIntroTranscripts: typeof (p as any).exportIntroTranscripts === 'string' ? (p as any).exportIntroTranscripts : undefined,
-          exportIntroChat: typeof (p as any).exportIntroChat === 'string' ? (p as any).exportIntroChat : undefined,
-        }));
-    } catch { return []; }
-  }
-
-  private readLocalQuestions(): Question[] {
-    const raw = localStorage.getItem(KEY_QUESTIONS);
-    if (!raw) return [];
-    try {
-      const parsed = JSON.parse(raw) as Question[];
-      return Array.isArray(parsed)
-        ? parsed.filter((q) => q && typeof q.id === 'string' && typeof q.packId === 'string')
-        : [];
-    } catch { return []; }
-  }
-
-  private readLocalScripts(): Script[] {
-    const raw = localStorage.getItem(KEY_SCRIPTS);
-    if (!raw) return [];
-    try {
-      const parsed = JSON.parse(raw) as Script[];
-      if (!Array.isArray(parsed)) return [];
-      return parsed
-        .filter((s) => s && typeof s.id === 'string')
-        .map((s) => ({
-          id: s.id,
-          title: typeof s.title === 'string' ? s.title : '',
-          content: typeof s.content === 'string' ? s.content : '',
-          sources: Array.isArray(s.sources) ? s.sources.filter((t): t is string => typeof t === 'string') : [],
-          createdAt: typeof s.createdAt === 'number' ? s.createdAt : Date.now(),
-        }));
-    } catch { return []; }
-  }
-
-  private readLocalSettings(): AppSettings {
-    const raw = localStorage.getItem(KEY_SETTINGS);
-    if (!raw) return { ...DEFAULT_SETTINGS };
-    try {
-      const parsed = JSON.parse(raw) as Partial<AppSettings>;
-      return {
-        theme: parsed.theme === 'dark' ? 'dark' : 'light',
-        defaultModel: typeof parsed.defaultModel === 'string' && parsed.defaultModel ? parsed.defaultModel : DEFAULT_SETTINGS.defaultModel,
-        importExtractionModel:
-          typeof parsed.importExtractionModel === 'string' && parsed.importExtractionModel
-            ? parsed.importExtractionModel
-            : DEFAULT_SETTINGS.importExtractionModel,
-        activePackId: typeof parsed.activePackId === 'string' ? parsed.activePackId : DEFAULT_SETTINGS.activePackId,
-        activeMethod:
-          typeof parsed.activeMethod === 'string' && isStudyMethod(parsed.activeMethod)
-            ? parsed.activeMethod
-            : DEFAULT_SETTINGS.activeMethod,
-        interfaceLanguage:
-          typeof parsed.interfaceLanguage === 'string' && isInterfaceLanguage(parsed.interfaceLanguage)
-            ? parsed.interfaceLanguage
-            : DEFAULT_SETTINGS.interfaceLanguage,
-        outputLanguage: typeof parsed.outputLanguage === 'string' ? parsed.outputLanguage : DEFAULT_SETTINGS.outputLanguage,
-        translationTargetLanguage:
-          typeof parsed.translationTargetLanguage === 'string'
-            ? parsed.translationTargetLanguage
-            : DEFAULT_SETTINGS.translationTargetLanguage,
-        defaultReviewMode:
-          typeof parsed.defaultReviewMode === 'string' && isReviewMode(parsed.defaultReviewMode)
-            ? parsed.defaultReviewMode
-            : DEFAULT_SETTINGS.defaultReviewMode,
-        showCorrectInReview:
-          typeof parsed.showCorrectInReview === 'boolean'
-            ? parsed.showCorrectInReview
-            : DEFAULT_SETTINGS.showCorrectInReview,
-        defaultTrackTime:
-          typeof parsed.defaultTrackTime === 'boolean' ? parsed.defaultTrackTime : DEFAULT_SETTINGS.defaultTrackTime,
-        defaultUseAccommodation:
-          typeof parsed.defaultUseAccommodation === 'boolean'
-            ? parsed.defaultUseAccommodation
-            : DEFAULT_SETTINGS.defaultUseAccommodation,
-        hiddenNavTabs: Array.isArray(parsed.hiddenNavTabs)
-          ? parsed.hiddenNavTabs.filter((id): id is NavTabId => NAV_ITEMS.some((item) => item.id === id))
-          : DEFAULT_SETTINGS.hiddenNavTabs,
-        navOrder: Array.isArray(parsed.navOrder)
-          ? parsed.navOrder.filter((id): id is NavTabId => NAV_ITEMS.some((item) => item.id === id))
-          : DEFAULT_SETTINGS.navOrder,
-        hiddenQuizTools: Array.isArray(parsed.hiddenQuizTools)
-          ? parsed.hiddenQuizTools.filter(isQuizToolId)
-          : DEFAULT_SETTINGS.hiddenQuizTools,
-        quizToolOrder: Array.isArray(parsed.quizToolOrder)
-          ? parsed.quizToolOrder.filter(isQuizToolId)
-          : DEFAULT_SETTINGS.quizToolOrder,
-        quizToolbarRows:
-          typeof parsed.quizToolbarRows === 'number' && Number.isFinite(parsed.quizToolbarRows)
-            ? Math.max(1, Math.min(MAX_QUIZ_TOOLBAR_ROWS, Math.trunc(parsed.quizToolbarRows)))
-            : DEFAULT_SETTINGS.quizToolbarRows,
-      };
-    } catch { return { ...DEFAULT_SETTINGS }; }
-  }
-
-  private clearLocalStorage(): void {
-    try {
-      localStorage.removeItem(KEY_PACKS);
-      localStorage.removeItem(KEY_QUESTIONS);
-      localStorage.removeItem(KEY_SCRIPTS);
-      localStorage.removeItem(KEY_SETTINGS);
-    } catch {}
   }
 }

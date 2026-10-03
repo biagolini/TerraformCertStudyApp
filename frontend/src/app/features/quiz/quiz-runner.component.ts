@@ -1,3 +1,4 @@
+import { TutorDialogComponent } from '../tutor/tutor-dialog.component';
 import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { correctLetters, Question } from '../../core/models/question.model';
@@ -18,7 +19,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 @Component({
   selector: 'app-quiz-runner',
   standalone: true,
-  imports: [AiDisclaimerComponent, DomainBadgeComponent, MarkdownRendererComponent, QuizAnnotatedTextComponent, FormsModule],
+  imports: [AiDisclaimerComponent, DomainBadgeComponent, MarkdownRendererComponent, QuizAnnotatedTextComponent, FormsModule, TutorDialogComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (question(); as q) {
@@ -323,31 +324,59 @@ import { I18nService } from '../../core/i18n/i18n.service';
                 <button type="button" class="btn btn-ghost" (click)="quiz.next()">{{ i18n.t('importReview.next') }}</button>
               }
               <button type="button" class="btn btn-ghost" (click)="quiz.leave()" [title]="i18n.t('quizRunner.saveAndExitHint')">{{ i18n.t('quizRunner.saveAndExit') }}</button>
-              <button type="button" class="btn btn-danger-outline" (click)="quiz.finish()">{{ i18n.t('quizRunner.endExam') }}</button>
+              <button type="button" class="btn btn-danger-outline" (click)="requestFinish()">{{ i18n.t('quizRunner.endExam') }}</button>
             </div>
+            @if (instantChecked()) {
+              <button type="button" class="btn btn-ghost tutor-btn" (click)="tutorOpen.set(true)">✦ {{ i18n.t('tutor.ask') }}</button>
+            }
           </div>
 
           <aside class="palette">
             <h4>{{ i18n.t('importReview.itemNavigator') }}</h4>
-            <div class="palette-grid">
-              @for (flag of answeredFlags(); track $index) {
-                <button
-                  type="button"
-                  class="palette-dot"
-                  [class.answered]="flag"
-                  [class.current]="$index === progress().index"
-                  (click)="quiz.goTo($index)"
-                >
-                  {{ $index + 1 }}
-                  @if (reviewFlags()[$index]) { <span class="flag-dot" aria-hidden="true"></span> }
+            <div class="palette-filters" role="group" [attr.aria-label]="i18n.t('quizRunner.navigatorFilter')">
+              @for (f of navFilters; track f) {
+                <button type="button" class="palette-filter" [class.active]="navFilter() === f" (click)="navFilter.set(f)" [attr.aria-pressed]="navFilter() === f">
+                  {{ i18n.t('quizRunner.filter_' + f) }}
                 </button>
               }
             </div>
+            <div class="palette-grid">
+              @for (cell of navCells(); track cell.index) {
+                <button
+                  type="button"
+                  class="palette-dot"
+                  [class.answered]="cell.answered"
+                  [class.current]="cell.index === progress().index"
+                  [class.correct]="cell.status === 'correct'"
+                  [class.incorrect]="cell.status === 'incorrect'"
+                  [class.overtime]="cell.overtime"
+                  [attr.aria-label]="i18n.t('quizRunner.goToQuestion', { n: cell.index + 1 })"
+                  (click)="quiz.goTo(cell.index)"
+                >
+                  {{ cell.index + 1 }}
+                  @if (cell.flagged) { <span class="flag-dot" aria-hidden="true"></span> }
+                </button>
+              } @empty {
+                <p class="palette-summary">{{ i18n.t('quizRunner.filterEmpty') }}</p>
+              }
+            </div>
+            @if (quiz.nextUnansweredIndex() >= 0) {
+              <button type="button" class="btn btn-ghost palette-jump" (click)="quiz.goTo(quiz.nextUnansweredIndex())">
+                {{ i18n.t('quizRunner.nextUnanswered') }} →
+              </button>
+            }
             <div class="palette-legend">
               <div class="legend-row"><span class="legend-swatch current"></span> {{ i18n.t('importReview.currentItem') }}</div>
               <div class="legend-row"><span class="legend-swatch" style="background:var(--color-purple)"></span> {{ i18n.t('quizRunner.answered') }}</div>
               <div class="legend-row"><span class="legend-swatch outline"></span> {{ i18n.t('quizRunner.unanswered') }}</div>
               <div class="legend-row"><span class="legend-swatch outline"><span class="flag-dot" aria-hidden="true"></span></span> {{ i18n.t('quizRunner.markedForReview') }}</div>
+              @if (settings().mode === 'instant') {
+                <div class="legend-row"><span class="legend-swatch" style="background:var(--color-green)"></span> {{ i18n.t('quizResults.statusCorrect') }}</div>
+                <div class="legend-row"><span class="legend-swatch" style="background:var(--color-red)"></span> {{ i18n.t('quizResults.statusIncorrect') }}</div>
+              }
+              @if (perQuestionBudget() > 0) {
+                <div class="legend-row"><span class="legend-swatch outline overtime-swatch"></span> {{ i18n.t('quizRunner.overtime') }}</div>
+              }
             </div>
             <p class="palette-summary">{{ i18n.t('quizRunner.answeredOfTotal', { answered: answeredCount(), total: progress().total }) }}</p>
             @if (quiz.flaggedCount() > 0) {
@@ -369,6 +398,31 @@ import { I18nService } from '../../core/i18n/i18n.service';
           }
         </div>
       }
+    }
+    @if (finishConfirm()) {
+      <div class="finish-dialog" role="dialog" aria-modal="true" aria-labelledby="finish-title" (click)="finishConfirm.set(false)">
+        <div class="finish-card" (click)="$event.stopPropagation()">
+          <h3 id="finish-title">{{ i18n.t('quizRunner.finishTitle') }}</h3>
+          <div class="finish-stats">
+            <div><strong>{{ answeredCount() }}</strong><span>{{ i18n.t('quizRunner.answered') }}</span></div>
+            <div class="blank"><strong>{{ progress().total - answeredCount() }}</strong><span>{{ i18n.t('quizRunner.blank') }}</span></div>
+            <div><strong>{{ quiz.flaggedCount() }}</strong><span>{{ i18n.t('quizRunner.flagged') }}</span></div>
+          </div>
+          @if (progress().total - answeredCount() > 0) {
+            <p class="hint">{{ i18n.t('quizRunner.finishBlankWarning', { n: progress().total - answeredCount() }) }}</p>
+          }
+          <div class="finish-actions">
+            @if (quiz.nextUnansweredIndex() >= 0) {
+              <button type="button" class="btn btn-ghost" (click)="goToUnansweredFromDialog()">{{ i18n.t('quizRunner.goToUnanswered') }}</button>
+            }
+            <button type="button" class="btn btn-ghost" (click)="finishConfirm.set(false)">{{ i18n.t('quizRunner.keepGoing') }}</button>
+            <button type="button" class="btn btn-primary" (click)="confirmFinish()">{{ i18n.t('quizRunner.finishNow') }}</button>
+          </div>
+        </div>
+      </div>
+    }
+    @if (tutorOpen() && question(); as q) {
+      <app-tutor-dialog [question]="q" [selected]="answer().selected" (closed)="tutorOpen.set(false)" />
     }
   `,
   styles: [
@@ -525,6 +579,23 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .palette-dot.answered { background: var(--color-purple); border-color: var(--color-purple); color: #fff; }
       .palette-dot.current { box-shadow: 0 0 0 2px var(--color-blue) inset; }
       .palette-dot .flag-dot { position: absolute; top: -3px; right: -3px; }
+      .palette-filters { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: var(--space-sm); }
+      .palette-filter { padding: 2px 8px; min-height: 26px; border-radius: var(--radius-pill); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-secondary); font-size: var(--font-size-xs); font-weight: 600; cursor: pointer; }
+      .palette-filter.active { background: var(--text-primary); color: var(--bg-surface); border-color: var(--text-primary); }
+      .palette-dot.correct { background: var(--color-green) !important; border-color: var(--color-green) !important; color: #fff !important; }
+      .palette-dot.incorrect { background: var(--color-red) !important; border-color: var(--color-red) !important; color: #fff !important; }
+      .palette-dot.overtime { box-shadow: inset 0 -3px 0 var(--color-amber); }
+      .overtime-swatch { box-shadow: inset 0 -3px 0 var(--color-amber); }
+      .palette-jump { width: 100%; margin-top: var(--space-sm); }
+      .tutor-btn { margin-top: var(--space-sm); }
+      .finish-dialog { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: var(--space-md); background: var(--overlay-bg); }
+      .finish-card { width: min(420px, 100%); background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md); }
+      .finish-card h3 { font-size: var(--font-size-lg); }
+      .finish-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm); text-align: center; }
+      .finish-stats strong { display: block; font-size: 22px; }
+      .finish-stats span { font-size: var(--font-size-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+      .finish-stats .blank strong { color: var(--color-amber); }
+      .finish-actions { display: flex; justify-content: flex-end; gap: var(--space-sm); flex-wrap: wrap; }
       .palette-legend { margin-top: var(--space-md); display: flex; flex-direction: column; gap: 6px; font-size: var(--font-size-xs); color: var(--text-muted); }
       .legend-row { display: flex; align-items: center; gap: 6px; }
       .legend-swatch { position: relative; width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
@@ -569,6 +640,48 @@ export class QuizRunnerComponent {
   protected readonly requiredCount = computed(() => correctLetters(this.question() ?? { alternatives: [] }).length);
 
   protected readonly isInstant = computed(() => this.quiz.settings().mode === 'instant');
+  protected readonly settings = this.quiz.settings;
+  protected readonly instantChecked = computed(() => this.isInstant() && this.answer().checked);
+  protected readonly finishConfirm = signal(false);
+  protected readonly tutorOpen = signal(false);
+  protected readonly navFilters = ['all', 'answered', 'unanswered', 'flagged'] as const;
+  protected readonly navFilter = signal<'all' | 'answered' | 'unanswered' | 'flagged'>('all');
+  protected readonly perQuestionBudget = computed(() => (this.quiz.settings().trackTime ? this.quiz.perQuestionSeconds() : 0));
+
+  /** Navigator cells: answered/flagged state, instant-mode grading, and overtime against the per-question budget. */
+  protected readonly navCells = computed(() => {
+    const answers = this.quiz.answerByQuestionId();
+    const flags = this.reviewFlags();
+    const filter = this.navFilter();
+    const budget = this.perQuestionBudget();
+    const instant = this.isInstant();
+    return this.quiz
+      .questions()
+      .map((q, index) => {
+        const a = answers[q.id];
+        const answered = (a?.selected.length ?? 0) > 0;
+        const status: 'correct' | 'incorrect' | null = instant && a?.checked ? (a.correct ? 'correct' : 'incorrect') : null;
+        return { index, answered, flagged: flags[index] ?? false, status, overtime: budget > 0 && this.quiz.liveTimeSpent(q.id) > budget };
+      })
+      .filter((c) =>
+        filter === 'all' ? true : filter === 'answered' ? c.answered : filter === 'unanswered' ? !c.answered : c.flagged,
+      );
+  });
+
+  /** Ending early always confirms, showing exactly what would be submitted blank. */
+  requestFinish(): void {
+    this.finishConfirm.set(true);
+  }
+
+  confirmFinish(): void {
+    this.finishConfirm.set(false);
+    this.quiz.finish();
+  }
+
+  goToUnansweredFromDialog(): void {
+    this.finishConfirm.set(false);
+    this.quiz.goTo(this.quiz.nextUnansweredIndex());
+  }
   protected readonly isLast = computed(() => this.progress().index === this.progress().total - 1);
   protected readonly showFeedback = computed(() => this.isInstant() && this.answer().checked);
   protected readonly progressPct = computed(() => {
@@ -862,7 +975,8 @@ export class QuizRunnerComponent {
 
   onNextInstant(): void {
     if (this.isLast()) {
-      this.quiz.finish();
+      if (this.answeredCount() < this.progress().total) this.requestFinish();
+      else this.quiz.finish();
     } else {
       this.quiz.next();
     }

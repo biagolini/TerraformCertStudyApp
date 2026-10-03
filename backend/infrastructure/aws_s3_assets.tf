@@ -3,14 +3,15 @@
 # ============================================================================
 # Never public and never fronted by CloudFront — every read goes through a
 # presigned URL minted by the `data` Lambda, which always prepends the
-# caller's own Cognito `sub` server-side (see lambda/data/app.py). Three
+# caller's own Cognito `sub` server-side (see lambda/data/app.py). Four
 # top-level prefixes share this one bucket:
 #   uploads/{sub}/{jobId}/{filename}              raw uploaded exam file
 #   scratch/{jobId}/...                           preprocessing artifacts
 #   images/{sub}/{jobId}/{questionId}/{filename}  final question images
+#   notes/{sub}/{noteId}/document.md              study note body (+ images/)
 # `uploads/` and `scratch/` are intermediate — never needed once the import
 # job finishes — so they're expired by the lifecycle rule below; `images/`
-# is permanent, since it's embedded in saved questions.
+# and `notes/` are permanent user content.
 
 resource "aws_s3_bucket" "assets" {
   bucket        = "${var.project_prefix}-assets-${data.aws_caller_identity.current.account_id}"

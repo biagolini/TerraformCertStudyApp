@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { PacksService } from '../../core/services/packs.service';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { QuizAttemptsService } from '../../core/services/quiz-attempts.service';
 import { QuizService } from '../../core/services/quiz.service';
 import { QuizAttempt } from '../../core/models/quiz-attempt.model';
@@ -72,7 +73,12 @@ export class QuizHistoryComponent {
   protected readonly attemptsService = inject(QuizAttemptsService);
   protected readonly i18n = inject(I18nService);
 
-  protected readonly attempts = this.attemptsService.finishedAttempts;
+  private readonly packs = inject(PacksService);
+  /** Finished attempts of the open certification only. */
+  protected readonly attempts = computed(() => {
+    const packId = this.packs.activePack().id;
+    return this.attemptsService.finishedAttempts().filter((a) => a.packId === packId);
+  });
 
   constructor() {
     void this.attemptsService.load();

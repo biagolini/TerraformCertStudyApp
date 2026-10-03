@@ -8,35 +8,40 @@ Angular 21 standalone SPA (Signals, no NgModules), TypeScript with SCSS, plus An
 
 `src/app/app.config.ts` provides the router with `withComponentInputBinding()` (route params bind straight into component inputs), global browser error listeners, and async animations.
 
-The real layout lives in `AppComponent`, loaded as the parent of all authenticated routes. It renders the sticky header, the bottom tab bar, a nested `<router-outlet />`, and two overlay panels: the packs drawer and Settings. Those two are NOT routes, they are local signals (`packsOpen`, `settingsOpen`) toggled from the header.
+The authenticated layout lives in `AppComponent`: a sticky header (brand linking to Home, a breadcrumb to the open certification, import/sync pills, Profile, theme, Settings, sign out) and a nested `<router-outlet />`. There are no overlay drawers any more: Settings is a route, and switching certification happens from Home or the workspace header. The shell also hosts the app-wide image lightbox (`LightboxComponent`, driven by `LightboxService`), which every rendered Markdown image opens on click.
 
 ## Routing
 
-Routes live in `src/app/app.routes.ts`. Every feature page is lazy-loaded with `loadComponent: () => import(...)`, so each becomes its own bundle chunk.
-
-Two top-level branches:
-
-- `/login` renders `LoginComponent`, protected by `loginGuard`, which bounces an already-authenticated visitor back to `/`.
-- `''` renders `AppComponent` (the layout), protected by `authGuard`. All feature pages are its children.
+Routes live in `src/app/app.routes.ts`. Every page is lazy-loaded with `loadComponent`.
 
 | Path | Component |
 |------|-----------|
-| `questions/:packId` and `questions/:packId/:questionId` | `QuestionsPageComponent` |
-| `questions/:packId/import/:jobId` | `ImportReviewPageComponent` |
-| `import/:packId` | `ImportExamPageComponent` |
-| `quiz` | `QuizComponent` |
-| `transcripts` and `transcripts/:scriptId` | `TranscriptsPageComponent` |
-| `chat` and `chat/:chatId` | `ChatPageComponent` |
-| `export` | `ExportComponent` |
-| `costs` | `CostsPageComponent` |
+| `/login` | `LoginComponent` (`loginGuard`) |
+| `/` | `HomePageComponent`: my certifications, catalog, add/edit certification, starter kit |
+| `/profile` | `ProfilePageComponent` |
+| `/settings` | `SettingsPageComponent` (wraps `SettingsComponent`) |
+| `/costs` | `CostsPageComponent` |
+| `/exam/:packId` | `ExamWorkspaceComponent`, the certification workspace; children below |
+| `…/banks` | `BanksPageComponent` (banks grouped by author) |
+| `…/banks/:bankId[/:questionId]` | `QuestionsPageComponent` (`bankId` = `all` for every bank) |
+| `…/import[?bank=]` and `…/import/:jobId` | `ImportExamPageComponent`, `ImportReviewPageComponent` |
+| `…/quiz` | `QuizComponent` (setup, runner, results, history) |
+| `…/performance` | `PerformancePageComponent` |
+| `…/notes[/:noteId]` | `NotesPageComponent` / `NoteEditorComponent` |
+| `…/flashcards` | `FlashcardsPageComponent` |
+| `…/transcripts[/:scriptId]`, `…/chat[/:chatId]`, `…/export` | transcripts, tutor chat, export, all scoped to the certification |
 
-Pack-scoped sections (`questions`, `import`) never render without a pack in the URL: the bare path redirects through `resolveActivePackIdForRedirect(PacksService)` to `/<section>/<activePackId>`, and the `:packId` routes run `packIdResolver` so the page always receives a validated pack. Unknown paths fall back to `questions`.
+The `/exam/:packId` route runs `packIdResolver`, which waits for the first pack load and then makes the URL's pack the active one (`SettingsService.activePackId`) before any child renders, so every pack-scoped service (questions, banks, notes, chats, scripts, quiz) already points at it. An unknown id redirects to Home. The router uses `paramsInheritanceStrategy: 'always'`, so child pages receive `packId` as a component input. `core/utils/routes.util.ts` builds these URLs.
 
-The tab bar is user-configurable: `SettingsService.orderedNavItems()` drives which items show and in what order, and the item ids (`questions`, `import`, `quiz`, `transcripts`, `chat`, `export`, `costs`) match the route paths.
+The workspace tab bar is user-configurable: `SettingsService.orderedNavItems()` drives which tabs show and in what order (`NAV_ITEMS` in `core/models/nav-item.model.ts`: `banks`, `quiz`, `performance`, `notes`, `flashcards`, `transcripts`, `chat`, `export`).
 
 The quiz question toolbar is configurable the same way, through `QUIZ_TOOLS` in `core/models/quiz-tool.model.ts` plus `hiddenQuizTools` / `quizToolOrder` / `quizToolbarRows` in `AppSettings`: Settings picks which buttons show, their order, and how many rows (up to 3) they are split over on phone-width viewports (desktop always renders one row), and `splitQuizToolRows` only materializes a row when there is at least one button for it. Two of the tools (`checkAnswer`, `nextQuestion`) are flagged `compactOnly` and render only while the toolbar is pinned to the top of a phone-width viewport, where the question's own bottom action row has scrolled out of reach; `checkAnswer` additionally only applies in instant-feedback mode.
 
 `authGuard` does two things: `AuthService.ensureTokenValid()` and then waits (up to 10s) for `StorageService.ready()`, so a page never renders against a half-loaded local store.
+
+## Data Hierarchy
+
+**Certification (`Pack`) → Question banks (`QuestionBank`) → Questions.** A bank is one source of questions (a practice exam, an instructor's set, the user's own). Notes, transcripts, chats, import jobs and mock-exam attempts also belong to a certification through `packId`. Adding a question or importing a file always targets a bank; if a certification has none yet, `BanksService.ensureDefault` creates one. Mock exams draw from the selected banks (none selected = all). `QuestionsService.visible` is what the question browser lists: the active certification narrowed by `bankFilter` and `domainFilter`.
 
 ## Project Structure
 
@@ -52,9 +57,10 @@ frontend/src/app/
 │   ├── i18n/                 # en/pt/es/it dictionaries + i18n.service
 │   ├── guards/               # authGuard, loginGuard
 │   └── resolvers/            # packIdResolver
-├── features/                 # login, questions, question-input, question-list, review-viewer,
-│                             # quiz, chat, transcripts, import-exam, import-review, export,
-│                             # settings, packs, costs
+├── features/                 # home, workspace, banks, questions, question-input, question-list,
+│                             # review-viewer, quiz, tutor, performance, notes, flashcards, profile,
+│                             # chat, transcripts, import-exam, import-review, export, settings,
+│                             # packs (certification editor), costs, login
 └── shared/                   # reusable components (dialogs, badges, pills) + pipes
 ```
 
@@ -67,12 +73,19 @@ All services live in `core/services/` and are `{ providedIn: 'root' }` singleton
 | Service | Purpose |
 |---------|---------|
 | `AuthService` | Cognito SRP login, token refresh, session restore, offline retry |
-| `BedrockService` | Streams reviews/refinements via `POST /converse`, plus `/review` and translation |
-| `StorageService` | DynamoDB sync layer: local copy of packs/questions/scripts/chats/settings, pushes to `/data/*` |
+| `BedrockService` | Streams reviews/refinements, chat, the mock-exam tutor and the note copilot via `POST /converse`, plus `/review` and translation (translations cached per content and target language for the session) |
+| `StorageService` | DynamoDB sync layer: local copy of packs/banks/questions/notes/scripts/chats/settings/profile, debounced per-item pushes to `/data/*`, `apiFetch` for other authenticated calls |
 | `ModelsService` | Fetches available models from `GET /data/models` with static fallback |
 | `QuestionsService` | Local state for questions (CRUD, selection, domain breakdown) |
-| `PacksService` | Pack CRUD, active pack management |
-| `QuizService` / `QuizAttemptsService` | Quiz run state (clock, answers, annotations, flags) and persisted attempts; up to 5 in-progress attempts can be open and switched between via "Save and exit" |
+| `PacksService` | Certification (pack) CRUD, active certification, `lastStudiedAt`; deleting purges the local copy of everything it owns (the API cascades) |
+| `BanksService` | Question bank CRUD, grouping by author, default bank on demand |
+| `CatalogService` | Reads `public/examples/index.json` and turns a catalog entry into a certification draft |
+| `NotesService` | Note metadata (synced) plus body load/save and image upload through `/data/notes/*` |
+| `ProfileService` | Student profile and per-certification track status |
+| `StarterKitService` | One-click sample certification, bank, questions and welcome note |
+| `BackupService` | Full JSON export of the account |
+| `LightboxService` | App-wide image viewer state |
+| `QuizService` / `QuizAttemptsService` | Quiz run state (bank selection, clock, answers, annotations, flags, tutor Q&A, pass mark) and persisted attempts; up to 5 in-progress attempts can be open and switched between via "Save and exit". A session left open in one certification is parked when another certification's mock-exam tab opens |
 | `ChatService` | Chat session CRUD, message append/streaming, summary management |
 | `ScriptsService` | Transcript CRUD |
 | `SettingsService` | User preferences (interface language, nav order, quiz toolbar layout, translation target) |
@@ -89,7 +102,7 @@ All services live in `core/services/` and are `{ providedIn: 'root' }` singleton
 
 Translation is called directly in templates as `i18n.t('some.key')`, deliberately not through a pipe: reading a signal inside a template expression is what OnPush change detection tracks, so switching language re-renders every consuming view automatically. `t()` supports `{{param}}` placeholders via a params object and falls back from the active language to English to the raw key, so a missing translation degrades instead of breaking.
 
-When adding user-facing text, add the key to all four dictionaries (`core/i18n/en.ts`, `pt.ts`, `es.ts`, `it.ts`).
+When adding user-facing text, add the key to all four dictionaries (`core/i18n/en.ts`, `pt.ts`, `es.ts`, `it.ts`). `core/i18n/i18n.spec.ts` fails if a dictionary is missing an English key or a dynamic enumeration key, and `node scripts/check-i18n-keys.mjs` (from `frontend/`) fails if a literal `i18n.t('…')` key used in code is missing from English.
 
 ## Cognito Authentication
 
@@ -135,29 +148,20 @@ The review system prompt is built in [`core/services/bedrock.service.ts`](../fro
 - **Language support:** translations in "Question" and "Alternatives" sections; explanations only in the selected language
 - **Ordering rules:** alternatives in original order, correct/incorrect in ascending letter order
 
-## Pack Templates
+## AI Assistants in the Workspace
 
-Pre-configured study packs for certification exams are in [`frontend/public/examples/`](../frontend/public/examples/). These JSON files are served by the app and loaded when users select a template in the Pack Editor.
+Both use `/converse` streaming and record usage like every other call (`action` = `tutor` or `noteCopilot`, shown on the Costs page). Prompts are in `core/utils/assistant-prompt.util.ts`.
 
-### Available packs
+- **Mock-exam tutor** (`features/tutor/tutor-dialog.component.ts`): opened per question from instant-feedback mode and from results. The first user turn carries the full question, the answer key, stored explanations and the student's selection; the system prompt treats the key as authoritative. The conversation is saved on the attempt's answer (`QuizAttemptAnswer.tutor`).
+- **Note copilot** (`features/notes/note-copilot.component.ts`): side panel of the note editor. The current note is re-sent with every request, one-click actions (polish, exam summary, flashcards, practice questions, explain, outline) are fixed instructions, and replies are only applied to the note when the user clicks insert, append or replace.
 
-| File | Certification |
-|------|---------------|
-| [`aws-clf-c02-pack.json`](../frontend/public/examples/aws-clf-c02-pack.json) | AWS Cloud Practitioner (CLF-C02) |
-| [`aws-aif-c01-pack.json`](../frontend/public/examples/aws-aif-c01-pack.json) | AWS AI Practitioner (AIF-C01) |
-| [`aws-saa-c03-pack.json`](../frontend/public/examples/aws-saa-c03-pack.json) | AWS Solutions Architect Associate (SAA-C03) |
-| [`aws-dva-c02-pack.json`](../frontend/public/examples/aws-dva-c02-pack.json) | AWS Developer Associate (DVA-C02) |
-| [`aws-soa-c03-pack.json`](../frontend/public/examples/aws-soa-c03-pack.json) | AWS CloudOps Engineer Associate (SOA-C03) |
-| [`aws-dea-c01-pack.json`](../frontend/public/examples/aws-dea-c01-pack.json) | AWS Data Engineer Associate (DEA-C01) |
-| [`aws-mla-c01-pack.json`](../frontend/public/examples/aws-mla-c01-pack.json) | AWS ML Engineer Associate (MLA-C01) |
-| [`aws-sap-c02-pack.json`](../frontend/public/examples/aws-sap-c02-pack.json) | AWS Solutions Architect Professional (SAP-C02) |
-| [`aws-dop-c02-pack.json`](../frontend/public/examples/aws-dop-c02-pack.json) | AWS DevOps Engineer Professional (DOP-C02) |
-| [`aws-aip-c01-pack.json`](../frontend/public/examples/aws-aip-c01-pack.json) | AWS GenAI Developer Professional (AIP-C01) |
-| [`aws-scs-c03-pack.json`](../frontend/public/examples/aws-scs-c03-pack.json) | AWS Security Specialty (SCS-C03) |
-| [`aws-ans-c01-pack.json`](../frontend/public/examples/aws-ans-c01-pack.json) | AWS Advanced Networking Specialty (ANS-C01) |
-| [`ccaf-pack.json`](../frontend/public/examples/ccaf-pack.json) | Claude Certified Architect Foundations (CCAF) |
+## Certification Templates and Catalog
 
-### Pack JSON structure
+Certification templates are in [`frontend/public/examples/`](../frontend/public/examples/). Home and the certification editor read `index.json`, generated by `frontend/scripts/build_catalog_index.py` from the templates plus the catalog fields kept in that script (`code`, `provider`, `level`, duration, question count, pass mark, accommodation, official URL). Run the script after adding or editing a template; it fails if a template has no catalog metadata.
+
+The catalog covers AWS, Anthropic, HashiCorp Terraform, MongoDB, Kubernetes (CKA), Google Cloud, Azure, CompTIA and LPI certifications.
+
+### Template JSON structure
 
 ```json
 {
@@ -179,13 +183,13 @@ Pre-configured study packs for certification exams are in [`frontend/public/exam
 - **Single file:** downloads a `.md` with title + `exportIntroQuestions` + questions grouped by domain
 - **Split mode:** toggle "Split into multiple files" → generates a `.zip` containing balanced `.md` parts (each with full title + intro)
 - **By domain:** download all questions from selected domains
-- **File naming:** `{pack-name}-{suffix}.md` or `{pack-name}-N-parts.zip`
+- **File naming:** `{certification-name}-{suffix}.md` or `{certification-name}-N-parts.zip`
 
 ## Hosting and Deployment
 
 The built site is static and lives in a private S3 bucket named `${project_prefix}-frontend-${account_id}` (`aws_s3.tf`). All four public-access blocks are on, so the bucket is never publicly readable. CloudFront is the only reader: it uses an Origin Access Control with sigv4 signing, and the bucket policy grants `s3:GetObject` to `cloudfront.amazonaws.com` restricted by the distribution's ARN (`aws_cloudfront.tf`).
 
-CloudFront serves `index.html` as the default root object, forces HTTPS, and terminates TLS with the ACM certificate for the custom domain. Client-side routing works because 403 and 404 responses are rewritten to `/index.html` with status 200, so a deep link such as `/questions/<packId>` reaches the Angular router instead of failing at S3.
+CloudFront serves `index.html` as the default root object, forces HTTPS, and terminates TLS with the ACM certificate for the custom domain. Client-side routing works because 403 and 404 responses are rewritten to `/index.html` with status 200, so a deep link such as `/exam/<packId>/banks` reaches the Angular router instead of failing at S3.
 
 Deployment is part of the Terraform run. `frontend_deploy.tf` gates it behind `frontend_deploy_enabled` (default `false`, set to `true` in the production environment). When enabled, running `terraform apply` from `backend/environments/production` also updates the site: a `null_resource` whose trigger is `timestamp()` (so it runs on every apply) invokes `scripts/deploy_frontend.sh`, then a second `null_resource` issues a CloudFront invalidation for `/*`.
 

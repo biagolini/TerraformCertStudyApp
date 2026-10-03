@@ -1,43 +1,52 @@
-export type NavTabId = 'questions' | 'import' | 'quiz' | 'transcripts' | 'chat' | 'export' | 'costs';
+/** Tabs of the certification workspace (/exam/:packId/<path>). */
+export type NavTabId = 'banks' | 'quiz' | 'performance' | 'notes' | 'flashcards' | 'transcripts' | 'chat' | 'export';
 
 export interface NavItem {
   id: NavTabId;
+  /** Child route under /exam/:packId. */
   path: string;
   label: string;
-  /** SVG path `d` attribute — every current nav icon is a single <path>, 24x24 viewBox. */
+  /** SVG path `d` attribute — every nav icon is a single <path>, 24x24 viewBox. */
   icon: string;
 }
 
-/** Single source of truth for the bottom tabbar, rendered by AppComponent and
- * toggled per-item in SettingsComponent — see AppSettings.hiddenNavTabs. */
+/** Single source of truth for the workspace tab bar, rendered by
+ * ExamWorkspaceComponent and toggled/reordered in Settings — see
+ * AppSettings.hiddenNavTabs / navOrder. */
 export const NAV_ITEMS: NavItem[] = [
-  { id: 'questions', path: '/questions', label: 'Questions', icon: 'M12 5v14M5 12h14' },
   {
-    id: 'import',
-    path: '/import',
-    label: 'Import',
-    icon: 'M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2',
+    id: 'banks',
+    path: 'banks',
+    label: 'Question banks',
+    icon: 'M4 6c0-1.1 3.6-2 8-2s8 .9 8 2-3.6 2-8 2-8-.9-8-2zm0 0v6c0 1.1 3.6 2 8 2s8-.9 8-2V6M4 12v6c0 1.1 3.6 2 8 2s8-.9 8-2v-6',
   },
   {
     id: 'quiz',
-    path: '/quiz',
-    label: 'Quiz',
+    path: 'quiz',
+    label: 'Mock exams',
     icon: 'M9 11l2.5 2.5L16 8M5 4h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z',
+  },
+  { id: 'performance', path: 'performance', label: 'Performance', icon: 'M4 20V10m6 10V4m6 16v-7m4 7H2' },
+  {
+    id: 'notes',
+    path: 'notes',
+    label: 'Notes',
+    icon: 'M7 4h7l5 5v11a1 1 0 01-1 1H7a1 1 0 01-1-1V5a1 1 0 011-1zM14 4v5h5M9 13h6M9 17h6',
+  },
+  {
+    id: 'flashcards',
+    path: 'flashcards',
+    label: 'Flashcards',
+    icon: 'M8 4h11a1 1 0 011 1v11M4 8h11a1 1 0 011 1v10a1 1 0 01-1 1H5a1 1 0 01-1-1V9a1 1 0 011-1z',
   },
   {
     id: 'transcripts',
-    path: '/transcripts',
+    path: 'transcripts',
     label: 'Transcripts',
-    icon: 'M7 4h7l5 5v11a1 1 0 01-1 1H7a1 1 0 01-1-1V5a1 1 0 011-1zM14 4v5h5M9 13h6M9 17h6',
+    icon: 'M4 6h16M4 10h16M4 14h10M4 18h7',
   },
-  { id: 'chat', path: '/chat', label: 'Chat', icon: 'M4 4h16v12H8l-4 4z' },
-  { id: 'export', path: '/export', label: 'Export', icon: 'M12 4v12M7 11l5 5 5-5M4 20h16' },
-  {
-    id: 'costs',
-    path: '/costs',
-    label: 'Costs',
-    icon: 'M12 3v2m0 14v2M6 8a3 3 0 013-3h3.5a2.5 2.5 0 010 5h-3a2.5 2.5 0 000 5H13a3 3 0 003-3',
-  },
+  { id: 'chat', path: 'chat', label: 'Chat', icon: 'M4 4h16v12H8l-4 4z' },
+  { id: 'export', path: 'export', label: 'Export', icon: 'M12 4v12M7 11l5 5 5-5M4 20h16' },
 ];
 
 export const DEFAULT_NAV_ORDER: NavTabId[] = NAV_ITEMS.map((item) => item.id);

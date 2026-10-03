@@ -22,6 +22,8 @@ export interface ImportJobFailure {
 export interface ImportJob {
   id: string;
   packId: string;
+  /** Bank every promoted question of this job lands in. */
+  bankId: string;
   filename: string;
   status: ImportJobStatus;
   totalQuestions: number | null;

@@ -2,12 +2,9 @@ import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core
 import { ImportExamComponent } from './import-exam.component';
 import { I18nService } from '../../core/i18n/i18n.service';
 
-/** Routed at /import/:packId — same pack-scoped pattern as
- * questions-page.component.ts (packId comes from the route via
- * packIdResolver, not from PacksService.activePack() directly), so each
- * pack keeps its own persistent import job history reachable by a
- * bookmarkable/shareable URL instead of a single global /import page whose
- * "current pack" lived only in an in-page dropdown. */
+/** /exam/:packId/import[?bank=] — the bulk importer of one certification;
+ * packId comes from the workspace route, so each certification keeps its
+ * own import job history. */
 @Component({
   selector: 'app-import-exam-page',
   standalone: true,
@@ -19,7 +16,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
         <h2>{{ i18n.t('importExam.pageTitle') }}</h2>
         <p class="subtitle">{{ i18n.t('importExam.pageSubtitle') }}</p>
       </header>
-      <app-import-exam [packId]="packId()" />
+      <app-import-exam [packId]="packId()" [bankId]="bank() ?? ''" />
     </section>
   `,
   styles: [
@@ -61,4 +58,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
 export class ImportExamPageComponent {
   protected readonly i18n = inject(I18nService);
   readonly packId = input.required<string>();
+  /** `?bank=` preselects the target bank. */
+  readonly bank = input<string | undefined>(undefined);
 }

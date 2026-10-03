@@ -1,8 +1,14 @@
+import { CatalogEntry, CatalogService } from '../../core/services/catalog.service';
+import { PackDraft } from '../../core/services/packs.service';
 import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
+  CERTIFICATION_LEVELS,
+  CertificationLevel,
   DEFAULT_PACK_COLOR,
   MAX_PACK_DOMAINS,
+  PROVIDER_CATEGORIES,
+  ProviderCategory,
   PACK_COLORS,
   Pack,
   PackDomain,
@@ -13,7 +19,6 @@ import {
 } from '../../core/models/pack.model';
 import { PacksService } from '../../core/services/packs.service';
 import { QuestionsService } from '../../core/services/questions.service';
-import { ChatService } from '../../core/services/chat.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
@@ -103,10 +108,11 @@ import { I18nService } from '../../core/i18n/i18n.service';
               <div class="templates-panel">
                 <p class="templates-title">{{ i18n.t('packEditor.predefinedExamPacks') }}</p>
                 <ul class="templates-list">
-                  @for (tpl of templates; track tpl.file) {
+                  @for (tpl of catalog.entries(); track tpl.id) {
                     <li>
-                      <button type="button" class="template-item" (click)="loadTemplate(tpl.file)">
-                        {{ tpl.label }}
+                      <button type="button" class="template-item template-item-pack" (click)="loadTemplate(tpl)">
+                        <span class="template-item-swatch" [style.background]="tpl.color"></span>
+                        <strong>{{ tpl.code }}</strong> {{ tpl.name }}
                       </button>
                     </li>
                   }
@@ -360,6 +366,44 @@ import { I18nService } from '../../core/i18n/i18n.service';
                 }
               </ul>
             }
+          </div>
+
+          <div class="field">
+            <span class="field-label">{{ i18n.t('packEditor.certificationDetails') }}</span>
+            <div class="timing-row">
+              <label class="timing-field">
+                <span class="timing-label">{{ i18n.t('packEditor.examCode') }}</span>
+                <input class="text-input" type="text" [(ngModel)]="codeDraft" placeholder="SAA-C03" [attr.aria-label]="i18n.t('packEditor.examCode')" />
+              </label>
+              <label class="timing-field">
+                <span class="timing-label">{{ i18n.t('packEditor.provider') }}</span>
+                <select class="text-input" [(ngModel)]="providerDraft" [attr.aria-label]="i18n.t('packEditor.provider')">
+                  <option value="">—</option>
+                  @for (p of providers; track p) {
+                    <option [value]="p">{{ i18n.t('provider.' + p) }}</option>
+                  }
+                </select>
+              </label>
+              <label class="timing-field">
+                <span class="timing-label">{{ i18n.t('packEditor.level') }}</span>
+                <select class="text-input" [(ngModel)]="levelDraft" [attr.aria-label]="i18n.t('packEditor.level')">
+                  <option value="">—</option>
+                  @for (l of levels; track l) {
+                    <option [value]="l">{{ i18n.t('level.' + l) }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+            <div class="timing-row">
+              <label class="timing-field timing-field-wide">
+                <span class="timing-label">{{ i18n.t('packEditor.officialUrl') }}</span>
+                <input class="text-input" type="url" [(ngModel)]="officialUrlDraft" placeholder="https://" [attr.aria-label]="i18n.t('packEditor.officialUrl')" />
+              </label>
+              <label class="timing-field">
+                <span class="timing-label">{{ i18n.t('packEditor.passingScore') }}</span>
+                <input class="text-input" type="number" min="1" max="100" step="1" [(ngModel)]="passingScoreDraft" placeholder="70" [attr.aria-label]="i18n.t('packEditor.passingScore')" />
+              </label>
+            </div>
           </div>
 
           <div class="field">
@@ -993,6 +1037,9 @@ import { I18nService } from '../../core/i18n/i18n.service';
         flex-direction: column;
         gap: var(--space-md);
       }
+      .timing-field-wide {
+        flex: 2 1 220px;
+      }
       .confirm h3 {
         font-size: var(--font-size-lg);
       }
@@ -1012,10 +1059,21 @@ import { I18nService } from '../../core/i18n/i18n.service';
 export class PackEditorComponent {
   private readonly packs = inject(PacksService);
   private readonly questionsService = inject(QuestionsService);
-  private readonly chatService = inject(ChatService);
   protected readonly i18n = inject(I18nService);
 
+  protected readonly catalog = inject(CatalogService);
+  protected readonly providers = PROVIDER_CATEGORIES;
+  protected readonly levels = CERTIFICATION_LEVELS;
+
   readonly pack = input<Pack | null>(null);
+  /** Catalog entry to prefill a NEW certification from (Home's "Customize" action). */
+  readonly preset = input<CatalogEntry | null>(null);
+  protected codeDraft = '';
+  protected providerDraft: ProviderCategory | '' = '';
+  protected levelDraft: CertificationLevel | '' = '';
+  protected officialUrlDraft = '';
+  protected passingScoreDraft: number | null = null;
+  protected catalogIdDraft = '';
   readonly cancelled = output<void>();
   readonly saved = output<Pack>();
   readonly deleted = output<string>();
@@ -1086,14 +1144,25 @@ export class PackEditorComponent {
       this.accommodationMinutesDraft = p?.accommodationMinutes ?? null;
       this.colorDraft.set(p?.color ?? DEFAULT_PACK_COLOR);
       this.domainsDraft.set(p ? [...p.domains] : []);
+      this.codeDraft = p?.code ?? '';
+      this.providerDraft = p?.provider ?? '';
+      this.levelDraft = p?.level ?? '';
+      this.officialUrlDraft = p?.officialUrl ?? '';
+      this.passingScoreDraft = p?.passingScorePercent ?? null;
+      this.catalogIdDraft = p?.catalogId ?? '';
       this.domainDraft = '';
       this.domainDescDraft = '';
       this.domainOrderDraft = null;
       this.domainError.set(null);
       this.confirmingDelete.set(false);
     };
-    // Run sync once on construction.
-    queueMicrotask(sync);
+    // Run sync once on construction, then apply a preset if one was given.
+    queueMicrotask(() => {
+      sync();
+      const preset = this.preset();
+      if (preset && !this.pack()) void this.loadTemplate(preset);
+    });
+    void this.catalog.load();
   }
 
   triggerJsonImport(): void {
@@ -1148,49 +1217,47 @@ export class PackEditorComponent {
     this.examTotalQuestionsDraft = source.examTotalQuestions ?? null;
     this.examDurationMinutesDraft = source.examDurationMinutes ?? null;
     this.accommodationMinutesDraft = source.accommodationMinutes ?? null;
+    this.codeDraft = source.code ?? '';
+    this.providerDraft = source.provider ?? '';
+    this.levelDraft = source.level ?? '';
+    this.officialUrlDraft = source.officialUrl ?? '';
+    this.passingScoreDraft = source.passingScorePercent ?? null;
     this.copyFromPackOpen.set(false);
     this.jsonImportOk.set(true);
     this.jsonImportMessage.set(this.i18n.t('packEditor.copiedFromPack', { name: packDisplayLabel(source) }));
   }
 
-  async loadTemplate(file: string): Promise<void> {
+  async loadTemplate(entry: CatalogEntry): Promise<void> {
     try {
-      const res = await fetch(`examples/${file}`, { cache: 'no-store' });
-      if (!res.ok) throw new Error('Failed to load');
-      const raw = await res.text();
-      this.applyJsonText(raw);
+      this.applyDraft(await this.catalog.draftFor(entry));
       this.templatesOpen.set(false);
+      this.jsonImportOk.set(true);
+      this.jsonImportMessage.set(this.i18n.t('packEditor.prefilledFrom', { name: entry.name }));
     } catch {
       this.jsonImportOk.set(false);
       this.jsonImportMessage.set(this.i18n.t('packEditor.failedToLoadTemplate'));
     }
   }
 
-  readonly templates = [
-    { label: 'AWS Advanced Networking Specialty (ANS-C01)', file: 'aws-ans-c01-pack.json' },
-    { label: 'AWS AI Business Strategist (AIB-C01)', file: 'aws-aib-c01-pack.json' },
-    { label: 'AWS AI Practitioner (AIF-C01)', file: 'aws-aif-c01-pack.json' },
-    { label: 'AWS Cloud Practitioner (CLF-C02)', file: 'aws-clf-c02-pack.json' },
-    { label: 'AWS CloudOps Engineer Associate (SOA-C03)', file: 'aws-soa-c03-pack.json' },
-    { label: 'AWS Data Engineer Associate (DEA-C01)', file: 'aws-dea-c01-pack.json' },
-    { label: 'AWS Developer Associate (DVA-C02)', file: 'aws-dva-c02-pack.json' },
-    { label: 'AWS DevOps Engineer Professional (DOP-C02)', file: 'aws-dop-c02-pack.json' },
-    { label: 'AWS GenAI Developer Professional (AIP-C01)', file: 'aws-aip-c01-pack.json' },
-    { label: 'AWS ML Engineer Associate (MLA-C01)', file: 'aws-mla-c01-pack.json' },
-    { label: 'AWS Security Specialty (SCS-C03)', file: 'aws-scs-c03-pack.json' },
-    { label: 'AWS Solutions Architect Associate (SAA-C03)', file: 'aws-saa-c03-pack.json' },
-    { label: 'AWS Solutions Architect Professional (SAP-C02)', file: 'aws-sap-c02-pack.json' },
-    { label: 'Claude Certified Architect Foundations (CCAF)', file: 'ccaf-pack.json' },
-    { label: 'Claude Certified Architect Professional (CCAR-P)', file: 'claude-ccar-p-pack.json' },
-    { label: 'Claude Certified Associate Foundations (CCAO-F)', file: 'claude-ccao-f-pack.json' },
-    { label: 'Claude Certified Developer Foundations (CCDV-F)', file: 'claude-ccdv-f-pack.json' },
-    { label: 'HashiCorp Terraform Associate (004)', file: 'hashicorp-terraform-associate-004-pack.json' },
-    { label: 'HashiCorp Terraform Authoring and Operations Advanced', file: 'hashicorp-terraform-advanced-pack.json' },
-    { label: 'MongoDB Associate Atlas Administrator', file: 'mongodb-associate-atlas-admin-pack.json' },
-    { label: 'MongoDB Associate Data Modeler', file: 'mongodb-associate-data-modeler-pack.json' },
-    { label: 'MongoDB Associate Database Administrator', file: 'mongodb-associate-dba-pack.json' },
-    { label: 'MongoDB Associate Developer (Python)', file: 'mongodb-associate-developer-pack.json' },
-  ];
+  private applyDraft(d: PackDraft): void {
+    this.nameDraft = d.name;
+    this.versionDraft = d.version;
+    this.descriptionDraft = d.description;
+    if (isAcceptablePackColor(d.color)) this.colorDraft.set(d.color);
+    this.domainsDraft.set(d.domains.slice(0, MAX_PACK_DOMAINS));
+    this.exportIntroQuestionsDraft = d.exportIntroQuestions ?? '';
+    this.exportIntroTranscriptsDraft = d.exportIntroTranscripts ?? '';
+    this.exportIntroChatDraft = d.exportIntroChat ?? '';
+    this.examTotalQuestionsDraft = d.examTotalQuestions ?? null;
+    this.examDurationMinutesDraft = d.examDurationMinutes ?? null;
+    this.accommodationMinutesDraft = d.accommodationMinutes ?? null;
+    this.codeDraft = d.code ?? '';
+    this.providerDraft = d.provider ?? '';
+    this.levelDraft = d.level ?? '';
+    this.officialUrlDraft = d.officialUrl ?? '';
+    this.passingScoreDraft = d.passingScorePercent ?? null;
+    this.catalogIdDraft = d.catalogId ?? '';
+  }
 
   applyJsonPaste(): void {
     this.applyJsonText(this.jsonPasteDraft);
@@ -1384,6 +1451,12 @@ export class PackEditorComponent {
       examTotalQuestions: this.examTotalQuestionsDraft ?? undefined,
       examDurationMinutes: this.examDurationMinutesDraft ?? undefined,
       accommodationMinutes: this.accommodationMinutesDraft ?? undefined,
+      code: this.codeDraft,
+      provider: this.providerDraft || undefined,
+      level: this.levelDraft || undefined,
+      officialUrl: this.officialUrlDraft,
+      passingScorePercent: this.passingScoreDraft ?? undefined,
+      catalogId: this.catalogIdDraft,
     };
     if (!draft.name) return;
     const existing = this.pack();
@@ -1408,8 +1481,9 @@ export class PackEditorComponent {
   onConfirmDelete(): void {
     const target = this.pack();
     if (!target) return;
-    void this.questionsService.removeByPackId(target.id);
-    this.chatService.removeByPackId(target.id);
+    // DELETE /data/packs/{id} cascades server-side (banks, questions,
+    // notes, transcripts, chats, import jobs, attempts) and remove() purges
+    // the local copy, so nothing is deleted item by item here.
     this.packs.remove(target.id);
     this.confirmingDelete.set(false);
     this.deleted.emit(target.id);

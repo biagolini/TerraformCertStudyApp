@@ -1,9 +1,12 @@
+import { ActivatedRoute } from '@angular/router';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { packDisplayLabel } from '../../core/models/pack.model';
 import { MAX_IN_PROGRESS_ATTEMPTS, QuizAttempt } from '../../core/models/quiz-attempt.model';
 import { QuizMode, QuizScope } from '../../core/models/quiz.model';
 import { PacksService } from '../../core/services/packs.service';
+import { BanksService, groupByAuthor } from '../../core/services/banks.service';
+import { ProfileService } from '../../core/services/profile.service';
+import { QuestionsService } from '../../core/services/questions.service';
 import { QuizAttemptsService } from '../../core/services/quiz-attempts.service';
 import { QuizService } from '../../core/services/quiz.service';
 import { SettingsService } from '../../core/services/settings.service';
@@ -55,36 +58,37 @@ import { I18nService } from '../../core/i18n/i18n.service';
         </div>
       }
 
-      <span class="field-label">{{ i18n.t('quizSetup.scope') }}</span>
-      <div class="scope-group">
-        <button
-          type="button"
-          class="scope-card"
-          [class.selected]="scope() === 'pack'"
-          (click)="onSelectScope('pack')"
-        >
-          <span class="scope-title">{{ i18n.t('quizSetup.thisPack') }}</span>
-          <span class="scope-count">{{ activePackLabel() }} — {{ readyLabel('pack') }}</span>
-        </button>
-        <button
-          type="button"
-          class="scope-card"
-          [class.selected]="scope() === 'exam'"
-          (click)="onSelectScope('exam')"
-        >
-          <span class="scope-title">{{ i18n.t('quizSetup.allPacksForExam') }}</span>
-          <span class="scope-count">{{ examLabel() }} — {{ readyLabel('exam') }}</span>
-        </button>
-        <button
-          type="button"
-          class="scope-card"
-          [class.selected]="scope() === 'all'"
-          (click)="onSelectScope('all')"
-        >
-          <span class="scope-title">{{ i18n.t('quizSetup.allPacks') }}</span>
-          <span class="scope-count">{{ i18n.t('quizSetup.everyCertification') }} — {{ readyLabel('all') }}</span>
-        </button>
+      <div class="banks-head">
+        <span class="field-label">{{ i18n.t('quizSetup.banks') }}</span>
+        @if (bankGroups().length > 0) {
+          <button type="button" class="history-link" (click)="selectAllBanks()">
+            {{ allBanksSelected() ? i18n.t('quizSetup.clearBanks') : i18n.t('quizSetup.selectAllBanks') }}
+          </button>
+        }
       </div>
+      <p class="hint-text">{{ i18n.t('quizSetup.banksHint') }}</p>
+      @if (bankGroups().length === 0) {
+        <p class="empty-hint">{{ i18n.t('quizSetup.noBanks') }}</p>
+      }
+      @for (group of bankGroups(); track group.author) {
+        <div class="bank-group">
+          <div class="bank-group-head">
+            <span class="bank-author">👤 {{ group.author || i18n.t('banks.noAuthor') }}</span>
+            <button type="button" class="history-link" (click)="toggleAuthor(group.author)">
+              {{ authorFullySelected(group.author) ? i18n.t('quizSetup.unselectAuthor') : i18n.t('quizSetup.selectAuthor') }}
+            </button>
+          </div>
+          <div class="bank-grid">
+            @for (b of group.banks; track b.bank.id) {
+              <button type="button" class="bank-chip" [class.selected]="selectedBanks().has(b.bank.id)" (click)="toggleBank(b.bank.id)" [attr.aria-pressed]="selectedBanks().has(b.bank.id)">
+                <span class="bank-check" aria-hidden="true">{{ selectedBanks().has(b.bank.id) ? '✓' : '' }}</span>
+                <span class="bank-name">{{ b.bank.name }}</span>
+                <span class="bank-count">{{ b.count }}</span>
+              </button>
+            }
+          </div>
+        </div>
+      }
 
       <span class="field-label">{{ i18n.t('quizSetup.mode') }}</span>
       <div class="mode-toggle" role="tablist" [attr.aria-label]="i18n.t('quizSetup.quizMode')">
@@ -212,6 +216,17 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .history-link:hover { border-color: var(--color-purple); color: var(--color-purple); }
       .field-label { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-secondary); }
 
+      .banks-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); }
+      .bank-group { display: flex; flex-direction: column; gap: 6px; padding: var(--space-sm) var(--space-md); border: 1px solid var(--bg-border); border-radius: var(--radius-md); }
+      .bank-group-head { display: flex; align-items: center; justify-content: space-between; }
+      .bank-author { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-secondary); }
+      .bank-grid { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); }
+      .bank-chip { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 10px; border: 1px solid var(--bg-border); border-radius: var(--radius-md); background: var(--bg-input); color: var(--text-primary); text-align: left; cursor: pointer; }
+      .bank-chip.selected { border-color: var(--color-purple); background: rgba(108, 92, 231, 0.08); }
+      .bank-check { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 4px; border: 1.5px solid var(--bg-border); font-size: 12px; color: #fff; flex-shrink: 0; }
+      .bank-chip.selected .bank-check { background: var(--color-purple); border-color: var(--color-purple); }
+      .bank-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-size-sm); font-weight: 600; }
+      .bank-count { font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--text-muted); }
       .scope-group { display: flex; flex-direction: column; gap: var(--space-sm); }
       @media (min-width: 640px) {
         .scope-group { flex-direction: row; }
@@ -310,13 +325,25 @@ export class QuizSetupComponent {
   private readonly attemptsService = inject(QuizAttemptsService);
   protected readonly i18n = inject(I18nService);
 
-  protected readonly inProgress = this.attemptsService.inProgressAttempts;
+  private readonly banks = inject(BanksService);
+  private readonly profile = inject(ProfileService);
+  private readonly questions = inject(QuestionsService);
+  /** Open sessions of this certification (the 5-session limit still counts every certification). */
+  protected readonly inProgress = computed(() => {
+    const packId = this.packs.activePack().id;
+    return this.attemptsService.inProgressAttempts().filter((a) => a.packId === packId);
+  });
   protected readonly maxInProgress = MAX_IN_PROGRESS_ATTEMPTS;
-  protected readonly atInProgressLimit = computed(() => this.inProgress().length >= MAX_IN_PROGRESS_ATTEMPTS);
+  protected readonly atInProgressLimit = computed(
+    () => this.attemptsService.inProgressAttempts().length >= MAX_IN_PROGRESS_ATTEMPTS,
+  );
   private static readonly DATE_LOCALES: Record<string, string> = { en: 'en-US', pt: 'pt-BR', es: 'es-ES', it: 'it-IT' };
 
   constructor() {
     void this.attemptsService.load();
+    // ?domain= (Performance page "Practice") preselects one domain.
+    const domain = inject(ActivatedRoute).snapshot.queryParamMap.get('domain');
+    if (domain) queueMicrotask(() => this.selectedDomains.set(new Set([domain])));
   }
 
   protected readonly scope = signal<QuizScope>('pack');
@@ -325,7 +352,24 @@ export class QuizSetupComponent {
   protected readonly countOverride = signal<number | null>(null);
   protected readonly shuffle = signal(true);
   protected readonly trackTime = signal(this.settings.defaultTrackTime());
-  protected readonly useAccommodation = signal(this.settings.defaultUseAccommodation());
+  protected readonly useAccommodation = signal(
+    this.settings.defaultUseAccommodation() || this.profile.profile().useAccommodationByDefault,
+  );
+  /** Empty = every bank (also what a certification with a single bank always uses). */
+  protected readonly selectedBanks = signal<ReadonlySet<string>>(new Set());
+  private readonly bankIdList = computed(() => [...this.selectedBanks()]);
+
+  protected readonly bankGroups = computed(() => {
+    const counts = new Map<string, number>();
+    for (const q of this.questions.questions()) counts.set(q.bankId, (counts.get(q.bankId) ?? 0) + 1);
+    return groupByAuthor(this.banks.banks()).map((g) => ({
+      author: g.author,
+      banks: g.banks.map((bank) => ({ bank, count: counts.get(bank.id) ?? 0 })),
+    }));
+  });
+  protected readonly allBanksSelected = computed(
+    () => this.banks.banks().length > 0 && this.banks.banks().every((b) => this.selectedBanks().has(b.id)),
+  );
 
   protected readonly accommodationMinutes = computed(() => this.packs.activePack().accommodationMinutes ?? 0);
   protected readonly examDurationLabel = computed(() => {
@@ -333,19 +377,11 @@ export class QuizSetupComponent {
     return this.i18n.t('quizSetup.durationLabel', { minutes: pack.examDurationMinutes, count: pack.examTotalQuestions });
   });
 
-  protected readonly activePackLabel = computed(() => packDisplayLabel(this.packs.activePack()));
-  protected readonly examLabel = computed(() => {
-    const examPacks = this.quiz.scopePools().examPacks;
-    if (examPacks.length <= 1) return this.packs.activePack().name;
-    const versions = examPacks.map((p) => p.version).filter(Boolean).join(' + ');
-    return versions ? `${this.packs.activePack().name} (${versions})` : this.packs.activePack().name;
-  });
-
-  protected readonly domainsList = computed(() => this.quiz.domainsForScope(this.scope()));
+  protected readonly domainsList = computed(() => this.quiz.domainsForScope(this.scope(), this.bankIdList()));
 
   protected readonly filteredCount = computed(() => {
     const domains = this.selectedDomains();
-    if (domains.size === 0) return this.quiz.scopePools().counts[this.scope()];
+    if (domains.size === 0) return this.quiz.poolFor(this.scope(), this.bankIdList()).length;
     return this.domainsList()
       .filter((d) => domains.has(d.name))
       .reduce((sum, d) => sum + d.count, 0);
@@ -357,13 +393,35 @@ export class QuizSetupComponent {
     return Math.max(1, Math.min(desired, max));
   });
 
-  readyLabel(scope: QuizScope): string {
-    const count = this.quiz.scopePools().counts[scope];
-    return this.i18n.t('quizSetup.questionCount', { count });
+  toggleBank(id: string): void {
+    const next = new Set(this.selectedBanks());
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    this.selectedBanks.set(next);
+    this.selectedDomains.set(new Set());
+    this.countOverride.set(null);
   }
 
-  onSelectScope(scope: QuizScope): void {
-    this.scope.set(scope);
+  selectAllBanks(): void {
+    this.selectedBanks.set(this.allBanksSelected() ? new Set() : new Set(this.banks.banks().map((b) => b.id)));
+    this.selectedDomains.set(new Set());
+    this.countOverride.set(null);
+  }
+
+  authorFullySelected(author: string): boolean {
+    const ids = this.banks.banks().filter((b) => b.author.trim() === author).map((b) => b.id);
+    return ids.length > 0 && ids.every((id) => this.selectedBanks().has(id));
+  }
+
+  toggleAuthor(author: string): void {
+    const ids = this.banks.banks().filter((b) => b.author.trim() === author).map((b) => b.id);
+    const next = new Set(this.selectedBanks());
+    const select = !this.authorFullySelected(author);
+    for (const id of ids) {
+      if (select) next.add(id);
+      else next.delete(id);
+    }
+    this.selectedBanks.set(next);
     this.selectedDomains.set(new Set());
     this.countOverride.set(null);
   }
@@ -414,7 +472,8 @@ export class QuizSetupComponent {
 
   private beginQuiz(): void {
     this.quiz.start({
-      scope: this.scope(),
+      scope: 'pack',
+      bankIds: this.bankIdList(),
       mode: this.mode(),
       domains: [...this.selectedDomains()],
       count: this.effectiveCount(),

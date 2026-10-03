@@ -10,6 +10,8 @@ export interface QuizSettings {
   shuffle: boolean;
   trackTime: boolean;
   useAccommodation: boolean;
+  /** Banks the questions are drawn from; empty or missing = every bank of the certification. */
+  bankIds?: string[];
 }
 
 export interface QuizAnswer {

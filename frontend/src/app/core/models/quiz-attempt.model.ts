@@ -33,6 +33,14 @@ export interface QuizAttemptAnswer {
   note: string;
   timeSpentSeconds: number;
   markedForReview: boolean;
+  /** Tutor Q&A about this question during or after the attempt (see TutorDialogComponent). */
+  tutor?: TutorMessage[];
+}
+
+export interface TutorMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  at: number;
 }
 
 export interface QuizAttempt {
@@ -69,4 +77,13 @@ export interface QuizAttempt {
   finishedAt?: number;
   /** epoch ms — set once if the exam clock ever hit zero during this attempt. */
   timeLimitReachedAt?: number;
+  /** Pass mark (0..100) in force when the attempt started — the verdict stays stable if the certification's mark is edited later. */
+  passingScorePercent?: number;
+  /** Banks the questions were drawn from (empty = all banks). */
+  bankIds?: string[];
+}
+
+/** Pass/fail against the attempt's own snapshot of the pass mark. */
+export function attemptPassed(attempt: Pick<QuizAttempt, 'scorePercent' | 'passingScorePercent'>, fallbackPercent: number): boolean {
+  return attempt.scorePercent >= (attempt.passingScorePercent ?? fallbackPercent);
 }

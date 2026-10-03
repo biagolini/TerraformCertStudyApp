@@ -1,13 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { examPath } from '../../core/utils/routes.util';
+import { BanksService } from '../../core/services/banks.service';
+import { StorageService } from '../../core/services/storage.service';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { ImportExamService } from '../../core/services/import-exam.service';
-import { Pack } from '../../core/models/pack.model';
 import { ImportJob, isImportJobTerminal } from '../../core/models/import-job.model';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
 import { ConfirmDeleteDialogComponent } from '../../shared/components/confirm-delete-dialog.component';
-import { PackEditorComponent } from '../packs/pack-editor.component';
 import { I18nService } from '../../core/i18n/i18n.service';
 
 const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
@@ -15,7 +16,7 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
 @Component({
   selector: 'app-import-exam',
   standalone: true,
-  imports: [FormsModule, AiDisclaimerComponent, PackEditorComponent],
+  imports: [FormsModule, AiDisclaimerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="import-card">
@@ -25,11 +26,20 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
         <p class="status-line">{{ i18n.t('common.loading') }}</p>
       }
 
-      <button type="button" class="new-pack-btn" (click)="packEditorOpen.set(true)">
-        {{ i18n.t('importExam.newPackForImport') }}
-      </button>
-      @if (packEditorOpen()) {
-        <app-pack-editor [pack]="null" (cancelled)="packEditorOpen.set(false)" (saved)="onPackCreated($event)" />
+      <label class="field">
+        <span class="field-label">{{ i18n.t('importExam.targetBank') }}</span>
+        <select class="select-input" [ngModel]="selectedBankId()" (ngModelChange)="selectedBankId.set($event)" [attr.aria-label]="i18n.t('importExam.targetBank')">
+          @for (b of packBanks(); track b.id) {
+            <option [value]="b.id">{{ b.name }}{{ b.author ? ' · ' + b.author : '' }}</option>
+          }
+          <option value="__new__">+ {{ i18n.t('importExam.newBankForImport') }}</option>
+        </select>
+      </label>
+      @if (selectedBankId() === '__new__') {
+        <label class="field">
+          <span class="field-label">{{ i18n.t('importExam.newBankName') }}</span>
+          <input type="text" class="select-input" [ngModel]="newBankName()" (ngModelChange)="newBankName.set($event)" [placeholder]="i18n.t('banks.namePlaceholder')" />
+        </label>
       }
 
       <label class="field">
@@ -269,6 +279,8 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
 export class ImportExamComponent {
   protected readonly importService = inject(ImportExamService);
   private readonly router = inject(Router);
+  private readonly banks = inject(BanksService);
+  private readonly storage = inject(StorageService);
   private readonly dialog = inject(MatDialog);
   protected readonly i18n = inject(I18nService);
 
@@ -278,8 +290,26 @@ export class ImportExamComponent {
    * same as it works for Questions — no separate in-page target-pack
    * selector to keep in sync with the URL any more. */
   readonly packId = input.required<string>();
+  /** Target bank. Empty = the certification's first bank (created on demand). */
+  readonly bankId = input<string>('');
+  protected readonly selectedBankId = signal('');
+  protected readonly newBankName = signal('');
+  protected readonly packBanks = computed(() => this.banks.forPack(this.packId()));
 
-  protected readonly packEditorOpen = signal(false);
+  constructor() {
+    // Preselect the bank passed in (?bank= from the bank page), else keep a
+    // still-valid choice, else the first bank of the certification.
+    effect(() => {
+      const wanted = this.bankId();
+      const list = this.packBanks();
+      untracked(() => {
+        const current = this.selectedBankId();
+        if (current === '__new__' || list.some((b) => b.id === current)) return;
+        this.selectedBankId.set(list.some((b) => b.id === wanted) ? wanted : (list[0]?.id ?? '__new__'));
+      });
+    });
+  }
+
 
   protected readonly selectedFile = signal<File | null>(null);
   protected readonly expectedQuestions = signal<number | null>(null);
@@ -306,16 +336,6 @@ export class ImportExamComponent {
       .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)),
   );
 
-  /** Reuses the exact same full pack editor the packs drawer's "New pack"
-   * opens (name/description/domains/color/timing/…), not a lightweight
-   * inline text field — the earlier version of this button only asked for
-   * a name, which meant a pack created for an import always needed a
-   * second trip to the drawer to fill in domains/timing before it was
-   * actually usable. */
-  onPackCreated(pack: Pack): void {
-    this.packEditorOpen.set(false);
-    void this.router.navigate(['/import', pack.id]);
-  }
 
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -334,7 +354,24 @@ export class ImportExamComponent {
     const packId = this.packId();
     if (!file || !packId) return;
     this.error.set(null);
-    const result = await this.importService.uploadFile(packId, file, this.expectedQuestions() ?? undefined);
+    let bankId = this.selectedBankId();
+    if (bankId === '__new__') {
+      bankId = this.banks.create(packId, {
+        name: this.newBankName().trim() || file.name.replace(/\.[^.]+$/, ''),
+        author: '',
+        version: '',
+        sourceUrl: '',
+        description: '',
+      }).id;
+      this.selectedBankId.set(bankId);
+      this.newBankName.set('');
+    } else if (!bankId || this.banks.getById(bankId)?.packId !== packId) {
+      bankId = this.banks.ensureDefault(packId).id;
+    }
+    // create_import validates the bank server-side, so a bank created a
+    // moment ago must not still be sitting in the 500ms write debounce.
+    await this.storage.flushPendingSync();
+    const result = await this.importService.uploadFile(packId, bankId, file, this.expectedQuestions() ?? undefined);
     if ('error' in result) {
       this.error.set(result.error);
     } else {
@@ -377,7 +414,7 @@ export class ImportExamComponent {
   }
 
   onReview(job: ImportJob): void {
-    this.router.navigate(['/questions', job.packId, 'import', job.id]);
+    this.router.navigate(examPath(job.packId, 'import', job.id));
   }
 
   /** Deletes one job outright — used for "Ready to review"/"Ready to

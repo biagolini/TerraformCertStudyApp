@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { BedrockService } from '../../core/services/bedrock.service';
 import { ModelsService } from '../../core/services/models.service';
 import { PacksService } from '../../core/services/packs.service';
+import { BanksService } from '../../core/services/banks.service';
 import { QuestionEnrichmentService } from '../../core/services/question-enrichment.service';
 import { QuestionsService } from '../../core/services/questions.service';
 import { SettingsService } from '../../core/services/settings.service';
@@ -474,6 +475,9 @@ export class QuestionInputComponent {
   private readonly questionsService = inject(QuestionsService);
   private readonly modelsService = inject(ModelsService);
   private readonly packs = inject(PacksService);
+  private readonly banks = inject(BanksService);
+  /** Bank new questions go into. Empty = the certification's first bank (created on demand). */
+  readonly bankId = input<string>('');
   private readonly enrichment = inject(QuestionEnrichmentService);
   protected readonly i18n = inject(I18nService);
 
@@ -578,9 +582,14 @@ export class QuestionInputComponent {
 
     const relatedServices = await this.enrichment.extractRelatedServices(parsed.stem, parsed.alternatives);
     const now = Date.now();
+    const bankId =
+      (this.bankId() && this.banks.getById(this.bankId())?.packId === packId ? this.bankId() : '') ||
+      this.banks.ensureDefault(packId).id;
+    this.banks.touch(bankId);
     return {
       id: crypto.randomUUID(),
       packId,
+      bankId,
       title,
       domain,
       stem: parsed.stem,

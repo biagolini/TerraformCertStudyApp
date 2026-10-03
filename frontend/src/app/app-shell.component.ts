@@ -1,13 +1,15 @@
 import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { AuthService } from './core/services/auth.service';
+import { LightboxComponent } from './shared/components/lightbox.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, LightboxComponent],
   template: `
     <router-outlet />
+    <app-lightbox />
     @if (auth.reauthenticating()) {
       <div class="reauth-overlay" role="alert" aria-live="assertive">
         <div class="reauth-card">

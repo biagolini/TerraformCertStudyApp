@@ -1,3 +1,4 @@
+import { PacksService } from '../../core/services/packs.service';
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { Router } from '@angular/router';
 import { Script } from '../../core/models/script.model';
@@ -49,6 +50,7 @@ import { TranscriptInputComponent } from './transcript-input.component';
 })
 export class TranscriptsPageComponent {
   private readonly router = inject(Router);
+  private readonly packs = inject(PacksService);
   private readonly scriptsService = inject(ScriptsService);
   private readonly viewport = inject(ViewportService);
 
@@ -67,20 +69,20 @@ export class TranscriptsPageComponent {
   readonly showLeftColumn = computed(() => this.showInputForm() || this.showScriptList());
 
   onScriptGenerated(script: Script): void {
-    this.router.navigate(['/transcripts', script.id]);
+    this.router.navigate(['/exam', this.packs.activePack().id, 'transcripts', script.id]);
   }
 
   onOpenScript(script: Script): void {
-    this.router.navigate(['/transcripts', script.id]);
+    this.router.navigate(['/exam', this.packs.activePack().id, 'transcripts', script.id]);
   }
 
   onCloseScript(): void {
-    this.router.navigate(['/transcripts']);
+    this.router.navigate(['/exam', this.packs.activePack().id, 'transcripts']);
   }
 
   onScriptDeleted(id: string): void {
     if (this.scriptId() === id) {
-      this.router.navigate(['/transcripts']);
+      this.router.navigate(['/exam', this.packs.activePack().id, 'transcripts']);
     }
   }
 }

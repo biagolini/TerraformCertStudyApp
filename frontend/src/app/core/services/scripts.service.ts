@@ -1,17 +1,23 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { Script } from '../models/script.model';
 import { StorageService } from './storage.service';
+import { PacksService } from './packs.service';
 
 @Injectable({ providedIn: 'root' })
 export class ScriptsService {
   private readonly storage = inject(StorageService);
+  private readonly packs = inject(PacksService);
 
   private readonly state = signal<Script[]>([]);
 
-  readonly scripts = computed(() =>
-    [...this.state()].sort((a, b) => b.createdAt - a.createdAt),
-  );
-  readonly count = computed(() => this.state().length);
+  /** Transcript summaries of the active certification, newest first. */
+  readonly scripts = computed(() => {
+    const packId = this.packs.activePack().id;
+    return this.state()
+      .filter((s) => s.packId === packId)
+      .sort((a, b) => b.createdAt - a.createdAt);
+  });
+  readonly count = computed(() => this.scripts().length);
 
   constructor() {
     effect(() => {
@@ -47,8 +53,12 @@ export class ScriptsService {
     this.persist(this.state().filter((s) => s.id !== id));
   }
 
+  /** Deletes every transcript of the active certification. */
   clearAll(): void {
-    this.persist([]);
+    const mine = this.scripts();
+    for (const script of mine) void this.storage.deleteScript(script.id);
+    const ids = new Set(mine.map((s) => s.id));
+    this.persist(this.state().filter((s) => !ids.has(s.id)));
   }
 
   getById(id: string): Script | undefined {

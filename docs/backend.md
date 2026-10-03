@@ -69,7 +69,7 @@ backend/
 
 ## Lambda: Data
 
-**Purpose:** CRUD for user data (packs, questions, scripts, settings) + model discovery.
+**Purpose:** CRUD for user data (certifications, banks, questions, notes, scripts, chats, settings, profile) + model discovery. `GET /data` returns `{packs, banks, questions, scripts, chats, notes, settings, profile}`.
 
 **Endpoints:**
 
@@ -78,8 +78,15 @@ backend/
 | GET | `/data` | Fetch all user data |
 | PUT | `/data` | Batch write all entities |
 | PUT | `/data/settings` | Update settings |
-| PUT | `/data/packs/{id}` | Upsert a pack |
-| DELETE | `/data/packs/{id}` | Delete a pack |
+| PUT | `/data/packs/{id}` | Upsert a certification (pack) |
+| DELETE | `/data/packs/{id}` | Delete a certification, cascading to banks, questions (+ images), notes (+ S3 prefix), transcripts, chats, import jobs and attempts |
+| PUT | `/data/banks/{id}` | Upsert a question bank (`packId` required) |
+| DELETE | `/data/banks/{id}` | Delete a bank and its questions (+ images) |
+| PUT | `/data/profile` | Upsert the student profile |
+| PUT | `/data/notes/{id}` | Upsert note metadata (`packId` required) |
+| DELETE | `/data/notes/{id}` | Delete a note and its S3 prefix |
+| GET / PUT | `/data/notes/{id}/content` | Read / write the note's Markdown body in S3 (1 MB cap; the metadata row must exist) |
+| POST | `/data/notes/{id}/images` | Presigned PUT for a note image; returns the `note/{noteId}/{filename}` reference |
 | PUT | `/data/questions/{id}` | Upsert a question |
 | DELETE | `/data/questions/{id}` | Delete a question |
 | PUT | `/data/scripts/{id}` | Upsert a script |
@@ -87,12 +94,12 @@ backend/
 | PUT | `/data/chats/{id}` | Upsert a chat session |
 | DELETE | `/data/chats/{id}` | Delete a chat session |
 | GET | `/data/models` | List usable Bedrock models |
-| POST | `/data/imports` | Validates the pack, creates an `IMPORTJOB#` record (`AWAITING_UPLOAD`), returns a presigned S3 PUT URL |
+| POST | `/data/imports` | Validates the pack and the target bank (`bankId`, must belong to the pack), creates an `IMPORTJOB#` record (`AWAITING_UPLOAD`), returns a presigned S3 PUT URL |
 | POST | `/data/imports/{id}/confirm-upload` | Marks a job `UPLOADED` once the browser's presigned PUT resolves |
 | POST | `/data/imports/{id}/process` | Explicitly starts the Step Functions extraction for one uploaded (or previously failed) job |
 | GET | `/data/imports/{id}` | Poll one import job's status |
 | GET | `/data/imports` | List the user's import jobs |
-| GET | `/data/assets/presign` | Presigned GET URL for one question image (`?key={jobId}/{questionId}/{filename}`) |
+| GET | `/data/assets/presign` | Presigned GET URL for one question image (`?key={jobId}/{questionId}/{filename}`) or note image (`?key=note/{noteId}/{filename}`) |
 | POST | `/data/assets/upload` | Presigned PUT URL for a single hand-attached image (Add ready-made / edit mode) — mints its own id for the `{jobId}/{questionId}/{filename}` key shape, since a manual image isn't tied to any import job |
 
 **Model discovery (`GET /data/models`):**
@@ -123,7 +130,7 @@ Four single-table-design tables, all partitioned per user (`pk = USER#{sub}`): a
 |------|-------------|
 | Lambda converse | `bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream` on foundation-models + inference-profiles |
 | Lambda review | `bedrock-agentcore:InvokeAgentRuntime` on the review agent's Runtime |
-| Lambda data | DynamoDB CRUD + `bedrock:ListFoundationModels`, `bedrock:ListInferenceProfiles` + S3 `PutObject` on `uploads/*`, `GetObject`/`PutObject`/`DeleteObject` on `images/*` (assets bucket) + `states:StartExecution` on both `study-import-exam` and `study-import-exam-explain` + `lambda:InvokeFunction` on `import-extract` (per-question re-extract) |
+| Lambda data | DynamoDB CRUD + `bedrock:ListFoundationModels`, `bedrock:ListInferenceProfiles` + S3 `PutObject` on `uploads/*`, `GetObject`/`PutObject`/`DeleteObject` on `images/*` and `notes/*`, `ListBucket` limited to `uploads/`, `scratch/`, `notes/` (assets bucket) + `states:StartExecution` on both `study-import-exam` and `study-import-exam-explain` + `lambda:InvokeFunction` on `import-extract` (per-question re-extract) |
 | Lambda import-preprocess | S3 `GetObject` on `uploads/*`, `PutObject` on `scratch/*`; DynamoDB `GetItem`/`PutItem` on the general table |
 | Lambda import-extract | S3 `GetObject` on `scratch/*`, `PutObject` on `images/*`; DynamoDB `UpdateItem` (general table) + `GetItem`/`PutItem` (import-drafts table); `bedrock:InvokeModel` |
 | Lambda import-explain | DynamoDB `GetItem`/`UpdateItem` (general + import-drafts tables), `PutItem` (questions table); `bedrock-agentcore:InvokeAgentRuntime` on the review agent's Runtime |

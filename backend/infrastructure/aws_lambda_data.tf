@@ -177,6 +177,14 @@ resource "aws_iam_role_policy" "lambda_data_s3_assets" {
         Resource = "${aws_s3_bucket.assets.arn}/images/*"
       },
       {
+        # Study notes: notes/{sub}/{noteId}/document.md plus images/ under it
+        # (lambda/data/app.py's note routes). Get/Put/Delete on the prefix;
+        # listing is covered by the ListBucket statement below.
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = "${aws_s3_bucket.assets.arn}/notes/*"
+      },
+      {
         # Immediate cleanup of a deleted job's temporary storage (see
         # lambda/data/app.py's delete_import/_delete_s3_prefix) — without
         # this, uploads/scratch only disappear after the bucket's 14-day
@@ -198,7 +206,7 @@ resource "aws_iam_role_policy" "lambda_data_s3_assets" {
         Resource = aws_s3_bucket.assets.arn
         Condition = {
           StringLike = {
-            "s3:prefix" = ["uploads/*", "scratch/*"]
+            "s3:prefix" = ["uploads/*", "scratch/*", "notes/*"]
           }
         }
       },

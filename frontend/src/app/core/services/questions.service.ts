@@ -24,7 +24,19 @@ export class QuestionsService {
     return this.allQuestions().filter((q) => q.packId === activeId);
   });
 
-  readonly count = computed(() => this.questions().length);
+  /** Bank shown by the question browser ('all' = every bank of the certification). */
+  readonly bankFilter = signal<string>('all');
+  /** Domain filter of the question browser ('' = every domain). */
+  readonly domainFilter = signal<string>('');
+
+  /** What the question browser lists: the active certification narrowed by bank and domain. */
+  readonly visible = computed(() => {
+    const bank = this.bankFilter();
+    const domain = this.domainFilter();
+    return this.questions().filter((q) => (bank === 'all' || q.bankId === bank) && (!domain || q.domain === domain));
+  });
+
+  readonly count = computed(() => this.visible().length);
 
   readonly selectedIds = this.selectedIdsState.asReadonly();
   readonly selectedCount = computed(() => this.selectedIdsState().size);
@@ -48,7 +60,7 @@ export class QuestionsService {
   readonly searchResults = computed(() => {
     const query = this.searchQueryState();
     if (!query.trim()) return [];
-    const pool = this.searchAllPacksState() ? this.allQuestions() : this.questions();
+    const pool = this.searchAllPacksState() ? this.allQuestions() : this.visible();
     return searchQuestions(pool, query);
   });
 
@@ -83,6 +95,13 @@ export class QuestionsService {
       q.id === id ? { ...q, domain: domain || DEFAULT_DOMAIN } : q,
     );
     this.persist(next);
+  }
+
+  /** Moves questions to another bank of the same certification. */
+  moveToBank(ids: readonly string[], bankId: string): void {
+    const set = new Set(ids);
+    const now = Date.now();
+    this.persist(this.state().map((q) => (set.has(q.id) ? { ...q, bankId, updatedAt: now } : q)));
   }
 
   updatePartial(
@@ -150,7 +169,7 @@ export class QuestionsService {
   }
 
   selectAll(): void {
-    this.selectedIdsState.set(new Set(this.questions().map((q) => q.id)));
+    this.selectedIdsState.set(new Set(this.visible().map((q) => q.id)));
   }
 
   deselectAll(): void {

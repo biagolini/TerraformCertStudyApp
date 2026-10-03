@@ -1,3 +1,5 @@
+import { RouterLink } from '@angular/router';
+import { BackupService } from '../../core/services/backup.service';
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NAV_ITEMS, NavTabId } from '../../core/models/nav-item.model';
@@ -6,7 +8,6 @@ import { OUTPUT_LANGUAGES } from '../../core/models/settings.model';
 import { INTERFACE_LANGUAGES, InterfaceLanguage } from '../../core/models/i18n.model';
 import { AuthService } from '../../core/services/auth.service';
 import { ModelsService } from '../../core/services/models.service';
-import { QuestionsService } from '../../core/services/questions.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { StorageService } from '../../core/services/storage.service';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -14,28 +15,13 @@ import { I18nService } from '../../core/i18n/i18n.service';
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="drawer">
       <header class="drawer-header">
         <h2>{{ i18n.t('settings.title') }}</h2>
-        <button
-          type="button"
-          class="close-btn"
-          (click)="closed.emit()"
-          [attr.aria-label]="i18n.t('settings.closeSettings')"
-        >
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <path
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              d="M5 5l14 14M19 5L5 19"
-            />
-          </svg>
-        </button>
+        <button type="button" class="ui-btn ui-btn-sm" (click)="closed.emit()">← {{ i18n.t('common.back') }}</button>
       </header>
 
       <div class="drawer-body">
@@ -45,6 +31,54 @@ import { I18nService } from '../../core/i18n/i18n.service';
             <p class="helper">{{ i18n.t('settings.accountHelp') }}</p>
           </header>
           <p class="account-email">{{ currentUserEmail() ?? i18n.t('settings.accountUnknown') }}</p>
+          <details class="password">
+            <summary>{{ i18n.t('settings.changePassword') }}</summary>
+            <form class="password-form" (ngSubmit)="onChangePassword()">
+              <label class="ui-field"><span>{{ i18n.t('settings.currentPassword') }}</span>
+                <input class="ui-input" type="password" name="old" autocomplete="current-password" [(ngModel)]="oldPassword" required />
+              </label>
+              <label class="ui-field"><span>{{ i18n.t('settings.newPassword') }}</span>
+                <input class="ui-input" type="password" name="new" autocomplete="new-password" [(ngModel)]="newPassword" required minlength="8" />
+              </label>
+              <label class="ui-field"><span>{{ i18n.t('settings.confirmPassword') }}</span>
+                <input class="ui-input" type="password" name="confirm" autocomplete="new-password" [(ngModel)]="confirmPassword" required />
+              </label>
+              <p class="helper">{{ i18n.t('settings.passwordRules') }}</p>
+              @if (passwordMessage(); as m) {
+                <p class="helper" [class.clear-success]="m.ok" [class.sync-error]="!m.ok" role="status">{{ m.text }}</p>
+              }
+              <button type="submit" class="ui-btn ui-btn-primary" [disabled]="changingPassword() || !oldPassword || !newPassword">{{ i18n.t('settings.updatePassword') }}</button>
+            </form>
+          </details>
+          <div class="ui-actions">
+            <a routerLink="/profile" class="ui-btn ui-btn-sm">{{ i18n.t('app.profile') }}</a>
+            <a routerLink="/costs" class="ui-btn ui-btn-sm">{{ i18n.t('settings.costsAndBudget') }}</a>
+            <button type="button" class="ui-btn ui-btn-sm ui-btn-danger" (click)="auth.logout()">{{ i18n.t('app.signOut') }}</button>
+          </div>
+        </section>
+
+        <section class="block">
+          <header class="section-header">
+            <h3>{{ i18n.t('settings.theme') }}</h3>
+          </header>
+          <div class="ui-chip-row" role="radiogroup" [attr.aria-label]="i18n.t('settings.theme')">
+            <button type="button" role="radio" class="ui-chip" [class.active]="theme() === 'light'" [attr.aria-checked]="theme() === 'light'" (click)="setTheme('light')">☀ {{ i18n.t('settings.themeLight') }}</button>
+            <button type="button" role="radio" class="ui-chip" [class.active]="theme() === 'dark'" [attr.aria-checked]="theme() === 'dark'" (click)="setTheme('dark')">☾ {{ i18n.t('settings.themeDark') }}</button>
+          </div>
+        </section>
+
+        <section class="block">
+          <header class="section-header">
+            <h3>{{ i18n.t('settings.dataBackup') }}</h3>
+            <p class="helper">{{ i18n.t('settings.dataBackupHelp') }}</p>
+          </header>
+          <button type="button" class="ui-btn" [disabled]="backingUp()" (click)="onBackup()">
+            ⬇ {{ backingUp() ? i18n.t('settings.preparingBackup') : i18n.t('settings.downloadBackup') }}
+          </button>
+          @if (backupError()) {
+            <p class="sync-error">{{ backupError() }}</p>
+          }
+          <p class="helper">{{ i18n.t('settings.privacyNote') }}</p>
         </section>
 
         <section class="block">
@@ -351,59 +385,34 @@ import { I18nService } from '../../core/i18n/i18n.service';
           <p class="helper">{{ i18n.t('settings.quizToolbarRowsHelp') }}</p>
         </section>
 
-        <section class="block danger">
-          <header class="section-header">
-            <h3>{{ i18n.t('settings.dangerZone') }}</h3>
-            <p class="helper">{{ i18n.t('settings.dangerZoneHelp') }}</p>
-          </header>
-          <button
-            type="button"
-            class="btn btn-danger"
-            (click)="onClearRequested()"
-            [disabled]="questionCount() === 0"
-          >
-            {{ i18n.t('settings.clearQuestionsInPack') }}
-          </button>
-          <p class="helper">{{ i18n.t('settings.questionCountInPack', { count: questionCount() }) }}</p>
-          @if (clearResult(); as result) {
-            <p class="helper" [class.clear-success]="result.failed === 0" [class.clear-warn]="result.failed > 0">
-              @if (result.failed === 0) {
-                {{ i18n.t('settings.deletedSuccessfully', { count: result.deleted }) }}
-              } @else {
-                {{ i18n.t('settings.deletedWithFailures', { deleted: result.deleted, failed: result.failed }) }}
-              }
-            </p>
-          }
-        </section>
       </div>
 
-      @if (confirmingClear()) {
-        <div class="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
-          <div class="confirm">
-            <h3 id="confirm-title">{{ i18n.t('settings.clearQuestionsConfirmTitle') }}</h3>
-            <p>{{ i18n.t('settings.clearQuestionsConfirmBody', { count: questionCount() }) }}</p>
-            <div class="confirm-actions">
-              <button type="button" class="btn btn-ghost" (click)="onCancelClear()" [disabled]="clearing()">{{ i18n.t('common.cancel') }}</button>
-              <button type="button" class="btn btn-danger" (click)="onConfirmClear()" [disabled]="clearing()">
-                {{ clearing() ? i18n.t('settings.deleting') : i18n.t('common.delete') }}
-              </button>
-            </div>
-          </div>
-        </div>
-      }
     </div>
   `,
   styles: [
     `
       :host {
-        display: contents;
+        display: block;
       }
       .drawer {
         display: flex;
         flex-direction: column;
-        height: 100%;
         background: var(--bg-surface);
         color: var(--text-primary);
+        border: 1px solid var(--bg-border);
+        border-radius: var(--radius-lg);
+      }
+      .password summary {
+        cursor: pointer;
+        font-weight: 600;
+        color: var(--color-blue);
+      }
+      .password-form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-sm);
+        max-width: 360px;
+        margin-top: var(--space-sm);
       }
       .drawer-header {
         display: flex;
@@ -660,17 +669,22 @@ import { I18nService } from '../../core/i18n/i18n.service';
 })
 export class SettingsComponent {
   private readonly settings = inject(SettingsService);
-  private readonly questionsService = inject(QuestionsService);
   private readonly modelsService = inject(ModelsService);
   private readonly storage = inject(StorageService);
-  private readonly auth = inject(AuthService);
+  protected readonly auth = inject(AuthService);
+  private readonly backup = inject(BackupService);
   protected readonly i18n = inject(I18nService);
 
   protected readonly currentUserEmail = this.auth.currentUserEmail;
 
-  protected readonly confirmingClear = signal(false);
-  protected readonly clearing = signal(false);
-  protected readonly clearResult = signal<{ deleted: number; failed: number } | null>(null);
+  protected readonly theme = this.settings.theme;
+  protected oldPassword = '';
+  protected newPassword = '';
+  protected confirmPassword = '';
+  protected readonly changingPassword = signal(false);
+  protected readonly passwordMessage = signal<{ ok: boolean; text: string } | null>(null);
+  protected readonly backingUp = signal(false);
+  protected readonly backupError = signal<string | null>(null);
   protected readonly outputLanguages = OUTPUT_LANGUAGES;
   // Excludes OUTPUT_LANGUAGES' own "Same as input (default)" entry — this
   // dropdown already has its own "Automatic" option (empty-string value,
@@ -693,7 +707,6 @@ export class SettingsComponent {
 
   readonly closed = output<void>();
 
-  readonly questionCount = this.questionsService.count;
   readonly availableModels = this.modelsService.models;
   readonly defaultModel = this.settings.defaultModel;
   readonly importExtractionModel = this.settings.importExtractionModel;
@@ -721,25 +734,40 @@ export class SettingsComponent {
     void this.storage.refresh();
   }
 
-  onClearRequested(): void {
-    this.clearResult.set(null);
-    this.confirmingClear.set(true);
+  setTheme(theme: 'light' | 'dark'): void {
+    this.settings.setTheme(theme);
   }
 
-  onCancelClear(): void {
-    this.confirmingClear.set(false);
-  }
-
-  async onConfirmClear(): Promise<void> {
-    this.clearing.set(true);
+  async onChangePassword(): Promise<void> {
+    this.passwordMessage.set(null);
+    if (this.newPassword !== this.confirmPassword) {
+      this.passwordMessage.set({ ok: false, text: this.i18n.t('settings.passwordMismatch') });
+      return;
+    }
+    this.changingPassword.set(true);
     try {
-      const result = await this.questionsService.clearActivePack();
-      this.clearResult.set(result);
+      await this.auth.changePassword(this.oldPassword, this.newPassword);
+      this.oldPassword = this.newPassword = this.confirmPassword = '';
+      this.passwordMessage.set({ ok: true, text: this.i18n.t('settings.passwordChanged') });
+    } catch (err) {
+      this.passwordMessage.set({ ok: false, text: err instanceof Error ? err.message : String(err) });
     } finally {
-      this.clearing.set(false);
-      this.confirmingClear.set(false);
+      this.changingPassword.set(false);
     }
   }
+
+  async onBackup(): Promise<void> {
+    this.backingUp.set(true);
+    this.backupError.set(null);
+    try {
+      await this.backup.download();
+    } catch (err) {
+      this.backupError.set(err instanceof Error ? err.message : String(err));
+    } finally {
+      this.backingUp.set(false);
+    }
+  }
+
 
   onDefaultModelChange(value: string): void {
     this.settings.setDefaultModel(value);

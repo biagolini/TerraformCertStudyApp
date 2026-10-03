@@ -4,8 +4,59 @@ export interface PackDomain {
   order?: number;
 }
 
+/** Certification ecosystem — drives the Home catalog filter and the profile's interest groups. */
+export type ProviderCategory =
+  | 'aws'
+  | 'azure'
+  | 'gcp'
+  | 'kubernetes'
+  | 'terraform'
+  | 'linux'
+  | 'mongodb'
+  | 'anthropic'
+  | 'other';
+
+export const PROVIDER_CATEGORIES: ProviderCategory[] = [
+  'aws',
+  'azure',
+  'gcp',
+  'kubernetes',
+  'terraform',
+  'linux',
+  'mongodb',
+  'anthropic',
+  'other',
+];
+
+export function isProviderCategory(value: unknown): value is ProviderCategory {
+  return typeof value === 'string' && (PROVIDER_CATEGORIES as string[]).includes(value);
+}
+
+export type CertificationLevel = 'foundational' | 'associate' | 'professional' | 'specialty';
+
+export const CERTIFICATION_LEVELS: CertificationLevel[] = ['foundational', 'associate', 'professional', 'specialty'];
+
+/** Default pass mark when a certification doesn't set its own (most vendors sit around 70%). */
+export const DEFAULT_PASSING_SCORE_PERCENT = 70;
+
+/**
+ * A certification the user studies (historically called "pack" in code; the
+ * UI says "Certification"). It owns question banks (`QuestionBank`), notes,
+ * transcripts, chats and mock-exam attempts.
+ */
 export interface Pack {
   id: string;
+  /** Official exam code, e.g. SAA-C03, CKA, AZ-104. */
+  code?: string;
+  provider?: ProviderCategory;
+  level?: CertificationLevel;
+  officialUrl?: string;
+  /** Pass mark (0..100) used for the mock-exam verdict. Unset = DEFAULT_PASSING_SCORE_PERCENT. */
+  passingScorePercent?: number;
+  /** Catalog entry this certification was cloned from (file stem in public/examples), if any. */
+  catalogId?: string;
+  /** Epoch ms of the last time the user opened this certification's workspace. */
+  lastStudiedAt?: number;
   name: string;
   description: string;
   version: string;

@@ -13,6 +13,8 @@ export interface QuestionMetadata {
 export interface Question {
   id: string;
   packId: string;
+  /** The question bank (source) inside the certification — see bank.model.ts. */
+  bankId: string;
   title: string;
   domain: string;
   stem: string;

@@ -8,7 +8,7 @@ Rules for how I want work done here. Project documentation is NOT here: it lives
 
 ## Verification (do not skip)
 
-- Frontend changes: run `npx ng test --no-watch` and `npx ng build` from `frontend/`.
+- Frontend changes: run `npx ng test --no-watch`, `npx ng build` and `node scripts/check-i18n-keys.mjs` from `frontend/`.
 - Lambda changes: at minimum byte-compile the module (`python3 -m py_compile <file>`), and clean up `__pycache__` afterwards.
 - Terraform changes: run `terraform validate` / `terraform plan` from `backend/environments/production` (never apply without asking).
 - Never present a change as done without running what can be run. State explicitly what was verified and what could not be.

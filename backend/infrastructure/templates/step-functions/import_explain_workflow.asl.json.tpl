@@ -1,5 +1,5 @@
 {
-  "Comment": "Bulk exam import Phase 2 (explanations): fan out over human-approved draft indices -> AgentCore review agent -> finalize as SUCCEEDED/PARTIAL/FAILED. Input: {jobId, sub, packId, draftIndices}. See import_workflow.asl.json.tpl for Phase 1 (structure extraction).",
+  "Comment": "Bulk exam import Phase 2 (explanations): fan out over human-approved draft indices -> AgentCore review agent -> finalize as SUCCEEDED/PARTIAL/FAILED. Input: {jobId, sub, packId, bankId, draftIndices}. See import_workflow.asl.json.tpl for Phase 1 (structure extraction).",
   "StartAt": "GenerateExplanations",
   "States": {
     "GenerateExplanations": {
@@ -10,6 +10,7 @@
         "jobId.$": "$.jobId",
         "sub.$": "$.sub",
         "packId.$": "$.packId",
+        "bankId.$": "$.bankId",
         "draftIndex.$": "$$.Map.Item.Value"
       },
       "ResultPath": "$.results",

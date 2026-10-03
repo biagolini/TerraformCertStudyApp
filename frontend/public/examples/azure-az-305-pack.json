@@ -1,0 +1,31 @@
+{
+  "name": "Microsoft Certified: Azure Solutions Architect Expert (AZ-305)",
+  "version": "",
+  "color": "#0284c7",
+  "description": "Validates subject matter expertise in designing cloud and hybrid solutions that run on Microsoft Azure. 120 minutes.",
+  "exportIntroQuestions": "",
+  "exportIntroTranscripts": "",
+  "exportIntroChat": "",
+  "domains": [
+    {
+      "name": "Design Identity, Governance, and Monitoring Solutions",
+      "description": "Domain 1 (25-30%): Design identity and access management, governance solutions, and monitoring solutions.",
+      "order": 1
+    },
+    {
+      "name": "Design Data Storage Solutions",
+      "description": "Domain 2 (25-30%): Design data storage solutions for non-relational and relational data, and data integration.",
+      "order": 2
+    },
+    {
+      "name": "Design Business Continuity Solutions",
+      "description": "Domain 3 (10-15%): Design backup and disaster recovery solutions, and high availability solutions.",
+      "order": 3
+    },
+    {
+      "name": "Design Infrastructure Solutions",
+      "description": "Domain 4 (25-30%): Design compute solutions, application architecture, and network solutions.",
+      "order": 4
+    }
+  ]
+}

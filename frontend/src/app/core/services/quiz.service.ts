@@ -1,7 +1,7 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { Question, correctLetters as questionCorrectLetters } from '../models/question.model';
-import { Pack } from '../models/pack.model';
-import { QuizAttempt, QuizAttemptAnswer, QuizAttemptStatus } from '../models/quiz-attempt.model';
+import { DEFAULT_PASSING_SCORE_PERCENT, Pack } from '../models/pack.model';
+import { QuizAttempt, QuizAttemptAnswer, QuizAttemptStatus, TutorMessage } from '../models/quiz-attempt.model';
 import { DEFAULT_QUIZ_SETTINGS, QuizAnswer, QuizPhase, QuizScope, QuizSettings } from '../models/quiz.model';
 import { slugify } from '../utils/file-splitter.util';
 import { TextRange, toggleRanges } from '../utils/text-range.util';
@@ -104,6 +104,7 @@ export class QuizService {
   private readonly annotationsState = signal<Record<string, QuestionAnnotations>>({});
   private readonly timeSpentState = signal<Record<string, number>>({});
   private readonly reviewFlagsState = signal<Record<string, boolean>>({});
+  private readonly tutorState = signal<Record<string, TutorMessage[]>>({});
   private tickInterval: ReturnType<typeof setInterval> | null = null;
   private startedAt = 0;
   private activePackAtStart: Pack | null = null;
@@ -202,9 +203,17 @@ export class QuizService {
     };
   });
 
-  domainsForScope(scope: QuizScope): { name: string; count: number }[] {
+  /** The scope's pool narrowed to the chosen banks (empty = every bank). */
+  poolFor(scope: QuizScope, bankIds: readonly string[] = []): Question[] {
+    const pool = this.scopePools().questions[scope];
+    if (bankIds.length === 0) return pool;
+    const set = new Set(bankIds);
+    return pool.filter((q) => set.has(q.bankId));
+  }
+
+  domainsForScope(scope: QuizScope, bankIds: readonly string[] = []): { name: string; count: number }[] {
     const counts = new Map<string, number>();
-    for (const q of this.scopePools().questions[scope]) {
+    for (const q of this.poolFor(scope, bankIds)) {
       counts.set(q.domain, (counts.get(q.domain) ?? 0) + 1);
     }
     return [...counts.entries()].map(([name, count]) => ({ name, count }));
@@ -276,10 +285,11 @@ export class QuizService {
   readonly domainBreakdown = computed(() => {
     const answers = this.answersState();
     const times = this.timeSpentState();
-    const byDomain = new Map<string, { correct: number; total: number; timeSeconds: number }>();
+    const byDomain = new Map<string, { correct: number; total: number; attempted: number; timeSeconds: number }>();
     for (const q of this.questionsState()) {
-      const entry = byDomain.get(q.domain) ?? { correct: 0, total: 0, timeSeconds: 0 };
+      const entry = byDomain.get(q.domain) ?? { correct: 0, total: 0, attempted: 0, timeSeconds: 0 };
       entry.total += 1;
+      if ((answers[q.id]?.selected.length ?? 0) > 0) entry.attempted += 1;
       entry.correct += answers[q.id]?.score ?? 0;
       entry.timeSeconds += times[q.id] ?? 0;
       byDomain.set(q.domain, entry);
@@ -288,9 +298,55 @@ export class QuizService {
   });
 
   readonly answerByQuestionId = computed(() => this.answersState());
+  readonly timeSpentById = this.timeSpentState.asReadonly();
+  readonly tutorById = this.tutorState.asReadonly();
+
+  /** Pass mark of the running/last attempt (its own snapshot when reviewing history). */
+  readonly passingScorePercent = computed(
+    () => this.lastAttemptState()?.passingScorePercent ?? this.timerPack().passingScorePercent ?? DEFAULT_PASSING_SCORE_PERCENT,
+  );
+
+  /** Index of the first unanswered question after the current one (wrapping), or -1 when all are answered. */
+  readonly nextUnansweredIndex = computed(() => {
+    const flags = this.answeredFlags();
+    const n = flags.length;
+    const from = this.currentIndexState();
+    for (let step = 1; step <= n; step++) {
+      const i = (from + step) % n;
+      if (!flags[i]) return i;
+    }
+    return -1;
+  });
+
+  /** Seconds spent on a question including the live, not-yet-flushed time on the current one. */
+  liveTimeSpent(questionId: string): number {
+    this.tickState();
+    const base = this.timeSpentState()[questionId] ?? 0;
+    if (this.phaseState() !== 'running' || this.currentQuestion()?.id !== questionId) return base;
+    const end = this.questionCheckedAtState() ?? Date.now();
+    const pausedDuring = this.currentPausedMs() - this.questionStartedPausedMs;
+    return base + Math.max(0, (end - this.questionStartedAtState() - pausedDuring) / 1000);
+  }
+
+  /** Appends a tutor message to a question of the current attempt and persists it with the attempt. */
+  appendTutorMessage(questionId: string, message: TutorMessage): void {
+    this.tutorState.update((prev) => ({ ...prev, [questionId]: [...(prev[questionId] ?? []), message] }));
+    const attempt = this.lastAttemptState();
+    if (attempt) {
+      // Reviewing a finished attempt: write the Q&A into that saved attempt.
+      const updated: QuizAttempt = {
+        ...attempt,
+        answers: attempt.answers.map((a) => (a.questionId === questionId ? { ...a, tutor: this.tutorState()[questionId] } : a)),
+      };
+      this.lastAttemptState.set(updated);
+      void this.attemptsService.save(updated);
+    } else if (this.phaseState() === 'running') {
+      this.syncInProgress();
+    }
+  }
 
   start(settings: QuizSettings): void {
-    const pool = this.scopePools().questions[settings.scope];
+    const pool = this.poolFor(settings.scope, settings.bankIds ?? []);
     const filtered =
       settings.domains.length === 0 ? pool : pool.filter((q) => settings.domains.includes(q.domain));
     const ordered = settings.shuffle ? shuffle(filtered) : filtered;
@@ -306,6 +362,7 @@ export class QuizService {
     this.annotationsState.set({});
     this.timeSpentState.set({});
     this.reviewFlagsState.set({});
+    this.tutorState.set({});
     this.startedAt = Date.now();
     this.questionStartedAtState.set(this.startedAt);
     this.questionCheckedAtState.set(null);
@@ -480,7 +537,9 @@ export class QuizService {
     const annotations: Record<string, QuestionAnnotations> = {};
     const times: Record<string, number> = {};
     const flags: Record<string, boolean> = {};
+    const tutor: Record<string, TutorMessage[]> = {};
     for (const a of attempt.answers) {
+      if (a.tutor?.length) tutor[a.questionId] = a.tutor;
       answers[a.questionId] = {
         selected: a.selected,
         checked: a.checked,
@@ -496,6 +555,7 @@ export class QuizService {
     this.annotationsState.set(annotations);
     this.timeSpentState.set(times);
     this.reviewFlagsState.set(flags);
+    this.tutorState.set(tutor);
     this.currentIndexState.set(Math.max(0, Math.min(attempt.currentIndex, questions.length - 1)));
     this.lastAttemptState.set(null);
 
@@ -540,7 +600,9 @@ export class QuizService {
     );
     const answers: Record<string, QuizAnswer> = {};
     const times: Record<string, number> = {};
+    const tutor: Record<string, TutorMessage[]> = {};
     for (const a of attempt.answers) {
+      if (a.tutor?.length) tutor[a.questionId] = a.tutor;
       answers[a.questionId] = {
         selected: a.selected,
         checked: true,
@@ -557,6 +619,7 @@ export class QuizService {
     this.timeSpentState.set(times);
     this.annotationsState.set({});
     this.reviewFlagsState.set({});
+    this.tutorState.set(tutor);
     this.currentIndexState.set(0);
     this.lastAttemptState.set(attempt);
     this.timeLimitReachedAtState.set(attempt.timeLimitReachedAt ?? null);
@@ -570,6 +633,17 @@ export class QuizService {
    * MAX_IN_PROGRESS_ATTEMPTS) and come back to this one later. The time spent on
    * the current question and any annotation edits still inside the debounce
    * window are folded into this final snapshot instead of being dropped. */
+  /** Certification of the session currently held by this (app-wide) service, if any. */
+  sessionPackId(): string | null {
+    return this.phaseState() === 'setup' ? null : (this.activePackAtStart?.id ?? null);
+  }
+
+  /** Parks a running session (same as "Save and exit") or clears a results/history view, so another certification starts clean. */
+  release(): void {
+    if (this.phaseState() === 'running') this.leave();
+    else this.reset();
+  }
+
   leave(): void {
     if (this.phaseState() !== 'running') return;
     this.flushTimeSpent();
@@ -648,6 +722,7 @@ export class QuizService {
     const annotations = this.annotationsState();
     const times = this.timeSpentState();
     const flags = this.reviewFlagsState();
+    const tutor = this.tutorState();
     const answerRecords: QuizAttemptAnswer[] = this.questionsState().map((q) => {
       const a = answers[q.id] ?? EMPTY_ANSWER;
       const ann = annotations[q.id] ?? EMPTY_ANNOTATIONS;
@@ -667,6 +742,7 @@ export class QuizService {
         note: ann.note,
         timeSpentSeconds: times[q.id] ?? 0,
         markedForReview: flags[q.id] ?? false,
+        ...(tutor[q.id]?.length ? { tutor: tutor[q.id] } : {}),
       };
     });
     const totalScore = answerRecords.reduce((sum, a) => sum + a.score, 0);
@@ -677,7 +753,9 @@ export class QuizService {
       id: this.attemptId,
       status,
       packId: pack.id,
-      examSlug: slugify(pack.name) || 'exam',
+      // The pack id, not its name: two certifications can share a name, and
+      // the id never changes when the certification is renamed.
+      examSlug: pack.id,
       examName: pack.name,
       scope: this.settingsState().scope,
       mode: this.settingsState().mode,
@@ -691,6 +769,8 @@ export class QuizService {
       startedAt: this.startedAt,
       finishedAt: status === 'FINISHED' ? Date.now() : undefined,
       timeLimitReachedAt: this.timeLimitReachedAtState() ?? undefined,
+      passingScorePercent: pack.passingScorePercent ?? DEFAULT_PASSING_SCORE_PERCENT,
+      bankIds: this.settingsState().bankIds ?? [],
     };
   }
 
@@ -733,6 +813,7 @@ export function synthesizeQuestionFromAnswer(a: QuizAttemptAnswer, packId: strin
   return {
     id: a.questionId,
     packId,
+    bankId: '',
     title: a.title,
     domain: a.domain,
     stem: a.stemSnapshot,

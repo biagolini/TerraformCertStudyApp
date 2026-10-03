@@ -69,6 +69,7 @@ export class ImportExamService {
    * warning on the review screen, never validated or enforced. */
   async uploadFile(
     packId: string,
+    bankId: string,
     file: File,
     expectedQuestions?: number,
   ): Promise<{ jobId: string } | { error: string }> {
@@ -77,7 +78,7 @@ export class ImportExamService {
       const createRes = await fetch(`${this.apiUrl}/data/imports`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ packId, filename: file.name, expectedQuestions: expectedQuestions ?? null }),
+        body: JSON.stringify({ packId, bankId, filename: file.name, expectedQuestions: expectedQuestions ?? null }),
       });
       if (!createRes.ok) {
         const body = await createRes.json().catch(() => ({}) as { error?: string });

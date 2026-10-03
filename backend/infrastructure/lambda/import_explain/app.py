@@ -60,6 +60,7 @@ def handler(event, context):
     job_id = event["jobId"]
     sub = event["sub"]
     pack_id = event["packId"]
+    bank_id = event.get("bankId")
     draft_index = event["draftIndex"]
     pk = f"USER#{sub}"
     sk = f"DRAFT#{job_id}#{draft_index:04d}"
@@ -119,6 +120,7 @@ def handler(event, context):
         question = {
             "id": question_id,
             "packId": pack_id,
+            "bankId": bank_id,
             "title": draft.get("title") or "Imported question",
             "domain": draft.get("domain") or "General",
             "language": draft.get("language") or "en",
