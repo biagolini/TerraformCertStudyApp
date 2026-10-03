@@ -340,8 +340,11 @@ textarea.ui-input {
 }
 
 .ui-search {
+  // No flex-basis on purpose: inside a column flex container a basis becomes a
+  // height (that is what stretched the catalog search box to 260px tall).
   position: relative;
-  flex: 1 1 260px;
+  display: block;
+  width: 100%;
   max-width: 460px;
 
   svg {
