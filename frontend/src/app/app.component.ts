@@ -11,6 +11,7 @@ import { ImportStatusPillComponent } from './shared/components/import-status-pil
 import { OfflineIndicatorComponent } from './shared/components/offline-indicator.component';
 import { I18nService } from './core/i18n/i18n.service';
 import { withAlpha } from './core/utils/color.util';
+import { IconComponent } from './shared/components/icon.component';
 
 /**
  * Authenticated layout: a sticky header (brand → Home, breadcrumb to the
@@ -23,6 +24,7 @@ import { withAlpha } from './core/utils/color.util';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    IconComponent,
     RouterLink,
     RouterLinkActive,
     RouterOutlet,
@@ -64,10 +66,14 @@ import { withAlpha } from './core/utils/color.util';
           <app-offline-indicator />
           <app-import-status-pill />
           <app-sync-status />
+          <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="icon-btn" [attr.aria-label]="i18n.t('app.home')" [title]="i18n.t('app.home')">
+            <app-icon name="home" size="20" />
+          </a>
+          <a routerLink="/costs" routerLinkActive="active" class="icon-btn" [attr.aria-label]="i18n.t('app.costs')" [title]="i18n.t('app.costs')">
+            <app-icon name="circle-dollar" size="20" />
+          </a>
           <a routerLink="/profile" routerLinkActive="active" class="icon-btn" [attr.aria-label]="i18n.t('app.profile')" [title]="i18n.t('app.profile')">
-            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-              <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M12 12a4 4 0 100-8 4 4 0 000 8zm-7 8c0-3.3 3.1-6 7-6s7 2.7 7 6"/>
-            </svg>
+            <app-icon name="user" size="20" />
           </a>
           <app-theme-toggle />
           <a routerLink="/settings" routerLinkActive="active" class="icon-btn" [attr.aria-label]="i18n.t('app.openSettings')" [title]="i18n.t('app.openSettings')">

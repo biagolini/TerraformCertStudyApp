@@ -1050,4 +1050,5 @@ export const IT: Record<string, string> = {
   'importExam.authorRequired': 'Indica l\'autore / fornitore della nuova simulazione.',
   'quizSetup.fewer': 'Meno domande',
   'quizSetup.more': 'Più domande',
+  'app.costs': 'Costi IA e budget',
 };

@@ -1052,4 +1052,5 @@ export const EN: Record<string, string> = {
   'importExam.authorRequired': 'Enter the author / vendor of the new practice exam.',
   'quizSetup.fewer': 'Fewer questions',
   'quizSetup.more': 'More questions',
+  'app.costs': 'AI costs and budget',
 };

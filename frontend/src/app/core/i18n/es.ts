@@ -1050,4 +1050,5 @@ export const ES: Record<string, string> = {
   'importExam.authorRequired': 'Indica el autor / proveedor del nuevo simulacro.',
   'quizSetup.fewer': 'Menos preguntas',
   'quizSetup.more': 'Más preguntas',
+  'app.costs': 'Costes de IA y presupuesto',
 };
