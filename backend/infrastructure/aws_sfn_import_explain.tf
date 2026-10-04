@@ -21,6 +21,7 @@ resource "aws_sfn_state_machine" "import_exam_explain" {
   definition = templatefile("${path.module}/templates/step-functions/import_explain_workflow.asl.json.tpl", {
     explain_lambda_arn  = aws_lambda_function.import_explain.arn
     finalize_lambda_arn = aws_lambda_function.import_finalize.arn
+    table_name          = aws_dynamodb_table.data.name
   })
 
   logging_configuration {
@@ -43,6 +44,22 @@ resource "aws_iam_role" "sfn_import_explain" {
       Action    = "sts:AssumeRole"
       Effect    = "Allow"
       Principal = { Service = "states.amazonaws.com" }
+    }]
+  })
+}
+
+# RecordFailure state: counts a question that failed after all retries on the
+# job row directly (SDK integration, no Lambda). UpdateItem on this one table.
+resource "aws_iam_role_policy" "sfn_import_explain_dynamodb" {
+  name = "${var.project_prefix}-sfn-import-explain-dynamodb"
+  role = aws_iam_role.sfn_import_explain.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "dynamodb:UpdateItem"
+      Resource = aws_dynamodb_table.data.arn
     }]
   })
 }

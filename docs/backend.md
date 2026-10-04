@@ -115,7 +115,7 @@ Two independent Step Functions Standard workflows with a human review step betwe
 
 1. **`import-preprocess`** — splits the uploaded PDF/Markdown/ZIP into per-question chunks (text + candidate images), no AI involved. Part of Phase 1 (`study-import-exam`), started explicitly by `POST /data/imports/{id}/process`.
 2. **`import-extract`** (Phase 1's Map state, `MaxConcurrency: 4`, also invoked directly for a single-question re-extract) — one Bedrock Converse call per chunk, forcing structured JSON via tool-use — structure only (stem/alternatives/domain/title), no explanation. The model is a per-import choice from the frontend's "Exam import model" setting (default Nova Pro), not hardcoded — see the pipeline doc's "Model selection" for how a stronger model's much tighter Bedrock quota is absorbed. Writes a draft row per chunk, always — even on failure.
-3. **`import-explain`** (Phase 2's Map state, `MaxConcurrency: 4`, `study-import-exam-explain`) — one AgentCore Runtime review-agent call per human-approved draft, writing the final `Question` and flipping that draft's `promoted` flag. Started explicitly by `POST /data/imports/{id}/generate-explanations` once the user reviews and submits drafts from `features/import-review`.
+3. **`import-explain`** (Phase 2's Map state, concurrency chosen by the user (1-10, default 4), `study-import-exam-explain`; named-error retries, see the pipeline doc's "Phase 2 reliability") — one AgentCore Runtime review-agent call per human-approved draft, writing the final `Question` and flipping that draft's `promoted` flag. Started explicitly by `POST /data/imports/{id}/generate-explanations` once the user reviews and submits drafts from `features/import-review`.
 4. **`import-finalize`** — shared by both phases (`event["phase"]` selects the status vocabulary) — aggregates a Map's results into the job's status.
 
 See [Bulk exam import pipeline](./question-import-pipeline.md) for the full design, including why extraction needs a vision-capable model instead of a deterministic parser, how images get associated with the right question, and why `import-finalize` checks the whole job's remaining drafts rather than just the current batch before ever reporting `SUCCEEDED`.
@@ -136,7 +136,7 @@ Four single-table-design tables, all partitioned per user (`pk = USER#{sub}`): a
 | Lambda import-explain | DynamoDB `GetItem`/`UpdateItem` (general + import-drafts tables), `PutItem` (questions table); `bedrock-agentcore:InvokeAgentRuntime` on the review agent's Runtime |
 | Lambda import-finalize | DynamoDB `GetItem`/`PutItem` (general table), `Query` (import-drafts table — checks remaining unpromoted drafts before reporting a phase="explain" job SUCCEEDED) |
 | Step Functions (`study-import-exam`) | `lambda:InvokeFunction` on `import-preprocess`/`import-extract`/`import-finalize`; CloudWatch Logs delivery (for `logging_configuration`) |
-| Step Functions (`study-import-exam-explain`) | `lambda:InvokeFunction` on `import-explain`/`import-finalize`; CloudWatch Logs delivery |
+| Step Functions (`study-import-exam-explain`) | `lambda:InvokeFunction` on `import-explain`/`import-finalize`; `dynamodb:UpdateItem` on the general table (RecordFailure state); CloudWatch Logs delivery |
 | API Gateway | `lambda:InvokeFunction`, `lambda:InvokeFunctionUrl` |
 
 ## Related docs

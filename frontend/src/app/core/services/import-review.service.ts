@@ -9,6 +9,27 @@ import { AuthService } from './auth.service';
  * lifecycle: active from app boot regardless of route). A human reviewing
  * a static list doesn't need it to silently change under them, so this
  * service does no polling of its own. */
+export interface DraftLogEvent {
+  timestamp: number;
+  message: string;
+  /** "lambda" (import-explain) or "agent" (AgentCore review agent). */
+  source?: 'lambda' | 'agent';
+}
+
+/** One import-explain invocation (one attempt, retries included). */
+export interface DraftLogCall {
+  callId: string | null;
+  requestId: string | null;
+  at: number;
+  events: DraftLogEvent[];
+}
+
+export interface DraftLogs {
+  requestId: string | null;
+  calls: DraftLogCall[];
+  events: DraftLogEvent[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class ImportReviewService {
   private readonly auth = inject(AuthService);
@@ -64,16 +85,17 @@ export class ImportReviewService {
   async getDraftLogs(
     jobId: string,
     index: number,
-  ): Promise<{ requestId: string | null; events: { timestamp: number; message: string }[]; error?: string }> {
+  ): Promise<DraftLogs & { error?: string }> {
     const token = await this.auth.getValidToken();
     const res = await fetch(`${this.apiUrl}/data/imports/${jobId}/drafts/${index}/logs`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}) as { error?: string });
-      return { requestId: null, events: [], error: body.error || 'Failed to load logs.' };
+      return { requestId: null, calls: [], events: [], error: body.error || 'Failed to load logs.' };
     }
-    return (await res.json()) as { requestId: string | null; events: { timestamp: number; message: string }[] };
+    const body = (await res.json()) as DraftLogs;
+    return { ...body, calls: body.calls ?? [] };
   }
 
   /** Directly overwrites one draft's content with what the reviewer typed
@@ -131,12 +153,15 @@ export class ImportReviewService {
    * the backend's own default when draftIndices is omitted. The caller
    * navigates away afterward — ImportExamService's existing poller picks
    * up GENERATING progress on its next tick, no extra wiring needed here. */
-  async startExplanations(jobId: string): Promise<{ error?: string }> {
+  async startExplanations(
+    jobId: string,
+    options: { modelId: string; timeoutSeconds: number; maxConcurrency: number },
+  ): Promise<{ error?: string }> {
     const token = await this.auth.getValidToken();
     const res = await fetch(`${this.apiUrl}/data/imports/${jobId}/generate-explanations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({}),
+      body: JSON.stringify(options),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}) as { error?: string });

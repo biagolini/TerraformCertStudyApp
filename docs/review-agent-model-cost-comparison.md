@@ -4,7 +4,7 @@
 
 ## Why this came up
 
-The migration's mission explicitly asked for a Claude model ("quality over speed" for explanation writing), so the agent (`backend/infrastructure/agent/review_agent/app.py`) defaulted to `us.anthropic.claude-sonnet-4-6`. Direct end-to-end testing against the deployed AgentCore Runtime (in the project's AWS account, region `us-east-1`) hit account-level Bedrock access problems that had nothing to do with the agent code itself.
+The migration's mission explicitly asked for a Claude model ("quality over speed" for explanation writing), so the agent (`backend/infrastructure/agent/review_agent/app.py`) defaulted to `us.anthropic.claude-sonnet-4-6`. Direct end-to-end testing against the deployed AgentCore Runtime (region `us-east-1`) hit account-level Bedrock access problems that had nothing to do with the agent code itself. Any account deploying this project can hit the same ones, so check model access before switching models.
 
 ## What actually failed, in order
 
@@ -18,7 +18,7 @@ The migration's mission explicitly asked for a Claude model ("quality over speed
    ```
    Third-party models on Bedrock (Anthropic, Meta, Mistral, etc.) are provisioned through an AWS Marketplace subscription behind the scenes, separate from the account's regular AWS billing. This error means the account's AWS Marketplace payment method isn't set up — a Billing and Cost Management console fix, not something Terraform, IAM, or the agent code can resolve. It also explains why the AWS Bedrock **console Playground** could successfully call `claude-sonnet-4-6` (confirmed directly by the project owner) while the API path could not: the Playground doesn't force the same Marketplace subscription completion the `Converse`/`ConverseStream` API call does.
 
-## What was confirmed working in this account (same day)
+## What was confirmed working in the test account (same day)
 
 Tested directly via `bedrock-runtime converse` with the project's AWS profile:
 
@@ -28,7 +28,7 @@ Tested directly via `bedrock-runtime converse` with the project's AWS profile:
 | `us.amazon.nova-pro-v1:0` | Works (already used by `import_extract`'s structure-extraction call) |
 | `us.amazon.nova-premier-v1:0` | Fails — AWS marks it legacy/inactive, unrelated to billing |
 | `us.anthropic.claude-sonnet-4-6` | Blocked on the Marketplace payment-instrument issue above |
-| `us.anthropic.claude-sonnet-5` | Not available for this account at all |
+| `us.anthropic.claude-sonnet-5` | Not available for that account at all |
 
 Only `amazon.nova-2-lite-v1:0` and `amazon.nova-pro-v1:0` (no Nova 2 Pro/Premier variant exists yet — confirmed via `bedrock list-foundation-models --by-provider Amazon`) are viable text-generation candidates for the review agent today.
 
@@ -47,12 +47,12 @@ Notable: Nova 2 Lite is cheaper than Nova Pro on **both** input and output, desp
 
 ## Recommendation
 
-`review_agent_model_id` currently defaults to `us.anthropic.claude-sonnet-4-6` per the original mission requirement, still blocked on the Marketplace payment-instrument issue above. Recommended interim default, pending the project owner's decision: `us.amazon.nova-2-lite-v1:0` with reasoning enabled (the app already has a working reasoning code path for `nova-2*` models — see `REASONING_MODEL_PATTERNS` in `backend/infrastructure/lambda/converse/app.py`):
+`review_agent_model_id` defaults to `us.amazon.nova-2-lite-v1:0` with reasoning enabled (the app already has a working reasoning code path for `nova-2*` models — see `REASONING_MODEL_PATTERNS` in `backend/infrastructure/lambda/converse/app.py`):
 
-- Already confirmed working in this account, with reasoning, independent of the Anthropic Marketplace billing fix.
+- Works without an AWS Marketplace subscription (first-party Amazon model), with reasoning.
 - Cheaper than Nova Pro (the model `import_extract` already uses) on both axes.
 - Reasoning is a genuine fit for the agent's own research-then-write pattern (look up AWS documentation via the Gateway/MCP tool, then draft the explanation — see the `aws-doc-grounding` skill).
-- Trivial to switch back to Claude later — a single Terraform variable, no other code changes — once the AWS Marketplace payment method is fixed.
+- Easy to change: a single Terraform variable for the default, and the user can also pick another model per run in Settings (AI import review model), provided the deploying account has access to it.
 
 ## Sources
 

@@ -27,6 +27,12 @@ IMPORT_EXPLAIN_STATE_MACHINE_ARN = os.environ.get("IMPORT_EXPLAIN_STATE_MACHINE_
 IMPORT_EXTRACT_LAMBDA_ARN = os.environ.get("IMPORT_EXTRACT_LAMBDA_ARN", "")
 IMPORT_FINALIZE_LAMBDA_ARN = os.environ.get("IMPORT_FINALIZE_LAMBDA_ARN", "")
 IMPORT_EXPLAIN_LOG_GROUP_NAME = os.environ.get("IMPORT_EXPLAIN_LOG_GROUP_NAME", "")
+REVIEW_AGENT_LOG_GROUP_NAME = os.environ.get("REVIEW_AGENT_LOG_GROUP_NAME", "")
+# Phase 2 run options chosen by the user (Settings, "AI import review").
+# Model ids are validated by shape only: IAM decides which models work.
+REVIEW_MODEL_ID_RE = re.compile(r"^[A-Za-z0-9.:_-]{3,128}$")
+REVIEW_TIMEOUT_DEFAULT, REVIEW_TIMEOUT_MIN, REVIEW_TIMEOUT_MAX = 300, 60, 840
+REVIEW_CONCURRENCY_DEFAULT, REVIEW_CONCURRENCY_MIN, REVIEW_CONCURRENCY_MAX = 4, 1, 10
 # Mirrors lambda/import_extract/app.py's own VALID_IMAGE_TARGETS — a manual
 # draft edit must accept only the same classifications extraction itself
 # can produce, see ImportDraftImage on the frontend.
@@ -83,7 +89,7 @@ _models_cache = {"ts": 0.0, "data": None}
 # server-side (converse/app.py's MODEL_ID, review_agent's BEDROCK_MODEL_ID,
 # import_extract's BEDROCK_EXTRACTION_MODEL_ID, this file's TITLE_MODEL_ID,
 # review_agent's RELATED_SERVICES_MODEL_ID — all Amazon Nova). Bedrock
-# doesn't expose per-call pricing via any API, and this account's live model
+# doesn't expose per-call pricing via any API, and an account's live model
 # catalog (GET /data/models, below) can include preview/internal models
 # with no published on-demand price at all — a model missing here shows
 # its real token counts with a null cost rather than a guessed number.
@@ -1517,40 +1523,104 @@ def re_extract_draft(item_id, index):
 
 @app.route("/data/imports/<item_id>/drafts/<int:index>/logs", methods=["GET"])
 def get_draft_logs(item_id, index):
-    """Real CloudWatch logs for the specific import-explain invocation that
-    failed on this draft — surfaced next to a failed "Refine extraction
-    with AI" result so a bad run can be diagnosed without leaving the app.
-    `requestId` isn't on the draft itself — a failed explain call never
-    updates its draft (see lambda/import_explain/app.py, which only writes
-    the draft on success) — it's recorded on the JOB's `failures` list by
-    lambda/import_finalize/app.py's _normalize_failure. A draft with no
-    matching failure entry (never ran Phase 2, or succeeded) returns an
-    empty result rather than an error."""
+    """CloudWatch lines for this draft's Phase 2 calls, newest call first.
+
+    Each import-explain invocation records {callId, requestId, at,
+    timeoutSeconds} on the draft (`explainCalls`, one entry per attempt,
+    retries included) and logs JSON lines carrying that callId; the review
+    agent logs the same callId on every line. So each call's lines come from
+    two log groups: the Lambda's (matched by its request id) and the
+    agent's (matched by callId). Queries are bounded to the call's own time
+    window and paginated: an unbounded FilterLogEvents often returns an
+    empty first page with a nextToken, which is what made this view show
+    "No log lines found" before.
+    """
     pk = _user_pk()
     if not pk:
         return _error("Unauthorized", 401)
     if not IMPORT_EXPLAIN_LOG_GROUP_NAME:
         return _error("Logs are not configured", 500)
 
-    job_item = table.get_item(Key={"pk": pk, "sk": f"IMPORTJOB#{item_id}"}).get("Item")
-    if not job_item:
-        return _error("Job not found", 404)
-    job_data = json.loads(job_item["data"]) if isinstance(job_item.get("data"), str) else job_item.get("data", {})
-    failure = next((f for f in (job_data.get("failures") or []) if f.get("index") == index), None)
-    request_id = failure.get("requestId") if failure else None
-    if not request_id:
-        return _json({"requestId": None, "events": []})
+    draft_item = import_drafts_table.get_item(Key={"pk": pk, "sk": f"DRAFT#{item_id}#{index:04d}"}).get("Item") or {}
+    calls = [dict(c) for c in (draft_item.get("explainCalls") or [])][-5:]
+    if not calls:
+        # Drafts that failed before callIds existed: fall back to the
+        # request id the job's failures list kept.
+        job_item = table.get_item(Key={"pk": pk, "sk": f"IMPORTJOB#{item_id}"}).get("Item") or {}
+        job_data = json.loads(job_item["data"]) if isinstance(job_item.get("data"), str) else job_item.get("data", {})
+        failure = next((f for f in (job_data.get("failures") or []) if f.get("index") == index), None)
+        if failure and failure.get("requestId"):
+            calls = [{"callId": None, "requestId": failure["requestId"],
+                      "at": int(job_data.get("createdAt") or 0), "timeoutSeconds": REVIEW_TIMEOUT_MAX}]
+    if not calls:
+        return _json({"requestId": None, "calls": [], "events": []})
 
-    resp = logs_client.filter_log_events(
-        logGroupName=IMPORT_EXPLAIN_LOG_GROUP_NAME,
-        filterPattern=f'"{request_id}"',
-        limit=200,
-    )
-    events = [
-        {"timestamp": e["timestamp"], "message": e["message"]}
-        for e in resp.get("events", [])
-    ]
-    return _json({"requestId": request_id, "events": events})
+    now_ms = int(time.time() * 1000)
+    out = []
+    for call in reversed(calls):
+        at = int(call.get("at") or 0)
+        window = (max(0, at - 60_000), min(now_ms, at + (int(call.get("timeoutSeconds") or REVIEW_TIMEOUT_MAX) + 300) * 1000))
+        events = []
+        if call.get("requestId"):
+            events += _filter_logs(IMPORT_EXPLAIN_LOG_GROUP_NAME, call["requestId"], window, "lambda")
+        if call.get("callId") and REVIEW_AGENT_LOG_GROUP_NAME:
+            events += _filter_logs(REVIEW_AGENT_LOG_GROUP_NAME, call["callId"], window, "agent")
+        events.sort(key=lambda e: e["timestamp"])
+        out.append({"callId": call.get("callId"), "requestId": call.get("requestId"), "at": at, "events": events})
+    flat = [e for c in out for e in c["events"]]
+    return _json({"requestId": out[0]["requestId"], "calls": out, "events": flat})
+
+
+LOG_PAGE_LIMIT = 10
+LOG_EVENT_LIMIT = 300
+LOG_MESSAGE_MAX = 4000
+
+
+def _filter_logs(group, term, window, source):
+    """All events in `group` containing `term` within `window`, paginated.
+    Agent lines arrive twice (plain stdout and the OTEL-wrapped copy whose
+    `body` holds the same text), so the OTEL wrapper is unwrapped and
+    duplicates are dropped."""
+    events, seen, token = [], set(), None
+    for _ in range(LOG_PAGE_LIMIT):
+        kwargs = {"logGroupName": group, "filterPattern": f'"{term}"',
+                  "startTime": window[0], "endTime": window[1], "limit": 100}
+        if token:
+            kwargs["nextToken"] = token
+        try:
+            resp = logs_client.filter_log_events(**kwargs)
+        except ClientError as e:
+            events.append({"timestamp": window[0], "source": source,
+                           "message": f"(could not read {source} logs: {e.response.get('Error', {}).get('Code')})"})
+            break
+        for e in resp.get("events", []):
+            message = e["message"]
+            try:
+                parsed = json.loads(message)
+                if isinstance(parsed, dict) and "body" in parsed:
+                    message = parsed["body"] if isinstance(parsed["body"], str) else json.dumps(parsed["body"])
+            except ValueError:
+                pass
+            message = message.strip()
+            key = message[-300:]
+            if key in seen:
+                continue
+            seen.add(key)
+            events.append({"timestamp": e["timestamp"], "source": source, "message": message[:LOG_MESSAGE_MAX]})
+            if len(events) >= LOG_EVENT_LIMIT:
+                return events
+        token = resp.get("nextToken")
+        if not token:
+            break
+    return events
+
+
+def _clamp_int(value, default, low, high):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(low, min(high, number))
 
 
 @app.route("/data/imports/<item_id>/generate-explanations", methods=["POST"])
@@ -1601,6 +1671,13 @@ def generate_explanations(item_id):
         return _error("No approved questions to process", 400)
     indices.sort()
 
+    model_id = str(body.get("modelId") or "")
+    if model_id and not REVIEW_MODEL_ID_RE.fullmatch(model_id):
+        return _error("Invalid modelId", 400)
+    timeout_seconds = _clamp_int(body.get("timeoutSeconds"), REVIEW_TIMEOUT_DEFAULT, REVIEW_TIMEOUT_MIN, REVIEW_TIMEOUT_MAX)
+    max_concurrency = _clamp_int(body.get("maxConcurrency"), REVIEW_CONCURRENCY_DEFAULT, REVIEW_CONCURRENCY_MIN, REVIEW_CONCURRENCY_MAX)
+    job_data["reviewOptions"] = {"modelId": model_id or None, "timeoutSeconds": timeout_seconds, "maxConcurrency": max_concurrency}
+
     job_data["status"] = "GENERATING"
     job_data["explainTotal"] = len(indices)
     job_data["completedAt"] = None
@@ -1621,6 +1698,13 @@ def generate_explanations(item_id):
             "packId": job_data.get("packId"),
             "bankId": job_data.get("bankId"),
             "draftIndices": indices,
+            # Empty modelId = the agent's own default (BEDROCK_MODEL_ID).
+            "modelId": model_id,
+            "timeoutSeconds": timeout_seconds,
+            # Step Functions' own task timeout: the agent wait plus room for
+            # DynamoDB work, so a stuck invocation is cut off and retried.
+            "taskTimeoutSeconds": timeout_seconds + 60,
+            "maxConcurrency": max_concurrency,
         }),
     )
     return _json({"ok": True, "queued": len(indices)})

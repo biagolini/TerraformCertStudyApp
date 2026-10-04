@@ -9,9 +9,17 @@ half of what used to be one combined call inside import_extract — split
 out so a bad extraction can be caught and fixed on the review screen
 before this (slower, AgentCore-backed) step ever runs on it.
 
-Never raises — any failure here is caught internally and returned as a
-normal {"status": "FAILED"} result, mirroring import_extract's own
-fault-isolation philosophy, so one bad question never fails the whole Map.
+Failures RAISE a named exception (see the classes below) instead of
+returning a FAILED result, so the Step Functions task can Retry the
+transient ones (malformed model output, throttling, timeout) and Catch the
+rest. The Map's Catch records the failure and bumps the job counters (see
+import_explain_workflow.asl.json.tpl), so one bad question still never
+fails the whole Map, and a retried question is never counted twice.
+
+Every invocation gets a `callId`, logged as JSON here and passed to the
+review agent, which logs it on every one of its own lines. The draft keeps
+the list of its calls (`explainCalls`, native attribute) so the review
+screen's "Show logs" can fetch exactly those lines from both log groups.
 """
 
 import json
@@ -19,11 +27,13 @@ import logging
 import os
 import re
 import time
+import traceback
 import uuid
 
 import boto3
 from aws_xray_sdk.core import patch_all, xray_recorder
 from botocore.config import Config
+from botocore.exceptions import ClientError, ReadTimeoutError
 
 patch_all()
 logging.getLogger().setLevel(logging.INFO)
@@ -41,19 +51,45 @@ questions_table = dynamodb.Table(QUESTIONS_TABLE_NAME)
 # Dedicated `costs` table for usage/budget rows, not `table` (study-data) —
 # see docs/dynamodb-schema.md and aws_dynamodb.tf's comment.
 costs_table = dynamodb.Table(COSTS_TABLE_NAME)
-# boto3's default read_timeout (60s) is too short for this call — observed
-# directly: a real explain call that took 71s (reasoning + an extra MCP
-# doc-lookup round-trip) succeeded on the agent side ("ok": true in its own
-# CloudWatch logs) but this client gave up first and reported it as a
-# "Read timeout" failure. That failure was previously misattributed
-# entirely to the shared-MCP-client concurrency bug (see review_agent/
-# app.py's _make_mcp_tools) — this is a second, independent cause of the
-# same symptom. retries disabled: retrying a slow-but-working call would
-# only double the cost of something that just needs more time to wait for.
-agentcore = boto3.client(
-    "bedrock-agentcore",
-    config=Config(read_timeout=170, connect_timeout=10, retries={"max_attempts": 0}),
-)
+# The wait for the agent is the user's "max wait" setting (event
+# timeoutSeconds), so the client is built per invocation. boto3's default
+# read_timeout (60s) was too short for a slow-but-working call (reasoning
+# plus an MCP doc lookup took 71s once). Client-side retries are disabled:
+# Step Functions owns retries, so a retry is visible and bounded.
+DEFAULT_TIMEOUT_SECONDS = 300
+MIN_TIMEOUT_SECONDS = 60
+MAX_TIMEOUT_SECONDS = 840  # below the function's own 900s timeout
+
+
+def _agentcore_client(timeout_seconds):
+    return boto3.client(
+        "bedrock-agentcore",
+        config=Config(read_timeout=timeout_seconds, connect_timeout=10, retries={"max_attempts": 0}),
+    )
+
+
+class ReviewAgentMalformedOutput(Exception):
+    """The model never produced valid structured output (retryable)."""
+
+
+class ReviewAgentThrottled(Exception):
+    """Bedrock/AgentCore throttled the call (retryable with backoff)."""
+
+
+class ReviewAgentTimeout(Exception):
+    """No answer within the user's max wait (retryable once)."""
+
+
+class ReviewAgentError(Exception):
+    """Any other agent failure (not retried)."""
+
+
+class BudgetExceeded(Exception):
+    """Monthly AI budget reached (not retried)."""
+
+
+def _log(event, call_id, **fields):
+    print(json.dumps({"event": event, "callId": call_id, **fields}, default=str))
 
 
 def handler(event, context):
@@ -62,8 +98,16 @@ def handler(event, context):
     pack_id = event["packId"]
     bank_id = event.get("bankId")
     draft_index = event["draftIndex"]
+    model_id = event.get("modelId") or None
+    timeout_seconds = _clamp_timeout(event.get("timeoutSeconds"))
     pk = f"USER#{sub}"
     sk = f"DRAFT#{job_id}#{draft_index:04d}"
+    call_id = uuid.uuid4().hex
+    started = int(time.time() * 1000)
+    _log("explain_start", call_id, requestId=context.aws_request_id, jobId=job_id, draftIndex=draft_index,
+         modelId=model_id, timeoutSeconds=timeout_seconds)
+    _record_call(pk, sk, {"callId": call_id, "requestId": context.aws_request_id, "at": started,
+                          "timeoutSeconds": timeout_seconds})
 
     try:
         draft_item = import_drafts_table.get_item(Key={"pk": pk, "sk": sk}).get("Item")
@@ -75,7 +119,7 @@ def handler(event, context):
 
         budget_error = _check_budget(pk)
         if budget_error:
-            raise ValueError(budget_error)
+            raise BudgetExceeded(budget_error)
 
         pack = _load_pack(pk, pack_id)
         images = draft.get("images") or []
@@ -85,6 +129,9 @@ def handler(event, context):
             pack,
             source_general_comment=draft.get("sourceGeneralComment"),
             images=images,
+            model_id=model_id,
+            call_id=call_id,
+            timeout_seconds=timeout_seconds,
         )
         _write_usage_event(
             pk, "importExplain", explanation.get("modelId"), explanation.get("usage"),
@@ -155,22 +202,39 @@ def handler(event, context):
         )
 
         _increment_job_counters(pk, job_id, failed=False)
-        return {"index": draft_index, "status": "SUCCEEDED", "questionId": question_id}
-    except Exception as e:  # noqa: BLE001 — any failure here must degrade to a per-item result
-        # Logged with the request id front and center so the "Show logs" button
-        # (data Lambda's GET .../logs route) can find exactly this invocation's
-        # output via logs:FilterLogEvents on the request id alone.
-        logging.exception(
-            "import_explain failed job=%s index=%s request_id=%s",
-            job_id, draft_index, context.aws_request_id,
+        _log("explain_end", call_id, ok=True, requestId=context.aws_request_id, draftIndex=draft_index,
+             attempts=explanation.get("attempts"), durationMs=int(time.time() * 1000) - started)
+        return {"index": draft_index, "status": "SUCCEEDED", "questionId": question_id, "callId": call_id}
+    except Exception as e:
+        named = e if isinstance(e, (ReviewAgentMalformedOutput, ReviewAgentThrottled, ReviewAgentTimeout,
+                                    ReviewAgentError, BudgetExceeded)) else ReviewAgentError(str(e))
+        _log("explain_end", call_id, ok=False, requestId=context.aws_request_id, draftIndex=draft_index,
+             errorType=type(named).__name__, error=str(e), durationMs=int(time.time() * 1000) - started,
+             traceback=traceback.format_exc()[-4000:])
+        raise named from e
+
+
+def _clamp_timeout(value):
+    try:
+        seconds = int(value)
+    except (TypeError, ValueError):
+        return DEFAULT_TIMEOUT_SECONDS
+    return max(MIN_TIMEOUT_SECONDS, min(MAX_TIMEOUT_SECONDS, seconds))
+
+
+def _record_call(pk, sk, call):
+    """Appends this invocation to the draft's `explainCalls` (native list,
+    capped by the reader, not here). Best-effort: logging aids must never
+    block the real work."""
+    try:
+        import_drafts_table.update_item(
+            Key={"pk": pk, "sk": sk},
+            UpdateExpression="SET explainCalls = list_append(if_not_exists(explainCalls, :empty), :c)",
+            ExpressionAttributeValues={":empty": [], ":c": [call]},
+            ConditionExpression="attribute_exists(pk)",
         )
-        _increment_job_counters(pk, job_id, failed=True)
-        return {
-            "index": draft_index,
-            "status": "FAILED",
-            "error": str(e),
-            "requestId": context.aws_request_id,
-        }
+    except Exception:  # noqa: BLE001
+        print(json.dumps({"event": "record_call_failed", "callId": call.get("callId")}))
 
 
 USAGE_TTL_SECONDS = 365 * 24 * 60 * 60
@@ -277,7 +341,9 @@ def _add_budget_spend(pk, cost_usd):
 
 
 def _increment_job_counters(pk, job_id, failed):
-    """Same atomic native-attribute increment lambda/import_extract uses —
+    """Success path only; failures are counted by the workflow's
+    RecordFailure state after retries are exhausted. Same atomic
+    native-attribute increment lambda/import_extract uses —
     safe under the Map's concurrent iterations. The `data` Lambda's
     generate-explanations route resets both counters to 0 before starting
     this phase, so they always reflect only this phase's own run."""
@@ -337,7 +403,8 @@ def _pack_context(pack):
     }
 
 
-def _generate_explanation(stem, alternatives, pack, output_language="", source_general_comment=None, images=None):
+def _generate_explanation(stem, alternatives, pack, output_language="", source_general_comment=None, images=None,
+                          model_id=None, call_id=None, timeout_seconds=DEFAULT_TIMEOUT_SECONDS):
     """Calls the AgentCore Runtime review agent (mode=explain_structured,
     non-streaming) for the explanation content — moved verbatim from
     lambda/import_extract/app.py, which used to make this same call itself
@@ -375,24 +442,46 @@ def _generate_explanation(stem, alternatives, pack, output_language="", source_g
         ],
         "sourceGeneralComment": source_general_comment,
         "images": images or [],
+        "callId": call_id,
     }
-    with xray_recorder.in_subsegment("invoke_review_agent"):
-        response = agentcore.invoke_agent_runtime(
-            agentRuntimeArn=AGENT_RUNTIME_ARN,
-            runtimeSessionId=uuid.uuid4().hex + uuid.uuid4().hex,
-            payload=json.dumps(payload).encode("utf-8"),
-        )
+    if model_id:
+        payload["modelId"] = model_id
+    try:
+        with xray_recorder.in_subsegment("invoke_review_agent"):
+            response = _agentcore_client(timeout_seconds).invoke_agent_runtime(
+                agentRuntimeArn=AGENT_RUNTIME_ARN,
+                runtimeSessionId=uuid.uuid4().hex + uuid.uuid4().hex,
+                payload=json.dumps(payload).encode("utf-8"),
+            )
+    except ReadTimeoutError as e:
+        raise ReviewAgentTimeout(f"No answer from the review agent within {timeout_seconds}s") from e
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code", "")
+        if "Throttl" in code or code in ("ServiceQuotaExceededException", "TooManyRequestsException"):
+            raise ReviewAgentThrottled(str(e)) from e
+        raise ReviewAgentError(str(e)) from e
     # The agent's HTTP contract is always SSE-framed ("data: {...}" lines),
     # even for this logically non-streaming call — see review_agent/app.py's
     # module docstring on why (its entrypoint is always an async generator).
     result = None
-    for line in response["response"].iter_lines(chunk_size=1):
-        if not line:
-            continue
-        text = line.decode("utf-8")
-        if text.startswith("data: "):
-            text = text[len("data: "):]
-        result = json.loads(text)
-    if not result or "error" in result:
-        raise ValueError(f"Review agent failed: {(result or {}).get('error', 'empty response')}")
+    try:
+        for line in response["response"].iter_lines(chunk_size=1):
+            if not line:
+                continue
+            text = line.decode("utf-8")
+            if text.startswith("data: "):
+                text = text[len("data: "):]
+            result = json.loads(text)
+    except ReadTimeoutError as e:
+        raise ReviewAgentTimeout(f"No answer from the review agent within {timeout_seconds}s") from e
+    if not result:
+        raise ReviewAgentError("Review agent returned an empty response")
+    if "error" in result:
+        message = f"Review agent failed: {result['error']}"
+        code = result.get("errorCode")
+        if code == "MALFORMED_OUTPUT":
+            raise ReviewAgentMalformedOutput(message)
+        if code == "THROTTLED":
+            raise ReviewAgentThrottled(message)
+        raise ReviewAgentError(message)
     return result

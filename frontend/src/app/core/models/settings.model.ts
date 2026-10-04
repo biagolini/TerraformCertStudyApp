@@ -11,6 +11,12 @@ export interface AppSettings {
   theme: ThemeMode;
   defaultModel: string;
   importExtractionModel: string;
+  /** Model the review agent writes import explanations with ("Refine with AI"). */
+  importReviewModel: string;
+  /** Max seconds to wait for one question's AI review before giving up (60..840). */
+  importReviewTimeoutSeconds: number;
+  /** How many questions are reviewed in parallel (1..10). */
+  importReviewConcurrency: number;
   activePackId: string;
   activeMethod: StudyMethod;
   /** Language the app's own UI (buttons, labels, menus) is rendered in —
@@ -55,11 +61,17 @@ export const DEFAULT_MODEL = 'amazon.nova-lite-v1:0';
 // so this must match exactly or the Settings dropdown shows it as "not in
 // current list" even though it's a perfectly valid, selectable option.
 export const DEFAULT_IMPORT_EXTRACTION_MODEL = 'us.amazon.nova-pro-v1:0';
+export const DEFAULT_IMPORT_REVIEW_MODEL = 'us.amazon.nova-2-lite-v1:0';
+export const IMPORT_REVIEW_TIMEOUT_OPTIONS = [60, 120, 180, 300, 480, 600, 840];
+export const IMPORT_REVIEW_CONCURRENCY_MAX = 10;
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'light',
   defaultModel: DEFAULT_MODEL,
   importExtractionModel: DEFAULT_IMPORT_EXTRACTION_MODEL,
+  importReviewModel: DEFAULT_IMPORT_REVIEW_MODEL,
+  importReviewTimeoutSeconds: 300,
+  importReviewConcurrency: 4,
   activePackId: '',
   activeMethod: 'question',
   interfaceLanguage: 'en',

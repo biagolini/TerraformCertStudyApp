@@ -56,10 +56,10 @@ RETRYABLE_BEDROCK_ERRORS = {
     "ModelTimeoutException",
     "ServiceUnavailableException",
 }
-# Some models have a much tighter requests-per-minute ceiling than others —
-# e.g. this account's cross-region "Nova Pro" quota is 25 req/min, vs. 200
-# req/min for "Nova Lite" — and the Map's 4-way concurrency alone is enough
-# to exceed the smaller budget. A short, fixed backoff (previously 1.5s,
+# Some models have a much tighter Bedrock requests-per-minute quota than
+# others (check the account's Bedrock quotas: a cross-region Nova Pro quota
+# can be as low as 25 req/min while Nova Lite allows far more), and the
+# Map's 4-way concurrency alone is enough to exceed the smaller budget. A short, fixed backoff (previously 1.5s,
 # 3s) isn't nearly enough runway for that; this uses a longer exponential
 # backoff with jitter (jitter spreads out the 4 concurrent workers so they
 # don't all retry in lockstep and collide again) while staying well within

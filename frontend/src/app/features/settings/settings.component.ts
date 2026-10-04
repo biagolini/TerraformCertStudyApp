@@ -5,7 +5,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, output, signal } 
 import { FormsModule } from '@angular/forms';
 import { NAV_ITEMS, NavTabId } from '../../core/models/nav-item.model';
 import { MAX_QUIZ_TOOLBAR_ROWS, QuizToolId } from '../../core/models/quiz-tool.model';
-import { OUTPUT_LANGUAGES } from '../../core/models/settings.model';
+import { OUTPUT_LANGUAGES, IMPORT_REVIEW_TIMEOUT_OPTIONS, IMPORT_REVIEW_CONCURRENCY_MAX } from '../../core/models/settings.model';
 import { INTERFACE_LANGUAGES, InterfaceLanguage } from '../../core/models/i18n.model';
 import { AuthService } from '../../core/services/auth.service';
 import { ModelsService } from '../../core/services/models.service';
@@ -141,6 +141,43 @@ import { I18nService } from '../../core/i18n/i18n.service';
               <option [value]="importExtractionModel()">{{ importExtractionModel() }} ({{ i18n.t('settings.notInCurrentList') }})</option>
             }
           </select>
+        </section>
+
+        <section class="block">
+          <header class="section-header">
+            <h3>{{ i18n.t('settings.importReview') }}</h3>
+            <p class="helper">{{ i18n.t('settings.importReviewHelp') }}</p>
+          </header>
+          <label class="review-field">
+            <span>{{ i18n.t('settings.importReviewModel') }}</span>
+            <select class="text-input" [ngModel]="importReviewModel()" (ngModelChange)="settingsService.setImportReviewModel($event)" [attr.aria-label]="i18n.t('settings.importReviewModel')">
+              @for (model of availableModels(); track model.id) {
+                <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (' + i18n.t('settings.reasoning') + ')' : '' }} — {{ model.tier }}</option>
+              }
+              @if (!availableHas(importReviewModel())) {
+                <option [value]="importReviewModel()">{{ importReviewModel() }} ({{ i18n.t('settings.notInCurrentList') }})</option>
+              }
+            </select>
+          </label>
+          <div class="review-row">
+            <label class="review-field">
+              <span>{{ i18n.t('settings.importReviewTimeout') }}</span>
+              <select class="text-input" [ngModel]="importReviewTimeoutSeconds()" (ngModelChange)="settingsService.setImportReviewTimeoutSeconds($event)" [attr.aria-label]="i18n.t('settings.importReviewTimeout')">
+                @for (s of timeoutOptions; track s) {
+                  <option [ngValue]="s">{{ formatWait(s) }}</option>
+                }
+              </select>
+            </label>
+            <label class="review-field">
+              <span>{{ i18n.t('settings.importReviewConcurrency') }}</span>
+              <select class="text-input" [ngModel]="importReviewConcurrency()" (ngModelChange)="settingsService.setImportReviewConcurrency($event)" [attr.aria-label]="i18n.t('settings.importReviewConcurrency')">
+                @for (n of concurrencyOptions; track n) {
+                  <option [ngValue]="n">{{ n }}</option>
+                }
+              </select>
+            </label>
+          </div>
+          <p class="helper">{{ i18n.t('settings.importReviewCostHint') }}</p>
         </section>
 
         <section class="block">
@@ -472,6 +509,19 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .helper.clear-warn {
         color: var(--color-amber);
       }
+      .review-row {
+        display: grid;
+        gap: var(--space-sm);
+        grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+      }
+      .review-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: var(--font-size-sm);
+        font-weight: 600;
+        color: var(--text-secondary);
+      }
       .account-email {
         font-size: var(--font-size-base);
         font-weight: 600;
@@ -711,6 +761,16 @@ export class SettingsComponent {
   readonly availableModels = this.modelsService.models;
   readonly defaultModel = this.settings.defaultModel;
   readonly importExtractionModel = this.settings.importExtractionModel;
+  protected readonly settingsService = this.settings;
+  readonly importReviewModel = this.settings.importReviewModel;
+  readonly importReviewTimeoutSeconds = this.settings.importReviewTimeoutSeconds;
+  readonly importReviewConcurrency = this.settings.importReviewConcurrency;
+  protected readonly timeoutOptions = IMPORT_REVIEW_TIMEOUT_OPTIONS;
+  protected readonly concurrencyOptions = Array.from({ length: IMPORT_REVIEW_CONCURRENCY_MAX }, (_, i) => i + 1);
+
+  formatWait(seconds: number): string {
+    return seconds % 60 === 0 ? this.i18n.t('settings.minutesN', { n: seconds / 60 }) : `${seconds}s`;
+  }
   readonly interfaceLanguage = this.settings.interfaceLanguage;
   readonly outputLanguage = this.settings.outputLanguage;
   readonly translationTargetLanguage = this.settings.translationTargetLanguage;

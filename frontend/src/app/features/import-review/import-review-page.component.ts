@@ -1,3 +1,5 @@
+import { ModelsService } from '../../core/services/models.service';
+import { SettingsService } from '../../core/services/settings.service';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
@@ -108,6 +110,10 @@ import { I18nService } from '../../core/i18n/i18n.service';
                   (click)="onRefineWithAI()"
                 >{{ submitting() ? i18n.t('importReview.starting') : i18n.t('importReview.refineWithAiCount', { count: approvableCount() }) }}</button>
               </div>
+              <p class="status-line">
+                {{ i18n.t('importReview.reviewOptions', { model: reviewModelLabel(), wait: appSettings.importReviewTimeoutSeconds() / 60, n: appSettings.importReviewConcurrency() }) }}
+                <a routerLink="/settings">{{ i18n.t('importReview.changeInSettings') }}</a>
+              </p>
               <p class="status-line">{{ i18n.t('importReview.saveAsIsExplain') }}</p>
             }
           </div>
@@ -261,6 +267,13 @@ export class ImportReviewPageComponent implements OnInit {
   private readonly importExamService = inject(ImportExamService);
   private readonly storage = inject(StorageService);
   private readonly router = inject(Router);
+  protected readonly appSettings = inject(SettingsService);
+  private readonly models = inject(ModelsService);
+
+  reviewModelLabel(): string {
+    const id = this.appSettings.importReviewModel();
+    return this.models.models().find((m) => m.id === id)?.displayName ?? id;
+  }
   private readonly dialog = inject(MatDialog);
   private readonly draftItem = viewChild<ImportDraftItemComponent>('draftItem');
   protected readonly i18n = inject(I18nService);
@@ -405,7 +418,13 @@ export class ImportReviewPageComponent implements OnInit {
   }
 
   async onRefineWithAI(): Promise<void> {
-    await this.submit(() => this.reviewService.startExplanations(this.jobId()));
+    await this.submit(() =>
+      this.reviewService.startExplanations(this.jobId(), {
+        modelId: this.appSettings.importReviewModel(),
+        timeoutSeconds: this.appSettings.importReviewTimeoutSeconds(),
+        maxConcurrency: this.appSettings.importReviewConcurrency(),
+      }),
+    );
   }
 
   async onSaveAsIs(): Promise<void> {

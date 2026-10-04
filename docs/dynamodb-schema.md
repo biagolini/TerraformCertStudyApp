@@ -92,6 +92,8 @@ interface ImportDraftQuestion {
   chunk: object;                 // the original import-preprocess chunk dict, verbatim — lets a
                                   // re-extract skip re-running import-preprocess entirely
   promoted: boolean;              // true once Phase 2 (import-explain) has written the final Question
+  // native attribute (outside `data`): explainCalls: {callId, requestId, at, timeoutSeconds}[]
+  // one entry per Phase 2 attempt, read by the review screen's "Show logs"
   reExtractCount: number;
   lastHint: string | null;       // most recent user-supplied re-extraction correction, if any
   createdAt: number;

@@ -7,7 +7,7 @@ import {
   QuizToolId,
   resolveQuizToolOrder,
 } from '../models/quiz-tool.model';
-import { AppSettings, DEFAULT_SETTINGS, ReviewMode, ThemeMode } from '../models/settings.model';
+import { AppSettings, DEFAULT_SETTINGS, IMPORT_REVIEW_CONCURRENCY_MAX, ReviewMode, ThemeMode } from '../models/settings.model';
 import { InterfaceLanguage } from '../models/i18n.model';
 import { StorageService } from './storage.service';
 
@@ -21,6 +21,13 @@ export class SettingsService {
   readonly theme = computed(() => this.state().theme);
   readonly defaultModel = computed(() => this.state().defaultModel);
   readonly importExtractionModel = computed(() => this.state().importExtractionModel);
+  readonly importReviewModel = computed(() => this.state().importReviewModel || DEFAULT_SETTINGS.importReviewModel);
+  readonly importReviewTimeoutSeconds = computed(
+    () => this.state().importReviewTimeoutSeconds || DEFAULT_SETTINGS.importReviewTimeoutSeconds,
+  );
+  readonly importReviewConcurrency = computed(
+    () => this.state().importReviewConcurrency || DEFAULT_SETTINGS.importReviewConcurrency,
+  );
   readonly activePackId = computed(() => this.state().activePackId);
   readonly activeMethod = computed(() => this.state().activeMethod);
   readonly interfaceLanguage = computed(() => this.state().interfaceLanguage);
@@ -59,6 +66,20 @@ export class SettingsService {
 
   setImportExtractionModel(value: string): void {
     this.update((s) => ({ ...s, importExtractionModel: value.trim() || s.importExtractionModel }));
+  }
+
+  setImportReviewModel(value: string): void {
+    this.update((s) => ({ ...s, importReviewModel: value.trim() || s.importReviewModel }));
+  }
+
+  setImportReviewTimeoutSeconds(value: number): void {
+    const seconds = Math.max(60, Math.min(840, Math.round(Number(value)) || 300));
+    this.update((s) => ({ ...s, importReviewTimeoutSeconds: seconds }));
+  }
+
+  setImportReviewConcurrency(value: number): void {
+    const n = Math.max(1, Math.min(IMPORT_REVIEW_CONCURRENCY_MAX, Math.round(Number(value)) || 4));
+    this.update((s) => ({ ...s, importReviewConcurrency: n }));
   }
 
   setActivePackId(id: string): void {

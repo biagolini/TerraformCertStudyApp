@@ -1,3 +1,4 @@
+import { DraftLogCall } from '../../core/services/import-review.service';
 import { IconComponent } from '../../shared/components/icon.component';
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -236,11 +237,24 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
                   <p class="logs-status">{{ i18n.t('importDraft.loadingLogs') }}</p>
                 } @else if (logsError()) {
                   <p class="error-line">{{ logsError() }}</p>
-                } @else if (logEvents() && logEvents()!.length === 0) {
+                } @else if (logCalls() && logCallsEmpty()) {
                   <p class="logs-status">{{ i18n.t('importDraft.noLogsFound') }}</p>
-                } @else if (logEvents()) {
-                  @for (event of logEvents(); track $index) {
-                    <div class="log-line"><span class="log-ts">{{ formatLogTimestamp(event.timestamp) }}</span> {{ event.message }}</div>
+                } @else if (logCalls()) {
+                  @for (call of logCalls(); track $index; let i = $index) {
+                    <div class="log-call">
+                      {{ i18n.t('importDraft.logAttempt', { n: logCalls()!.length - i }) }}
+                      · {{ formatLogTimestamp(call.at) }}
+                      @if (call.callId) { · callId {{ call.callId }} }
+                    </div>
+                    @for (event of call.events; track $index) {
+                      <div class="log-line">
+                        <span class="log-ts">{{ formatLogTimestamp(event.timestamp) }}</span>
+                        <span class="log-src" [class.agent]="event.source === 'agent'">{{ event.source === 'agent' ? 'agent' : 'lambda' }}</span>
+                        {{ event.message }}
+                      </div>
+                    } @empty {
+                      <p class="logs-status">{{ i18n.t('importDraft.noLogsForCall') }}</p>
+                    }
                   }
                 }
               </div>
@@ -525,7 +539,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
         font-family: 'SF Mono', Menlo, monospace;
         font-size: 11px;
         line-height: 1.5;
-        max-height: 240px;
+        max-height: 420px;
         overflow-y: auto;
       }
       .logs-status {
@@ -538,6 +552,21 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
         word-break: break-word;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         padding: 2px 0;
+      }
+      .log-call {
+        margin-top: var(--space-xs);
+        padding: 2px 0;
+        color: #facc15;
+        font-weight: 700;
+      }
+      .log-src {
+        display: inline-block;
+        min-width: 44px;
+        margin-right: var(--space-xs);
+        color: #93c5fd;
+      }
+      .log-src.agent {
+        color: #f0abfc;
       }
       .log-ts {
         color: #7cfc7c;
@@ -782,7 +811,8 @@ export class ImportDraftItemComponent {
 
   protected readonly logsOpen = signal(false);
   protected readonly loadingLogs = signal(false);
-  protected readonly logEvents = signal<{ timestamp: number; message: string }[] | null>(null);
+  protected readonly logCalls = signal<DraftLogCall[] | null>(null);
+  protected readonly logCallsEmpty = computed(() => (this.logCalls() ?? []).every((c) => c.events.length === 0));
   protected readonly logsError = signal<string | null>(null);
 
   // Public (not `protected`) — the review page reads this via a viewChild
@@ -819,7 +849,7 @@ export class ImportDraftItemComponent {
   async toggleLogs(): Promise<void> {
     const opening = !this.logsOpen();
     this.logsOpen.set(opening);
-    if (!opening || this.logEvents() !== null || this.loadingLogs()) return;
+    if (!opening || this.logCalls() !== null || this.loadingLogs()) return;
     this.loadingLogs.set(true);
     this.logsError.set(null);
     try {
@@ -827,7 +857,8 @@ export class ImportDraftItemComponent {
       if (result.error) {
         this.logsError.set(result.error);
       } else {
-        this.logEvents.set(result.events);
+        // Older responses had only a flat list; wrap it as one call.
+        this.logCalls.set(result.calls.length ? result.calls : [{ callId: null, requestId: result.requestId, at: result.events[0]?.timestamp ?? 0, events: result.events }]);
       }
     } finally {
       this.loadingLogs.set(false);
@@ -835,7 +866,7 @@ export class ImportDraftItemComponent {
   }
 
   formatLogTimestamp(ts: number): string {
-    return new Date(ts).toISOString().slice(11, 23);
+    return ts ? new Date(ts).toLocaleTimeString(this.i18n.lang(), { hour12: false }) : '';
   }
 
   submitReExtract(): void {

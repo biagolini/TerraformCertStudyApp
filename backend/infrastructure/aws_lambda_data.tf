@@ -70,6 +70,7 @@ resource "aws_lambda_function" "data" {
       IMPORT_EXTRACT_LAMBDA_ARN        = aws_lambda_function.import_extract.arn
       IMPORT_FINALIZE_LAMBDA_ARN       = aws_lambda_function.import_finalize.arn
       IMPORT_EXPLAIN_LOG_GROUP_NAME    = aws_cloudwatch_log_group.lambda_import_explain.name
+      REVIEW_AGENT_LOG_GROUP_NAME      = aws_cloudwatch_log_group.agentcore_runtime.name
     }
   }
 
@@ -268,8 +269,13 @@ resource "aws_iam_role_policy" "lambda_data_read_import_explain_logs" {
     Version = "2012-10-17"
     Statement = [{
       Effect   = "Allow"
-      Action   = "logs:FilterLogEvents"
-      Resource = "${aws_cloudwatch_log_group.lambda_import_explain.arn}:*"
+      Action = "logs:FilterLogEvents"
+      # The import-explain Lambda's own lines and the review agent's lines
+      # (same callId) for the review screen's "Show logs".
+      Resource = [
+        "${aws_cloudwatch_log_group.lambda_import_explain.arn}:*",
+        "${aws_cloudwatch_log_group.agentcore_runtime.arn}:*",
+      ]
     }]
   })
 }

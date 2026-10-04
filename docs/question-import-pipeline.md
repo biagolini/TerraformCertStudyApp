@@ -46,7 +46,7 @@ For each chunk, one **non-streaming** `bedrock-runtime.converse()` call with a *
 
 **Re-extraction with a hint.** The review screen's re-extract action can carry an optional `hint` string — a human correction ("the correct answer is C, not B", "the stem continues after the diagram reference"). It's appended to the prompt as an authoritative correction and threads straight through to the same extraction call; the resulting draft overwrites the same `DRAFT#{jobId}#{index}` row (same id convention as the original pipeline's idempotent retries), never creates a duplicate.
 
-**Model selection.** The model is a per-request choice, not hardcoded: the frontend Settings screen has a dedicated **"Exam import model"** picker (`AppSettings.importExtractionModel`, default `us.amazon.nova-pro-v1:0` — distinct from "Default model", which only affects the interactive Generate-with-AI flow). The chosen model id travels with the job — stored on the `IMPORTJOB#` record when the user clicks "Process", forwarded through `import-preprocess`'s output alongside `packId`, and read by `import-extract` off the event (`event.get("modelId")`, falling back to the `BEDROCK_EXTRACTION_MODEL_ID` env var only if absent). A stronger model trades cost/latency for fewer extraction failures, but isn't free of tradeoffs: Nova Pro's Bedrock quota in this account is 25 requests/minute cross-region vs. Nova Lite's 200/minute, so `_converse_with_retry` uses a longer exponential backoff with jitter (up to 5 attempts, 3s/6s/12s/20s capped) to absorb the throttling a stronger-but-slower-quota model produces under the Map's 4-way concurrency.
+**Model selection.** The model is a per-request choice, not hardcoded: the frontend Settings screen has a dedicated **"Exam import model"** picker (`AppSettings.importExtractionModel`, default `us.amazon.nova-pro-v1:0` — distinct from "Default model", which only affects the interactive Generate-with-AI flow). The chosen model id travels with the job — stored on the `IMPORTJOB#` record when the user clicks "Process", forwarded through `import-preprocess`'s output alongside `packId`, and read by `import-extract` off the event (`event.get("modelId")`, falling back to the `BEDROCK_EXTRACTION_MODEL_ID` env var only if absent). A stronger model trades cost/latency for fewer extraction failures, but isn't free of tradeoffs: Nova Pro's Bedrock requests-per-minute quota can be far lower than Nova Lite's (for example 25 vs. 200 per minute cross-region; check the deploying account's Bedrock quotas), so `_converse_with_retry` uses a longer exponential backoff with jitter (up to 5 attempts, 3s/6s/12s/20s capped) to absorb the throttling a stronger-but-slower-quota model produces under the Map's 4-way concurrency.
 
 **Why vision, not a parser.** The real source formats all hide signal a deterministic parser would need:
 
@@ -77,6 +77,18 @@ Counts `SUCCEEDED` vs `FAILED` results for whichever phase just ran (`event["pha
 
 - **Phase 1** (`phase: "extract"`): `AWAITING_REVIEW` if at least one draft succeeded, `FAILED` if none did.
 - **Phase 2** (`phase: "explain"`): first checks whether *any* successfully-extracted draft for the whole job is still unpromoted — not just from this batch, but across the job's entire draft set. If so, status stays `AWAITING_REVIEW` regardless of how this batch itself went, since there's still actionable work on the review screen (a deliberate partial submission and a failed explanation call both leave a draft unpromoted, and both should route back to review rather than get silently stranded behind a `SUCCEEDED` label). Only once nothing remains does it fall through to the original `SUCCEEDED`/`PARTIAL`/`FAILED` logic.
+
+## Phase 2 reliability: retries, limits and logs
+
+Phase 2 is asynchronous end to end: `POST /data/imports/{id}/generate-explanations` starts `study-import-exam-explain` and returns immediately. The workflow, the Lambda and AgentCore are all billed per use, nothing runs while idle, so no SQS queue is needed (the Map state already is the queue and the concurrency limiter).
+
+**User-set run options.** Settings, "AI import review", holds the review model (default Nova 2 Lite), the max wait per question (60 to 840 seconds, default 300) and how many questions run in parallel (1 to 10, default 4). They are sent with the request, stored on the job as `reviewOptions`, and passed to the workflow: `MaxConcurrencyPath` drives the Map, the Lambda uses the max wait as its AgentCore read timeout, and `TimeoutSecondsPath` (max wait + 60s) is the Step Functions task timeout. The Lambda's own timeout is 900s; billing follows actual duration, so a large cap costs nothing when calls finish early.
+
+**Named errors and retries.** `import-explain` raises a named exception instead of returning a failure: `ReviewAgentMalformedOutput`, `ReviewAgentThrottled`, `ReviewAgentTimeout`, `ReviewAgentError`, `BudgetExceeded`. The task retries by name: throttling (and transient Lambda errors) up to 4 times with exponential backoff and full jitter; malformed output and timeouts once. After retries, the Catch runs `RecordFailure` (a direct DynamoDB `UpdateItem`, no Lambda) to count the failure on the job, and `FailedItem` hands `{index, errorType, cause}` to `import-finalize`. Counting the failure only after retries means a retried question is never counted twice.
+
+**Malformed structured output.** Nova 2 Lite sometimes ends a turn with stopReason `malformed_model_output`, or fills the schema but skips an alternative. The review agent (`agent/review_agent/app.py`, `_explain_structured`) validates every answer twice: the Pydantic schema, then deterministic letter checks (`_problems`: every option explained exactly once, on the side the answer key puts it). If either fails, it makes up to two corrective calls following the Amazon Nova guidance for structured output ("Specify a tool to use"): a plain Converse call whose only tool is the `ReviewExplanation` schema, `toolChoice` forcing it, temperature 0, and a user turn that lists the exact problems ("field `correct_answers.0.why_correct`: Field required", "incorrect_answers is missing an entry for option D") plus the rejected output. Token usage of every attempt is added to the call's usage, so the Costs page stays accurate.
+
+**Call ids and the log viewer.** Each `import-explain` invocation creates a `callId`, logs JSON lines carrying it (plus its request id), passes it to the agent, and appends `{callId, requestId, at, timeoutSeconds}` to the draft's `explainCalls`. The agent logs that same `callId` on every line. `GET /data/imports/{id}/drafts/{index}/logs` reads the draft's last 5 calls and, for each, queries both log groups (the Lambda's by request id, the Runtime's by `callId`) bounded to the call's own time window, following `nextToken` pages. The unbounded, single-page query used before often came back with an empty first page and a `nextToken`, which is what showed "No log lines found".
 
 ## Idempotency
 
@@ -112,10 +124,10 @@ flowchart TD
     R -->|"Process selected/all"| S["POST /data/imports/{id}/generate-explanations\nresets counters, status -> GENERATING"]
     S --> T["states:StartExecution\n(study-import-exam-explain, Phase 2)"]
 
-    T --> U{"Map state\nMaxConcurrency 4"}
+    T --> U{"Map state\nMaxConcurrency from the user, 1-10"}
     U --> V["import-explain (per approved draft)\nAgentCore review agent (explain_structured)"]
     V -->|success| W["PutItem study-questions\n+ UpdateItem draft.promoted=true\n+ atomic ADD processedCount"]
-    V -->|failure, caught| X["{status: FAILED}, draft stays unpromoted\n+ atomic ADD processedCount, failedCount"]
+    V -->|"named error, after retries"| X["RecordFailure: atomic ADD processedCount, failedCount\n(DynamoDB task), draft stays unpromoted"]
     W --> Y["import-finalize (phase=explain)"]
     X --> Y
     Y --> Z["Job status: AWAITING_REVIEW (drafts remain)\nor SUCCEEDED / PARTIAL / FAILED"]

@@ -135,11 +135,12 @@ export class QuestionsService {
    * slow) backend delete "disappear" locally only to reappear on the next
    * sync, since nothing was actually removed on the server.
    *
-   * Deletes are sent in small sequential batches, not all at once — this
-   * AWS account's Lambda concurrency limit is a mere 10 (shared across
-   * every function), so firing e.g. 178 DELETEs in parallel via a single
-   * Promise.all throttles almost all of them at the Lambda level, which
-   * API Gateway surfaces as a flood of HTTP 500s rather than 429s. */
+   * Deletes are sent in small sequential batches, not all at once. Pay
+   * attention to the Lambda "Concurrent executions" quota of the account
+   * the app runs in (shared by every function in the Region; new accounts
+   * can start as low as 10): firing e.g. 178 DELETEs in parallel via one
+   * Promise.all can exceed it, and API Gateway surfaces Lambda throttling
+   * as a flood of HTTP 500s rather than 429s. */
   async removeByPackId(packId: string): Promise<{ deleted: number; failed: number }> {
     const toDelete = this.state().filter((q) => q.packId === packId);
     if (toDelete.length === 0) return { deleted: 0, failed: 0 };
