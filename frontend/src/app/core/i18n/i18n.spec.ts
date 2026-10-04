@@ -22,7 +22,7 @@ describe('i18n dictionaries', () => {
       ...['beginner', 'intermediate', 'advanced', 'lead'].map((e) => `profile.exp_${e}`),
       ...['all', 'answered', 'unanswered', 'flagged'].map((f) => `quizRunner.filter_${f}`),
       ...['polish', 'summary', 'flashcards', 'quiz', 'explain', 'outline'].map((a) => `copilot.${a}`),
-      ...['banks', 'quiz', 'performance', 'notes', 'flashcards', 'transcripts', 'chat', 'export'].map((n) => `nav.${n}`),
+      ...['banks', 'quiz', 'performance', 'notes', 'transcripts', 'chat', 'export'].map((n) => `nav.${n}`),
     ];
     expect(dynamic.filter((k) => !(k in EN))).toEqual([]);
   });

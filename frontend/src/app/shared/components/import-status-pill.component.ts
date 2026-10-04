@@ -1,3 +1,4 @@
+import { IconComponent } from './icon.component';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ImportExamService } from '../../core/services/import-exam.service';
@@ -17,6 +18,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 @Component({
   selector: 'app-import-status-pill',
   standalone: true,
+  imports: [IconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (visibleJobs().length > 0) {
@@ -41,7 +43,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
               @if (job.status === 'AWAITING_REVIEW') {
                 <button type="button" class="job-line job-line-action" (click)="onReview(job)">
                   <p class="panel-title">{{ job.filename }}</p>
-                  <p class="panel-body panel-action">{{ i18n.t('importPill.readyToReview', { count: job.totalQuestions }) }}</p>
+                  <p class="panel-body panel-action">{{ i18n.t('importPill.readyToReview', { count: job.totalQuestions }) }} <app-icon name="arrow-right" size="14" /></p>
                 </button>
               } @else {
                 <div class="job-line">

@@ -1,3 +1,4 @@
+import { IconComponent } from '../../shared/components/icon.component';
 import { ChangeDetectionStrategy, Component, ElementRef, inject, input, output, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { BedrockService } from '../../core/services/bedrock.service';
@@ -25,16 +26,16 @@ interface CopilotMessage {
   selector: 'app-note-copilot',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MarkdownRendererComponent, AiDisclaimerComponent],
+  imports: [IconComponent, FormsModule, MarkdownRendererComponent, AiDisclaimerComponent],
   template: `
     <aside class="copilot ui-card" [attr.aria-label]="i18n.t('notes.copilot')">
       <header class="head">
-        <span class="badge" aria-hidden="true">✦</span>
+        <span class="badge" aria-hidden="true"><app-icon name="sparkles" size="18" /></span>
         <div class="head-text">
           <strong>{{ i18n.t('notes.copilotTitle') }}</strong>
           <span class="ui-faint">{{ i18n.t('notes.copilotSubtitle') }}</span>
         </div>
-        <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" (click)="closed.emit()" [attr.aria-label]="i18n.t('common.close')">✕</button>
+        <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" (click)="closed.emit()" [attr.aria-label]="i18n.t('common.close')"><app-icon name="x" /></button>
       </header>
       <div class="ui-chip-row actions">
         @for (a of actions; track a) {

@@ -8,7 +8,7 @@ Rules for how I want work done here. Project documentation is NOT here: it lives
 
 ## Verification (do not skip)
 
-- Frontend changes: run `npx ng test --no-watch`, `npx ng build` and `node scripts/check-i18n-keys.mjs` from `frontend/`.
+- Frontend changes: run `npx ng test --no-watch`, `npx ng build`, `node scripts/check-i18n-keys.mjs` and `node scripts/check-no-emoji.mjs` from `frontend/`.
 - Lambda changes: at minimum byte-compile the module (`python3 -m py_compile <file>`), and clean up `__pycache__` afterwards.
 - Terraform changes: run `terraform validate` / `terraform plan` from `backend/environments/production` (never apply without asking).
 - Never present a change as done without running what can be run. State explicitly what was verified and what could not be.
@@ -35,7 +35,7 @@ Prompts under `backend/infrastructure/lambda/import_extract/` and the review pro
 ## Code Style
 
 - Comments explain the "why", especially around AI behavior and known failure modes. Skip comments that restate the code.
-- Frontend: standalone components, Signals, `ChangeDetectionStrategy.OnPush`, template and styles inline in the `.ts`. User-facing text goes through `i18n.t()` and must be added to all four dictionaries (`en`, `pt`, `es`, `it`).
+- Frontend: standalone components, Signals, `ChangeDetectionStrategy.OnPush`, template and styles inline in the `.ts`. User-facing text goes through `i18n.t()` and must be added to all four dictionaries (`en`, `pt`, `es`, `it`). Icons only through `<app-icon>`, never emojis (see `ui-icons.md`).
 - Terraform: see `terraform.md`.
 - Python: standard library plus boto3; no new dependency without a reason.
 

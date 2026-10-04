@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { EMPTY_BANK_DRAFT, QuestionBank, QuestionBankDraft } from '../../core/models/bank.model';
+import { EMPTY_BANK_DRAFT, QuestionBank, QuestionBankDraft, bankLabel } from '../../core/models/bank.model';
+import { PacksService } from '../../core/services/packs.service';
+import { IconComponent } from '../../shared/components/icon.component';
 import { BanksService } from '../../core/services/banks.service';
 import { QuestionsService } from '../../core/services/questions.service';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -10,7 +12,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
   selector: 'app-bank-editor',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [FormsModule, IconComponent],
   template: `
     <div class="ui-modal-backdrop" (click)="closed.emit()">
       <form class="ui-modal" role="dialog" aria-modal="true" aria-labelledby="bank-editor-title" (click)="$event.stopPropagation()" (ngSubmit)="save()">
@@ -19,17 +21,22 @@ import { I18nService } from '../../core/i18n/i18n.service';
             <h2 id="bank-editor-title">{{ bank() ? i18n.t('banks.editBank') : i18n.t('banks.newBank') }}</h2>
             <p>{{ i18n.t('banks.editorHint') }}</p>
           </div>
-          <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" (click)="closed.emit()" [attr.aria-label]="i18n.t('common.close')">✕</button>
+          <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" (click)="closed.emit()" [attr.aria-label]="i18n.t('common.close')"><app-icon name="x" /></button>
         </header>
         <div class="ui-modal-body">
-          <label class="ui-field">
-            <span>{{ i18n.t('banks.name') }} *</span>
-            <input class="ui-input" name="name" [(ngModel)]="draft.name" required [placeholder]="i18n.t('banks.namePlaceholder')" />
-          </label>
+          <div class="context">
+            <span class="ui-label">{{ i18n.t('banks.certification') }}</span>
+            <span class="context-name">
+              @if (pack()?.code) {
+                <span class="ui-code" [style.--chip-color]="pack()?.color">{{ pack()?.code }}</span>
+              }
+              {{ pack()?.name }}
+            </span>
+          </div>
           <div class="ui-form-row">
             <label class="ui-field">
-              <span>{{ i18n.t('banks.author') }}</span>
-              <input class="ui-input" name="author" [(ngModel)]="draft.author" [placeholder]="i18n.t('banks.authorPlaceholder')" list="bank-authors" />
+              <span>{{ i18n.t('banks.author') }} *</span>
+              <input class="ui-input" name="author" [(ngModel)]="draft.author" required [placeholder]="i18n.t('banks.authorPlaceholder')" list="bank-authors" />
               <datalist id="bank-authors">
                 @for (a of knownAuthors(); track a) {
                   <option [value]="a"></option>
@@ -38,7 +45,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             </label>
             <label class="ui-field">
               <span>{{ i18n.t('banks.version') }}</span>
-              <input class="ui-input" name="version" [(ngModel)]="draft.version" placeholder="v1" />
+              <input class="ui-input" name="version" [(ngModel)]="draft.version" [placeholder]="i18n.t('banks.versionPlaceholder')" />
             </label>
           </div>
           <label class="ui-field">
@@ -51,7 +58,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
           </label>
           @if (confirmDelete()) {
             <div class="confirm" role="alert">
-              <p>{{ i18n.t('banks.deleteConfirm', { name: bank()?.name, n: questionCount() }) }}</p>
+              <p>{{ i18n.t('banks.deleteConfirm', { name: label(), n: questionCount() }) }}</p>
               <div class="ui-actions">
                 <button type="button" class="ui-btn ui-btn-sm" (click)="confirmDelete.set(false)">{{ i18n.t('common.cancel') }}</button>
                 <button type="button" class="ui-btn ui-btn-danger ui-btn-sm" [disabled]="busy()" (click)="remove()">{{ i18n.t('common.delete') }}</button>
@@ -68,7 +75,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             <span class="spacer"></span>
           }
           <button type="button" class="ui-btn" (click)="closed.emit()">{{ i18n.t('common.cancel') }}</button>
-          <button type="submit" class="ui-btn ui-btn-primary" [disabled]="!draft.name.trim()">{{ i18n.t('common.save') }}</button>
+          <button type="submit" class="ui-btn ui-btn-primary" [disabled]="!draft.author.trim()">{{ i18n.t('common.save') }}</button>
         </footer>
       </form>
     </div>
@@ -77,6 +84,20 @@ import { I18nService } from '../../core/i18n/i18n.service';
     `
       .spacer {
         flex: 1;
+      }
+      .context {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: var(--space-sm) var(--space-md);
+        border-radius: var(--radius-md);
+        background: var(--bg-elevated);
+      }
+      .context-name {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        font-weight: 600;
       }
       .confirm {
         display: flex;
@@ -96,6 +117,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 export class BankEditorComponent implements OnInit {
   private readonly banks = inject(BanksService);
   private readonly questions = inject(QuestionsService);
+  private readonly packs = inject(PacksService);
   protected readonly i18n = inject(I18nService);
 
   readonly packId = input.required<string>();
@@ -106,6 +128,12 @@ export class BankEditorComponent implements OnInit {
 
   protected draft: QuestionBankDraft = { ...EMPTY_BANK_DRAFT };
   readonly confirmDelete = signal(false);
+  /** The certification comes from the workspace; shown read-only for context. */
+  readonly pack = computed(() => this.packs.getById(this.packId()) ?? null);
+  readonly label = computed(() => {
+    const b = this.bank();
+    return b ? bankLabel(b, this.i18n.t('banks.untitled')) : '';
+  });
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
 
@@ -119,11 +147,11 @@ export class BankEditorComponent implements OnInit {
 
   ngOnInit(): void {
     const b = this.bank();
-    if (b) this.draft = { name: b.name, author: b.author, version: b.version, sourceUrl: b.sourceUrl, description: b.description };
+    if (b) this.draft = { author: b.author, version: b.version, sourceUrl: b.sourceUrl, description: b.description };
   }
 
   save(): void {
-    if (!this.draft.name.trim()) return;
+    if (!this.draft.author.trim()) return;
     const existing = this.bank();
     if (existing) {
       this.banks.update(existing.id, this.draft);

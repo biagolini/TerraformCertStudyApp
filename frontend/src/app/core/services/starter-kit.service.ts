@@ -157,9 +157,8 @@ export class StarterKitService {
     if (!entry) throw new Error('Starter certification is missing from the catalog.');
     const pack = this.packs.create(await this.catalog.draftFor(entry));
     const bank = this.banks.create(pack.id, {
-      name: 'Sample questions',
       author: 'Cert Study',
-      version: '1',
+      version: 'Sample questions',
       sourceUrl: '',
       description: 'Three original questions to try the mock-exam runner and the review viewer.',
     });

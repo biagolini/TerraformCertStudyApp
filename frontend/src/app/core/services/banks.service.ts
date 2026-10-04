@@ -4,8 +4,8 @@ import { PacksService } from './packs.service';
 import { StorageService } from './storage.service';
 import { newId } from '../utils/id.util';
 
-/** Default bank name for a certification's first bank, created on demand when the user adds a question before any bank exists. */
-export const DEFAULT_BANK_NAME = 'My questions';
+/** Author of the bank created on demand when the user adds a question before any bank exists. */
+export const DEFAULT_BANK_AUTHOR = 'Me';
 
 export interface BankAuthorGroup {
   author: string;
@@ -32,7 +32,7 @@ export class BanksService {
 
   constructor() {
     effect(() => {
-      if (this.storage.ready()) this.state.set(this.storage.getBanks());
+      if (this.storage.ready()) this.state.set(this.storage.getBanks().map(normalizeLegacy));
     });
   }
 
@@ -53,7 +53,6 @@ export class BanksService {
       createdAt: now,
       updatedAt: now,
     };
-    if (!bank.name) bank.name = DEFAULT_BANK_NAME;
     this.persist([...this.state(), bank]);
     return bank;
   }
@@ -63,7 +62,7 @@ export class BanksService {
       this.state().map((b) => {
         if (b.id !== id) return b;
         const normalized = normalizeDraft(draft);
-        return { ...b, ...normalized, name: normalized.name || b.name, updatedAt: Date.now() };
+        return { ...b, ...normalized, updatedAt: Date.now() };
       }),
     );
   }
@@ -85,7 +84,7 @@ export class BanksService {
 
   /** Returns the first bank of a certification, creating the default one if it has none yet. */
   ensureDefault(packId: string): QuestionBank {
-    return this.forPack(packId)[0] ?? this.create(packId, { name: DEFAULT_BANK_NAME, author: '', version: '', sourceUrl: '', description: '' });
+    return this.forPack(packId)[0] ?? this.create(packId, { author: DEFAULT_BANK_AUTHOR, version: '', sourceUrl: '', description: '' });
   }
 
   private persist(next: QuestionBank[]): void {
@@ -107,9 +106,14 @@ export function groupByAuthor(banks: readonly QuestionBank[]): BankAuthorGroup[]
     .map(([author, list]) => ({ author, banks: list }));
 }
 
+/** Banks saved before banks lost their separate name: an old `name` becomes the author when no author was set. */
+function normalizeLegacy(bank: QuestionBank): QuestionBank {
+  const legacyName = (bank as QuestionBank & { name?: string }).name?.trim();
+  return !bank.author?.trim() && legacyName ? { ...bank, author: legacyName } : bank;
+}
+
 function normalizeDraft(draft: QuestionBankDraft): QuestionBankDraft {
   return {
-    name: draft.name.trim(),
     author: draft.author.trim(),
     version: draft.version.trim(),
     sourceUrl: draft.sourceUrl.trim(),

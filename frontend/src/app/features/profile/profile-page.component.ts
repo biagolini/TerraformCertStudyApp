@@ -1,3 +1,4 @@
+import { IconComponent } from '../../shared/components/icon.component';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -32,7 +33,7 @@ type IdentityDraft = Pick<StudentProfile, 'name' | 'headline' | 'bio' | 'experie
   selector: 'app-profile-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink],
+  imports: [IconComponent, FormsModule, RouterLink],
   template: `
     <div class="ui-page">
       <header class="ui-page-head">
@@ -44,16 +45,16 @@ type IdentityDraft = Pick<StudentProfile, 'name' | 'headline' | 'bio' | 'experie
       </header>
 
       <div class="counters">
-        <div class="ui-card counter"><span class="c-icon good" aria-hidden="true">🏆</span><div><strong>{{ counts().earned }}</strong><span>{{ i18n.t('profile.earnedCerts') }}</span></div></div>
-        <div class="ui-card counter"><span class="c-icon warn" aria-hidden="true">🎯</span><div><strong>{{ counts().track }}</strong><span>{{ i18n.t('profile.inTrack') }}</span></div></div>
-        <div class="ui-card counter"><span class="c-icon info" aria-hidden="true">📚</span><div><strong>{{ packs.packs().length }}</strong><span>{{ i18n.t('profile.activeStudies') }}</span></div></div>
+        <div class="ui-card counter"><span class="c-icon good" aria-hidden="true"><app-icon name="trophy" size="22" /></span><div><strong>{{ counts().earned }}</strong><span>{{ i18n.t('profile.earnedCerts') }}</span></div></div>
+        <div class="ui-card counter"><span class="c-icon warn" aria-hidden="true"><app-icon name="target" size="22" /></span><div><strong>{{ counts().track }}</strong><span>{{ i18n.t('profile.inTrack') }}</span></div></div>
+        <div class="ui-card counter"><span class="c-icon info" aria-hidden="true"><app-icon name="book-open" size="22" /></span><div><strong>{{ packs.packs().length }}</strong><span>{{ i18n.t('profile.activeStudies') }}</span></div></div>
       </div>
 
       <div class="layout">
         <div class="side">
           <form class="ui-card identity" (ngSubmit)="saveIdentity()">
             <div class="id-head">
-              <span class="avatar" aria-hidden="true">{{ initials() }}</span>
+              <span class="avatar" aria-hidden="true">@if (initials()) { {{ initials() }} } @else { <app-icon name="user" size="22" /> }</span>
               <div>
                 <strong>{{ i18n.t('profile.identity') }}</strong>
                 <span class="ui-faint">{{ draft.headline || i18n.t('profile.candidate') }}</span>
@@ -73,7 +74,7 @@ type IdentityDraft = Pick<StudentProfile, 'name' | 'headline' | 'bio' | 'experie
             <span class="ui-label">{{ i18n.t('profile.links') }}</span>
             <input class="ui-input" name="li" type="url" [(ngModel)]="draft.linkedinUrl" placeholder="https://linkedin.com/in/…" [attr.aria-label]="'LinkedIn'" />
             <input class="ui-input" name="gh" type="url" [(ngModel)]="draft.githubUrl" placeholder="https://github.com/…" [attr.aria-label]="'GitHub'" />
-            <button type="submit" class="ui-btn ui-btn-accent">{{ saved() ? '✓ ' + i18n.t('profile.saved') : i18n.t('profile.save') }}</button>
+            <button type="submit" class="ui-btn ui-btn-accent">@if (saved()) { <app-icon name="check" /> {{ i18n.t('profile.saved') }} } @else { {{ i18n.t('profile.save') }} }</button>
           </form>
 
           <section class="ui-card">
@@ -91,7 +92,7 @@ type IdentityDraft = Pick<StudentProfile, 'name' | 'headline' | 'bio' | 'experie
             @for (p of providers; track p) {
               <button type="button" class="interest" [class.on]="profile.interests().has(p)" (click)="profile.toggleInterest(p)" [attr.aria-pressed]="profile.interests().has(p)">
                 <span>{{ i18n.t('provider.' + p) }}</span>
-                <span class="ui-chip" [class.ui-chip-accent]="profile.interests().has(p)">{{ profile.interests().has(p) ? '✓ ' + i18n.t('profile.interested') : '+ ' + i18n.t('profile.follow') }}</span>
+                <span class="ui-chip" [class.ui-chip-accent]="profile.interests().has(p)">@if (profile.interests().has(p)) { <app-icon name="check" size="12" /> {{ i18n.t('profile.interested') }} } @else { <app-icon name="plus" size="12" /> {{ i18n.t('profile.follow') }} }</span>
               </button>
             }
             @if (profile.interests().has('other')) {
@@ -135,7 +136,7 @@ type IdentityDraft = Pick<StudentProfile, 'name' | 'headline' | 'bio' | 'experie
                     <span class="ui-chip">{{ i18n.t('level.' + row.level) }}</span>
                   }
                   @if (profile.interests().has(row.provider)) {
-                    <span class="ui-chip ui-chip-accent">★ {{ i18n.t('home.interestMatch') }}</span>
+                    <span class="ui-chip ui-chip-accent"><app-icon name="star" size="12" /> {{ i18n.t('home.interestMatch') }}</span>
                   }
                 </div>
                 <h3>{{ row.name }}</h3>
@@ -156,7 +157,7 @@ type IdentityDraft = Pick<StudentProfile, 'name' | 'headline' | 'bio' | 'experie
                 @if (row.packId) {
                   <a class="ui-btn ui-btn-sm" [routerLink]="['/exam', row.packId]">{{ i18n.t('home.openWorkspace') }}</a>
                 } @else if (row.entry) {
-                  <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" [disabled]="adding() === row.key" (click)="addToWorkspace(row)">+ {{ i18n.t('profile.addToWorkspace') }}</button>
+                  <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" [disabled]="adding() === row.key" (click)="addToWorkspace(row)"><app-icon name="plus" /> {{ i18n.t('profile.addToWorkspace') }}</button>
                 }
               </div>
             </article>
@@ -384,7 +385,7 @@ export class ProfilePageComponent implements OnInit {
 
   readonly initials = computed(() => {
     const name = this.profile.profile().name.trim();
-    return name ? name.split(/\s+/).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') : '🎓';
+    return name ? name.split(/\s+/).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') : '';
   });
 
   /** Catalog certifications plus hand-made ones from the workspace, each with its track status. */

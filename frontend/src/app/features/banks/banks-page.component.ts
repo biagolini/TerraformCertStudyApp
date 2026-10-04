@@ -4,7 +4,8 @@ import { BanksService, groupByAuthor } from '../../core/services/banks.service';
 import { QuestionsService } from '../../core/services/questions.service';
 import { PacksService } from '../../core/services/packs.service';
 import { I18nService } from '../../core/i18n/i18n.service';
-import { QuestionBank } from '../../core/models/bank.model';
+import { QuestionBank, bankLabel } from '../../core/models/bank.model';
+import { IconComponent } from '../../shared/components/icon.component';
 import { ALL_BANKS, examPath, questionPath } from '../../core/utils/routes.util';
 import { BankEditorComponent } from './bank-editor.component';
 
@@ -20,7 +21,7 @@ interface BankCard {
   selector: 'app-banks-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, BankEditorComponent],
+  imports: [RouterLink, BankEditorComponent, IconComponent],
   template: `
     <div class="ui-page">
       <header class="ui-page-head">
@@ -29,9 +30,9 @@ interface BankCard {
           <p>{{ i18n.t('banks.subtitle') }}</p>
         </div>
         <div class="ui-actions">
-          <a class="ui-btn ui-btn-soft" [routerLink]="importLink()">✦ {{ i18n.t('banks.importAi') }}</a>
-          <button type="button" class="ui-btn" (click)="editing.set('new')">+ {{ i18n.t('banks.newBank') }}</button>
-          <a class="ui-btn ui-btn-primary" [routerLink]="allLink()" [queryParams]="{ add: 1 }">+ {{ i18n.t('banks.addQuestion') }}</a>
+          <a class="ui-btn ui-btn-soft" [routerLink]="importLink()"><app-icon name="sparkles" /> {{ i18n.t('banks.importAi') }}</a>
+          <button type="button" class="ui-btn" (click)="editing.set('new')"><app-icon name="plus" /> {{ i18n.t('banks.newBank') }}</button>
+          <a class="ui-btn ui-btn-primary" [routerLink]="allLink()" [queryParams]="{ add: 1 }"><app-icon name="plus" /> {{ i18n.t('banks.addQuestion') }}</a>
         </div>
       </header>
 
@@ -40,8 +41,8 @@ interface BankCard {
           <h3>{{ i18n.t('banks.emptyTitle') }}</h3>
           <p>{{ i18n.t('banks.emptyBody') }}</p>
           <div class="ui-actions">
-            <button type="button" class="ui-btn ui-btn-primary" (click)="editing.set('new')">+ {{ i18n.t('banks.newBank') }}</button>
-            <a class="ui-btn ui-btn-soft" [routerLink]="importLink()">✦ {{ i18n.t('banks.importAi') }}</a>
+            <button type="button" class="ui-btn ui-btn-primary" (click)="editing.set('new')"><app-icon name="plus" /> {{ i18n.t('banks.newBank') }}</button>
+            <a class="ui-btn ui-btn-soft" [routerLink]="importLink()"><app-icon name="sparkles" /> {{ i18n.t('banks.importAi') }}</a>
           </div>
         </section>
       } @else {
@@ -71,18 +72,13 @@ interface BankCard {
           @for (card of visibleCards(); track card.bank.id) {
             <article class="ui-card ui-card-hover bank-card">
               <div class="bank-top">
-                <span class="author">👤 {{ card.bank.author || i18n.t('banks.noAuthor') }}</span>
-                <button type="button" class="ui-btn ui-btn-ghost ui-btn-sm" (click)="editing.set(card.bank)" [attr.aria-label]="i18n.t('banks.editBank') + ': ' + card.bank.name">
+                <span class="author"><app-icon name="user" size="14" /> {{ card.bank.author || i18n.t('banks.noAuthor') }}</span>
+                <button type="button" class="ui-btn ui-btn-ghost ui-btn-sm" (click)="editing.set(card.bank)" [attr.aria-label]="i18n.t('banks.editBank') + ': ' + label(card.bank)">
                   {{ i18n.t('common.edit') }}
                 </button>
               </div>
               <a class="bank-link" [routerLink]="bankLink(card.bank.id)">
-                <h3>
-                  {{ card.bank.name }}
-                  @if (card.bank.version) {
-                    <span class="ui-faint">· {{ card.bank.version }}</span>
-                  }
-                </h3>
+                <h3>{{ card.bank.version || i18n.t('banks.noVersion') }}</h3>
                 @if (card.bank.description) {
                   <p class="ui-muted ui-clamp-2 desc">{{ card.bank.description }}</p>
                 }
@@ -98,7 +94,7 @@ interface BankCard {
                 <strong class="mono">{{ i18n.t('banks.questionsN', { n: card.total }) }}</strong>
                 <span class="ui-faint">{{ i18n.t('banks.updated', { date: formatDate(card.bank.updatedAt) }) }}</span>
                 @if (card.bank.sourceUrl) {
-                  <a class="ui-btn ui-btn-ghost ui-btn-sm" [href]="card.bank.sourceUrl" target="_blank" rel="noopener noreferrer">{{ i18n.t('banks.source') }} ↗</a>
+                  <a class="ui-btn ui-btn-ghost ui-btn-sm" [href]="card.bank.sourceUrl" target="_blank" rel="noopener noreferrer">{{ i18n.t('banks.source') }} <app-icon name="external-link" size="14" /></a>
                 }
               </div>
             </article>
@@ -149,6 +145,9 @@ interface BankCard {
         justify-content: space-between;
       }
       .author {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
         color: var(--color-amber);
         font-weight: 600;
         font-size: var(--font-size-sm);
@@ -231,6 +230,10 @@ export class BanksPageComponent {
 
   importLink(): string[] {
     return examPath(this.packId(), 'import');
+  }
+
+  label(bank: QuestionBank): string {
+    return bankLabel(bank, this.i18n.t('banks.untitled'));
   }
 
   formatDate(ts: number): string {

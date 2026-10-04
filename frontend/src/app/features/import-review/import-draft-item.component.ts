@@ -1,3 +1,4 @@
+import { IconComponent } from '../../shared/components/icon.component';
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
@@ -54,7 +55,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
 @Component({
   selector: 'app-import-draft-item',
   standalone: true,
-  imports: [DomainBadgeComponent, TruncatePipe, FormsModule, MarkdownRendererComponent],
+  imports: [IconComponent, DomainBadgeComponent, TruncatePipe, FormsModule, MarkdownRendererComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="row" [class.failed]="isFailed() || !!explainError()">
@@ -161,7 +162,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
                     [disabled]="editAlternatives().length <= 2"
                     [attr.aria-label]="i18n.t('importDraft.removeAlternative', { letter: alt.letter })"
                     (click)="removeAlternative(alt.letter)"
-                  >×</button>
+                  ><app-icon name="x" size="14" /></button>
                 </div>
                 <textarea
                   class="edit-textarea edit-comment-textarea"
@@ -202,7 +203,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
                     class="remove-alt-btn"
                     [attr.aria-label]="i18n.t('importDraft.removeImage')"
                     (click)="removeImage(img.key)"
-                  >×</button>
+                  ><app-icon name="x" size="14" /></button>
                 </div>
               }
               <label class="add-image-btn">

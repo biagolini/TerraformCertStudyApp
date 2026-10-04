@@ -1,3 +1,4 @@
+import { IconComponent } from '../../shared/components/icon.component';
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -11,7 +12,7 @@ import { NoteEditorComponent } from './note-editor.component';
   selector: 'app-notes-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, NoteEditorComponent],
+  imports: [IconComponent, FormsModule, RouterLink, NoteEditorComponent],
   template: `
     @if (noteId(); as id) {
       @if (notes.getById(id); as note) {
@@ -30,7 +31,7 @@ import { NoteEditorComponent } from './note-editor.component';
             <p>{{ i18n.t('notes.subtitle') }}</p>
           </div>
           <div class="ui-actions">
-            <button type="button" class="ui-btn ui-btn-primary" [disabled]="creating()" (click)="create()">+ {{ i18n.t('notes.newNote') }}</button>
+            <button type="button" class="ui-btn ui-btn-primary" [disabled]="creating()" (click)="create()"><app-icon name="plus" /> {{ i18n.t('notes.newNote') }}</button>
           </div>
         </header>
 
@@ -52,10 +53,10 @@ import { NoteEditorComponent } from './note-editor.component';
 
         @if (notes.notes().length === 0) {
           <section class="ui-empty">
-            <span class="icon" aria-hidden="true">📝</span>
+            <span class="icon" aria-hidden="true"><app-icon name="file-text" size="28" /></span>
             <h3>{{ i18n.t('notes.emptyTitle') }}</h3>
             <p>{{ i18n.t('notes.emptyBody') }}</p>
-            <button type="button" class="ui-btn ui-btn-primary" [disabled]="creating()" (click)="create()">+ {{ i18n.t('notes.newNote') }}</button>
+            <button type="button" class="ui-btn ui-btn-primary" [disabled]="creating()" (click)="create()"><app-icon name="plus" /> {{ i18n.t('notes.newNote') }}</button>
           </section>
         } @else {
           <div class="ui-grid">

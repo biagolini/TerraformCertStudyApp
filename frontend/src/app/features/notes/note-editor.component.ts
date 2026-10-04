@@ -1,3 +1,4 @@
+import { IconComponent } from '../../shared/components/icon.component';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -28,12 +29,12 @@ const AUTOSAVE_MS = 1500;
   selector: 'app-note-editor',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MarkdownRendererComponent, NoteCopilotComponent],
+  imports: [IconComponent, FormsModule, MarkdownRendererComponent, NoteCopilotComponent],
   template: `
     <div class="editor-shell" [class.with-copilot]="copilotOpen()">
       <div class="editor-main">
         <div class="topbar">
-          <button type="button" class="ui-btn ui-btn-sm" (click)="leave()">← {{ i18n.t('notes.backToNotes') }}</button>
+          <button type="button" class="ui-btn ui-btn-sm" (click)="leave()"><app-icon name="arrow-left" /> {{ i18n.t('notes.backToNotes') }}</button>
           <span class="ui-faint stats">{{ i18n.t('notes.words', { n: words() }) }} · {{ i18n.t('notes.readTime', { n: readMinutes() }) }}</span>
           <span class="save-state" [class.error]="saveState() === 'error'" aria-live="polite">{{ saveLabel() }}</span>
           <span class="spacer"></span>
@@ -42,8 +43,8 @@ const AUTOSAVE_MS = 1500;
               <button type="button" class="ui-btn ui-btn-sm" [class.ui-btn-primary]="mode() === m" (click)="mode.set(m)" [attr.aria-pressed]="mode() === m">{{ i18n.t('notes.mode_' + m) }}</button>
             }
           </div>
-          <button type="button" class="ui-btn ui-btn-sm ui-btn-soft" (click)="copilotOpen.set(!copilotOpen())" [attr.aria-pressed]="copilotOpen()">✦ {{ i18n.t('notes.copilot') }}</button>
-          <button type="button" class="ui-btn ui-btn-sm ui-btn-danger" (click)="confirmDelete.set(true)" [attr.aria-label]="i18n.t('notes.deleteNote')">🗑</button>
+          <button type="button" class="ui-btn ui-btn-sm ui-btn-soft" (click)="copilotOpen.set(!copilotOpen())" [attr.aria-pressed]="copilotOpen()"><app-icon name="sparkles" /> {{ i18n.t('notes.copilot') }}</button>
+          <button type="button" class="ui-btn ui-btn-sm ui-btn-danger" (click)="confirmDelete.set(true)" [attr.aria-label]="i18n.t('notes.deleteNote')"><app-icon name="trash" /></button>
         </div>
 
         @if (confirmDelete()) {
@@ -56,7 +57,7 @@ const AUTOSAVE_MS = 1500;
 
         <input class="title-input" [ngModel]="title()" (ngModelChange)="onTitle($event)" [attr.aria-label]="i18n.t('notes.noteTitle')" [placeholder]="i18n.t('notes.untitled')" />
         <label class="tags">
-          <span aria-hidden="true">🏷</span>
+          <span aria-hidden="true"><app-icon name="tag" size="14" /></span>
           <span class="ui-sr-only">{{ i18n.t('notes.tags') }}</span>
           <input class="tags-input" [ngModel]="tagsText()" (ngModelChange)="tagsText.set($event)" (blur)="commitTags()" [placeholder]="i18n.t('notes.tagsPlaceholder')" />
         </label>
@@ -70,16 +71,16 @@ const AUTOSAVE_MS = 1500;
             <button type="button" (click)="linePrefix('## ')" aria-label="H2">H2</button>
             <button type="button" (click)="linePrefix('### ')" aria-label="H3">H3</button>
             <span class="sep" aria-hidden="true"></span>
-            <button type="button" (click)="linePrefix('- ')" [attr.aria-label]="i18n.t('notes.bulletList')">•</button>
+            <button type="button" (click)="linePrefix('- ')" [attr.aria-label]="i18n.t('notes.bulletList')"><app-icon name="list" /></button>
             <button type="button" (click)="linePrefix('1. ')" [attr.aria-label]="i18n.t('notes.numberedList')">1.</button>
-            <button type="button" (click)="linePrefix('- [ ] ')" [attr.aria-label]="i18n.t('notes.taskList')">☑</button>
+            <button type="button" (click)="linePrefix('- [ ] ')" [attr.aria-label]="i18n.t('notes.taskList')"><app-icon name="list-checks" /></button>
             <span class="sep" aria-hidden="true"></span>
-            <button type="button" (click)="linePrefix('> ')" [attr.aria-label]="i18n.t('notes.quote')">❝</button>
+            <button type="button" (click)="linePrefix('> ')" [attr.aria-label]="i18n.t('notes.quote')"><app-icon name="quote" /></button>
             <button type="button" (click)="wrap('\`', '\`')" [attr.aria-label]="i18n.t('notes.inlineCode')">&lt;/&gt;</button>
             <button type="button" (click)="wrap('\\n\`\`\`\\n', '\\n\`\`\`\\n')" [attr.aria-label]="i18n.t('notes.codeBlock')">{{ '{ }' }}</button>
-            <button type="button" (click)="wrap('[', '](https://)')" [attr.aria-label]="i18n.t('notes.link')">🔗</button>
-            <button type="button" class="takeaway" (click)="linePrefix('> **' + i18n.t('notes.keyTakeaway') + ':** ')">⚑ {{ i18n.t('notes.keyTakeaway') }}</button>
-            <button type="button" (click)="imageInput.click()" [disabled]="uploading()" [attr.aria-label]="i18n.t('notes.insertImage')">🖼</button>
+            <button type="button" (click)="wrap('[', '](https://)')" [attr.aria-label]="i18n.t('notes.link')"><app-icon name="link" /></button>
+            <button type="button" class="takeaway" (click)="linePrefix('> **' + i18n.t('notes.keyTakeaway') + ':** ')"><app-icon name="flag" /> {{ i18n.t('notes.keyTakeaway') }}</button>
+            <button type="button" (click)="imageInput.click()" [disabled]="uploading()" [attr.aria-label]="i18n.t('notes.insertImage')"><app-icon name="image" /></button>
             <input #imageInput type="file" accept=".png,.jpg,.jpeg,.gif,.webp" hidden (change)="onImage($event)" />
           </div>
         }

@@ -1,3 +1,4 @@
+import { IconComponent } from '../../shared/components/icon.component';
 import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Question } from '../../core/models/question.model';
@@ -19,16 +20,16 @@ import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.com
   selector: 'app-tutor-dialog',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, MarkdownRendererComponent, AiDisclaimerComponent],
+  imports: [IconComponent, FormsModule, MarkdownRendererComponent, AiDisclaimerComponent],
   template: `
     <div class="ui-modal-backdrop" (click)="close()">
       <section class="ui-modal ui-modal-wide" role="dialog" aria-modal="true" aria-labelledby="tutor-title" (click)="$event.stopPropagation()">
         <header class="ui-modal-head">
           <div>
-            <h2 id="tutor-title">✦ {{ i18n.t('tutor.title') }}</h2>
+            <h2 id="tutor-title"><app-icon name="sparkles" /> {{ i18n.t('tutor.title') }}</h2>
             <p>{{ question().title }}</p>
           </div>
-          <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" (click)="close()" [attr.aria-label]="i18n.t('common.close')">✕</button>
+          <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" (click)="close()" [attr.aria-label]="i18n.t('common.close')"><app-icon name="x" /></button>
         </header>
         <div class="ui-modal-body" #scroller>
           <div class="summary">

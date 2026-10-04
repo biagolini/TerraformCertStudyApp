@@ -1,3 +1,4 @@
+import { IconComponent } from './icon.component';
 import { ChangeDetectionStrategy, Component, HostListener, effect, inject, signal } from '@angular/core';
 import { LightboxService } from '../../core/services/lightbox.service';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -9,16 +10,17 @@ const MAX_ZOOM = 5;
 @Component({
   selector: 'app-lightbox',
   standalone: true,
+  imports: [IconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (lightbox.current(); as img) {
       <div class="lb" role="dialog" aria-modal="true" [attr.aria-label]="img.alt || i18n.t('lightbox.image')" (click)="lightbox.close()">
         <div class="lb-toolbar" (click)="$event.stopPropagation()">
-          <button type="button" class="lb-btn" (click)="zoomBy(-0.5)" [attr.aria-label]="i18n.t('lightbox.zoomOut')">−</button>
+          <button type="button" class="lb-btn" (click)="zoomBy(-0.5)" [attr.aria-label]="i18n.t('lightbox.zoomOut')"><app-icon name="zoom-out" size="18" /></button>
           <span class="lb-zoom">{{ (zoom() * 100).toFixed(0) }}%</span>
-          <button type="button" class="lb-btn" (click)="zoomBy(0.5)" [attr.aria-label]="i18n.t('lightbox.zoomIn')">+</button>
+          <button type="button" class="lb-btn" (click)="zoomBy(0.5)" [attr.aria-label]="i18n.t('lightbox.zoomIn')"><app-icon name="zoom-in" size="18" /></button>
           <button type="button" class="lb-btn" (click)="reset()" [attr.aria-label]="i18n.t('lightbox.reset')">1:1</button>
-          <button type="button" class="lb-btn" (click)="lightbox.close()" [attr.aria-label]="i18n.t('common.close')">✕</button>
+          <button type="button" class="lb-btn" (click)="lightbox.close()" [attr.aria-label]="i18n.t('common.close')"><app-icon name="x" size="18" /></button>
         </div>
         <img
           class="lb-img"

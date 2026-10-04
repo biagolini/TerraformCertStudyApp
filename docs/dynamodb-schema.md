@@ -13,7 +13,7 @@ Questions are the largest, most structured, and most actively-evolving entity (t
 | `USER#{sub}` | `SETTINGS` | `AppSettings` (theme, models, activePackId, languages, review/quiz defaults, workspace tab order) |
 | `USER#{sub}` | `PROFILE` | `StudentProfile` (identity, interests, per-certification track status, accommodation default) — see `frontend/src/app/core/models/profile.model.ts` |
 | `USER#{sub}` | `PACK#{id}` | `Pack`, i.e. a **certification** (name, code, provider, level, domains, timing, pass mark, catalog id, color, export intros) — see `frontend/src/app/core/models/pack.model.ts` |
-| `USER#{sub}` | `BANK#{id}` | `QuestionBank` (packId, name, author, version, sourceUrl, description) — see `frontend/src/app/core/models/bank.model.ts` |
+| `USER#{sub}` | `BANK#{id}` | `QuestionBank`, one practice exam of the certification (packId, author, version, sourceUrl, description; no separate name) — see `frontend/src/app/core/models/bank.model.ts` |
 | `USER#{sub}` | `NOTE#{id}` | `Note` metadata (packId, title, tags, excerpt, wordCount); the body is in S3 (below) — see `frontend/src/app/core/models/note.model.ts` |
 | `USER#{sub}` | `SCRIPT#{id}` | `Script` (transcript summary, with `packId`) — see `frontend/src/app/core/models/script.model.ts` |
 | `USER#{sub}` | `CHAT#{id}` | `ChatSession` (messages + summary, with `packId`) — see `frontend/src/app/core/models/chat.model.ts` |

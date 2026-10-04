@@ -1,3 +1,4 @@
+import { IconComponent } from '../../shared/components/icon.component';
 import { TutorDialogComponent } from '../tutor/tutor-dialog.component';
 import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -19,7 +20,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 @Component({
   selector: 'app-quiz-runner',
   standalone: true,
-  imports: [AiDisclaimerComponent, DomainBadgeComponent, MarkdownRendererComponent, QuizAnnotatedTextComponent, FormsModule, TutorDialogComponent],
+  imports: [IconComponent, AiDisclaimerComponent, DomainBadgeComponent, MarkdownRendererComponent, QuizAnnotatedTextComponent, FormsModule, TutorDialogComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (question(); as q) {
@@ -327,7 +328,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
               <button type="button" class="btn btn-danger-outline" (click)="requestFinish()">{{ i18n.t('quizRunner.endExam') }}</button>
             </div>
             @if (instantChecked()) {
-              <button type="button" class="btn btn-ghost tutor-btn" (click)="tutorOpen.set(true)">✦ {{ i18n.t('tutor.ask') }}</button>
+              <button type="button" class="btn btn-ghost tutor-btn" (click)="tutorOpen.set(true)"><app-icon name="sparkles" /> {{ i18n.t('tutor.ask') }}</button>
             }
           </div>
 
@@ -362,7 +363,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             </div>
             @if (quiz.nextUnansweredIndex() >= 0) {
               <button type="button" class="btn btn-ghost palette-jump" (click)="quiz.goTo(quiz.nextUnansweredIndex())">
-                {{ i18n.t('quizRunner.nextUnanswered') }} →
+                {{ i18n.t('quizRunner.nextUnanswered') }} <app-icon name="arrow-right" />
               </button>
             }
             <div class="palette-legend">

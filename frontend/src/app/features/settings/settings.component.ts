@@ -1,3 +1,4 @@
+import { IconComponent } from '../../shared/components/icon.component';
 import { RouterLink } from '@angular/router';
 import { BackupService } from '../../core/services/backup.service';
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
@@ -15,13 +16,13 @@ import { I18nService } from '../../core/i18n/i18n.service';
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [IconComponent, FormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="drawer">
       <header class="drawer-header">
         <h2>{{ i18n.t('settings.title') }}</h2>
-        <button type="button" class="ui-btn ui-btn-sm" (click)="closed.emit()">← {{ i18n.t('common.back') }}</button>
+        <button type="button" class="ui-btn ui-btn-sm" (click)="closed.emit()"><app-icon name="arrow-left" /> {{ i18n.t('common.back') }}</button>
       </header>
 
       <div class="drawer-body">
@@ -62,8 +63,8 @@ import { I18nService } from '../../core/i18n/i18n.service';
             <h3>{{ i18n.t('settings.theme') }}</h3>
           </header>
           <div class="ui-chip-row" role="radiogroup" [attr.aria-label]="i18n.t('settings.theme')">
-            <button type="button" role="radio" class="ui-chip" [class.active]="theme() === 'light'" [attr.aria-checked]="theme() === 'light'" (click)="setTheme('light')">☀ {{ i18n.t('settings.themeLight') }}</button>
-            <button type="button" role="radio" class="ui-chip" [class.active]="theme() === 'dark'" [attr.aria-checked]="theme() === 'dark'" (click)="setTheme('dark')">☾ {{ i18n.t('settings.themeDark') }}</button>
+            <button type="button" role="radio" class="ui-chip" [class.active]="theme() === 'light'" [attr.aria-checked]="theme() === 'light'" (click)="setTheme('light')"><app-icon name="sun" /> {{ i18n.t('settings.themeLight') }}</button>
+            <button type="button" role="radio" class="ui-chip" [class.active]="theme() === 'dark'" [attr.aria-checked]="theme() === 'dark'" (click)="setTheme('dark')"><app-icon name="moon" /> {{ i18n.t('settings.themeDark') }}</button>
           </div>
         </section>
 
@@ -73,7 +74,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             <p class="helper">{{ i18n.t('settings.dataBackupHelp') }}</p>
           </header>
           <button type="button" class="ui-btn" [disabled]="backingUp()" (click)="onBackup()">
-            ⬇ {{ backingUp() ? i18n.t('settings.preparingBackup') : i18n.t('settings.downloadBackup') }}
+            <app-icon name="download" /> {{ backingUp() ? i18n.t('settings.preparingBackup') : i18n.t('settings.downloadBackup') }}
           </button>
           @if (backupError()) {
             <p class="sync-error">{{ backupError() }}</p>

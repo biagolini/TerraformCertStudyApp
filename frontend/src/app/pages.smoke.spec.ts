@@ -16,7 +16,6 @@ import { QuestionsPageComponent } from './features/questions/questions-page.comp
 import { NotesPageComponent } from './features/notes/notes-page.component';
 import { PerformancePageComponent } from './features/performance/performance-page.component';
 import { ProfilePageComponent } from './features/profile/profile-page.component';
-import { FlashcardsPageComponent } from './features/flashcards/flashcards-page.component';
 import { QuizComponent } from './features/quiz/quiz.component';
 import { SettingsPageComponent } from './features/settings/settings-page.component';
 
@@ -52,9 +51,8 @@ const pack: Pack = {
 const bank: QuestionBank = {
   id: 'b1',
   packId: 'p1',
-  name: 'Practice exam 1',
   author: 'Instructor A',
-  version: 'v2',
+  version: 'Practice exam 1',
   sourceUrl: '',
   description: 'Full-length practice exam.',
   createdAt: NOW,
@@ -162,13 +160,6 @@ describe('page smoke tests', () => {
   it('profile page renders the tracker with the hand-made certification', async () => {
     const f = await render(ProfilePageComponent);
     expect(f.nativeElement.textContent).toContain('SAA-C03');
-  });
-
-  it('flashcards build a card from the question', async () => {
-    const f = await render(FlashcardsPageComponent, { packId: 'p1' });
-    await new Promise((r) => setTimeout(r));
-    f.detectChanges();
-    expect(f.nativeElement.textContent).toContain('1/1');
   });
 
   it('mock exam setup lists the bank', async () => {

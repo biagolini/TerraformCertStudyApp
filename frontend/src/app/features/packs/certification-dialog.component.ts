@@ -1,3 +1,4 @@
+import { IconComponent } from '../../shared/components/icon.component';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
@@ -15,7 +16,7 @@ import {
 } from '../../core/models/pack.model';
 import { CatalogEntry, CatalogService, parseDomains } from '../../core/services/catalog.service';
 import { PackDraft, PacksService } from '../../core/services/packs.service';
-import { BanksService, DEFAULT_BANK_NAME } from '../../core/services/banks.service';
+import { BanksService, DEFAULT_BANK_AUTHOR } from '../../core/services/banks.service';
 import { ProfileService } from '../../core/services/profile.service';
 import { QuestionsService } from '../../core/services/questions.service';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -30,7 +31,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
   selector: 'app-certification-dialog',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule],
+  imports: [IconComponent, FormsModule],
   template: `
     <div class="ui-modal-backdrop" (click)="cancelled.emit()">
       <form class="ui-modal ui-modal-wide dialog" role="dialog" aria-modal="true" aria-labelledby="cert-dialog-title" (click)="$event.stopPropagation()" (ngSubmit)="save()">
@@ -39,15 +40,15 @@ import { I18nService } from '../../core/i18n/i18n.service';
             <h2 id="cert-dialog-title">{{ pack() ? i18n.t('certDialog.editTitle') : i18n.t('certDialog.newTitle') }}</h2>
             <p>{{ pack() ? i18n.t('certDialog.editSubtitle') : i18n.t('certDialog.newSubtitle') }}</p>
           </div>
-          <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" (click)="cancelled.emit()" [attr.aria-label]="i18n.t('common.close')">✕</button>
+          <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" (click)="cancelled.emit()" [attr.aria-label]="i18n.t('common.close')"><app-icon name="x" /></button>
         </header>
 
         <div class="ui-modal-body">
           @if (!pack()) {
             <section class="presets">
               <div class="presets-head">
-                <strong>✦ {{ i18n.t('home.suggestedTitle') }}</strong>
-                <button type="button" class="link" (click)="jsonInput.click()">⬆ {{ i18n.t('certDialog.importJson') }}</button>
+                <strong><app-icon name="sparkles" /> {{ i18n.t('home.suggestedTitle') }}</strong>
+                <button type="button" class="link" (click)="jsonInput.click()"><app-icon name="upload" /> {{ i18n.t('certDialog.importJson') }}</button>
                 <input #jsonInput type="file" accept=".json,application/json" hidden (change)="onJsonFile($event)" />
               </div>
               <div class="ui-chip-row" role="group" [attr.aria-label]="i18n.t('home.ecosystem')">
@@ -65,7 +66,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
                       @if (e.examDurationMinutes) {
                         <span class="ui-faint">· {{ e.examDurationMinutes }}m</span>
                       }
-                      <span class="use">{{ selectedId() === e.id ? '✓' : i18n.t('certDialog.use') }}</span>
+                      <span class="use">@if (selectedId() === e.id) { <app-icon name="check" size="14" /> } @else { {{ i18n.t('certDialog.use') }} }</span>
                     </span>
                     <span class="preset-name">{{ e.name }}</span>
                     <span class="ui-faint preset-desc">{{ i18n.t('home.domainsCount', { n: e.domainCount }) }} · {{ e.description }}</span>
@@ -74,7 +75,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
               </div>
               @if (prefilledName(); as name) {
                 <div class="prefilled" role="status">
-                  <span>✓ {{ i18n.t('certDialog.prefilled', { name: name }) }}</span>
+                  <span><app-icon name="check" /> {{ i18n.t('certDialog.prefilled', { name: name }) }}</span>
                   <button type="button" class="link" (click)="clearPreset()">{{ i18n.t('certDialog.clearPreset') }}</button>
                 </div>
               }
@@ -159,7 +160,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
           </label>
 
           <details class="ui-card domains" [open]="!pack() && domains().length > 0">
-            <summary><strong>☰ {{ i18n.t('certDialog.domains', { n: domains().length }) }}</strong></summary>
+            <summary><strong><app-icon name="layers" /> {{ i18n.t('certDialog.domains', { n: domains().length }) }}</strong></summary>
             <ol class="domain-list">
               @for (d of domains(); track $index; let i = $index) {
                 <li class="domain">
@@ -168,15 +169,15 @@ import { I18nService } from '../../core/i18n/i18n.service';
                     <textarea class="ui-input" rows="2" [ngModel]="d.description" (ngModelChange)="editDomain(i, { description: $event })" [ngModelOptions]="{ standalone: true }" [placeholder]="i18n.t('packEditor.domainDescPlaceholder')" [attr.aria-label]="i18n.t('packEditor.editDomainDescription')"></textarea>
                   </div>
                   <div class="domain-actions">
-                    <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" [disabled]="i === 0" (click)="moveDomain(i, -1)" [attr.aria-label]="i18n.t('settings.moveUp', { name: d.name })">↑</button>
-                    <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" [disabled]="i === domains().length - 1" (click)="moveDomain(i, 1)" [attr.aria-label]="i18n.t('settings.moveDown', { name: d.name })">↓</button>
-                    <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" (click)="removeDomain(i)" [attr.aria-label]="i18n.t('common.delete') + ': ' + d.name">✕</button>
+                    <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" [disabled]="i === 0" (click)="moveDomain(i, -1)" [attr.aria-label]="i18n.t('settings.moveUp', { name: d.name })"><app-icon name="arrow-up" /></button>
+                    <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" [disabled]="i === domains().length - 1" (click)="moveDomain(i, 1)" [attr.aria-label]="i18n.t('settings.moveDown', { name: d.name })"><app-icon name="arrow-down" /></button>
+                    <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" (click)="removeDomain(i)" [attr.aria-label]="i18n.t('common.delete') + ': ' + d.name"><app-icon name="x" /></button>
                   </div>
                 </li>
               }
             </ol>
             @if (domains().length < maxDomains) {
-              <button type="button" class="ui-btn ui-btn-sm" (click)="addDomain()">+ {{ i18n.t('certDialog.addDomain') }}</button>
+              <button type="button" class="ui-btn ui-btn-sm" (click)="addDomain()"><app-icon name="plus" /> {{ i18n.t('certDialog.addDomain') }}</button>
             }
           </details>
 
@@ -658,7 +659,7 @@ export class CertificationDialogComponent implements OnInit {
     }
     const created = this.packs.create(draft);
     if (this.createBank) {
-      this.banks.create(created.id, { name: DEFAULT_BANK_NAME, author: '', version: '', sourceUrl: '', description: '' });
+      this.banks.create(created.id, { author: DEFAULT_BANK_AUTHOR, version: '', sourceUrl: '', description: '' });
     }
     this.saved.emit({ pack: created, created: true });
   }

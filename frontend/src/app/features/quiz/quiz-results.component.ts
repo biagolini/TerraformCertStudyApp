@@ -1,3 +1,4 @@
+import { IconComponent } from '../../shared/components/icon.component';
 import { TutorDialogComponent } from '../tutor/tutor-dialog.component';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DomainBadgeComponent } from '../../shared/components/domain-badge.component';
@@ -23,7 +24,7 @@ function itemStatus(answer: QuizAnswer): Exclude<ResultFilter, 'all'> {
 @Component({
   selector: 'app-quiz-results',
   standalone: true,
-  imports: [DomainBadgeComponent, MarkdownRendererComponent, TutorDialogComponent],
+  imports: [IconComponent, DomainBadgeComponent, MarkdownRendererComponent, TutorDialogComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="results-card">
@@ -157,8 +158,8 @@ function itemStatus(answer: QuizAnswer): Exclude<ResultFilter, 'all'> {
                   </div>
                 }
                 <div class="row-actions">
-                  <span class="ui-faint">⏱ {{ formatClockValue(timeFor(row.question.id)) }}</span>
-                  <button type="button" class="btn-ghost-sm" (click)="tutorFor.set(row.question)">✦ {{ i18n.t('tutor.ask') }}{{ tutorCount(row.question.id) ? ' (' + tutorCount(row.question.id) + ')' : '' }}</button>
+                  <span class="ui-faint"><app-icon name="clock" size="14" /> {{ formatClockValue(timeFor(row.question.id)) }}</span>
+                  <button type="button" class="btn-ghost-sm" (click)="tutorFor.set(row.question)"><app-icon name="sparkles" /> {{ i18n.t('tutor.ask') }}{{ tutorCount(row.question.id) ? ' (' + tutorCount(row.question.id) + ')' : '' }}</button>
                 </div>
               </div>
             }

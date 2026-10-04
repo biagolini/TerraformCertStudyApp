@@ -9,13 +9,12 @@ AI-powered study app for IT certification exams (AWS, Anthropic CCAF, and others
 The app is organized around the certification: **Certification → Question banks → Questions**, with everything else (mock exams, notes, transcripts, chat, performance) inside that certification's workspace.
 
 - **Home** — your certifications with question/bank/note/attempt counts, a catalog of suggested certifications filtered by ecosystem (AWS, Azure, Google Cloud, Kubernetes, Terraform, Linux, MongoDB, Anthropic, others) and ranked by your profile, an add/edit certification editor prefilled from the catalog, and a one-click starter kit with sample data
-- **Question banks** — one bank per source of questions (a practice exam, an instructor's set, your own), grouped by author, with a per-domain breakdown that doubles as a filter and a unified "all questions" view
+- **Question banks** — one bank per practice exam of the certification, identified by author/vendor and version (plus source link and notes), grouped by author, with a per-domain breakdown that doubles as a filter and a unified "all questions" view
 - **Question reviews** — paste a multiple-choice question, get a structured review (concepts, correct answer reasoning, incorrect alternatives analysis), or paste a ready-made one
 - **Bulk import** — upload an exam file into a bank; AI extracts every question for human review (see below)
 - **Mock exams** — draw from selected banks and domains, instant feedback or strict final review, exam clock and per-question budget with overtime, item navigator with filters and status badges, pause and resume up to five sessions, early finish with a blank/answered summary, pass/fail verdict against the certification's pass mark, per-domain results, an AI tutor per question
 - **Performance** — attempt history with filters, score evolution chart, domain mastery and weak-domain suggestions
 - **Notes** — Markdown notes stored privately in S3, with a toolbar, preview, image upload and an AI copilot that reads the note (polish, exam summary, flashcards, practice questions)
-- **Flashcards** — flip cards from questions or from Front/Back tables in notes
 - **Transcript summaries and tutor chat** — scoped to the certification, savable as notes
 - **Student profile** — identity, ecosystems of interest, per-certification status (want to do, studying, earned) and accommodation default
 - **Settings** — languages, theme, models, workspace tabs, quiz toolbar, password change, full JSON backup, AI costs and budget

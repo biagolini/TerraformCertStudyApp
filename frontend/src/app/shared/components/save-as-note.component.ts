@@ -1,3 +1,4 @@
+import { IconComponent } from './icon.component';
 import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { NotesService } from '../../core/services/notes.service';
@@ -8,10 +9,11 @@ import { I18nService } from '../../core/i18n/i18n.service';
 @Component({
   selector: 'app-save-as-note',
   standalone: true,
+  imports: [IconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <button type="button" class="ui-btn ui-btn-sm" [disabled]="busy() || !content().trim()" (click)="save()">
-      📝 {{ busy() ? i18n.t('common.loading') : i18n.t('notes.saveAsNote') }}
+      <app-icon name="file-text" /> {{ busy() ? i18n.t('common.loading') : i18n.t('notes.saveAsNote') }}
     </button>
     @if (error()) {
       <span class="error" role="alert">{{ error() }}</span>

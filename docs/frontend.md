@@ -28,12 +28,11 @@ Routes live in `src/app/app.routes.ts`. Every page is lazy-loaded with `loadComp
 | `…/quiz` | `QuizComponent` (setup, runner, results, history) |
 | `…/performance` | `PerformancePageComponent` |
 | `…/notes[/:noteId]` | `NotesPageComponent` / `NoteEditorComponent` |
-| `…/flashcards` | `FlashcardsPageComponent` |
 | `…/transcripts[/:scriptId]`, `…/chat[/:chatId]`, `…/export` | transcripts, tutor chat, export, all scoped to the certification |
 
 The `/exam/:packId` route runs `packIdResolver`, which waits for the first pack load and then makes the URL's pack the active one (`SettingsService.activePackId`) before any child renders, so every pack-scoped service (questions, banks, notes, chats, scripts, quiz) already points at it. An unknown id redirects to Home. The router uses `paramsInheritanceStrategy: 'always'`, so child pages receive `packId` as a component input. `core/utils/routes.util.ts` builds these URLs.
 
-The workspace tab bar is user-configurable: `SettingsService.orderedNavItems()` drives which tabs show and in what order (`NAV_ITEMS` in `core/models/nav-item.model.ts`: `banks`, `quiz`, `performance`, `notes`, `flashcards`, `transcripts`, `chat`, `export`).
+The workspace tab bar is user-configurable: `SettingsService.orderedNavItems()` drives which tabs show and in what order (`NAV_ITEMS` in `core/models/nav-item.model.ts`: `banks`, `quiz`, `performance`, `notes`, `transcripts`, `chat`, `export`).
 
 The quiz question toolbar is configurable the same way, through `QUIZ_TOOLS` in `core/models/quiz-tool.model.ts` plus `hiddenQuizTools` / `quizToolOrder` / `quizToolbarRows` in `AppSettings`: Settings picks which buttons show, their order, and how many rows (up to 3) they are split over on phone-width viewports (desktop always renders one row), and `splitQuizToolRows` only materializes a row when there is at least one button for it. Two of the tools (`checkAnswer`, `nextQuestion`) are flagged `compactOnly` and render only while the toolbar is pinned to the top of a phone-width viewport, where the question's own bottom action row has scrolled out of reach; `checkAnswer` additionally only applies in instant-feedback mode.
 
@@ -41,7 +40,7 @@ The quiz question toolbar is configurable the same way, through `QUIZ_TOOLS` in 
 
 ## Data Hierarchy
 
-**Certification (`Pack`) → Question banks (`QuestionBank`) → Questions.** A bank is one source of questions (a practice exam, an instructor's set, the user's own). Notes, transcripts, chats, import jobs and mock-exam attempts also belong to a certification through `packId`. Adding a question or importing a file always targets a bank; if a certification has none yet, `BanksService.ensureDefault` creates one. Mock exams draw from the selected banks (none selected = all). `QuestionsService.visible` is what the question browser lists: the active certification narrowed by `bankFilter` and `domainFilter`.
+**Certification (`Pack`) → Question banks (`QuestionBank`) → Questions.** A bank is one practice exam of the certification, identified by `author` (instructor, vendor or the user) and `version`, with an optional source link and notes; there is no separate bank name, the UI label is "author · version" (`bankLabel`). The certification is never typed by the user: it comes from the workspace URL. Notes, transcripts, chats, import jobs and mock-exam attempts also belong to a certification through `packId`. Adding a question or importing a file always targets a bank; if a certification has none yet, `BanksService.ensureDefault` creates one. Mock exams draw from the selected banks (none selected = all). `QuestionsService.visible` is what the question browser lists: the active certification narrowed by `bankFilter` and `domainFilter`.
 
 ## Project Structure
 
@@ -58,7 +57,7 @@ frontend/src/app/
 │   ├── guards/               # authGuard, loginGuard
 │   └── resolvers/            # packIdResolver
 ├── features/                 # home, workspace, banks, questions, question-input, question-list,
-│                             # review-viewer, quiz, tutor, performance, notes, flashcards, profile,
+│                             # review-viewer, quiz, tutor, performance, notes, profile,
 │                             # chat, transcripts, import-exam, import-review, export, settings,
 │                             # packs (certification editor), costs, login
 └── shared/                   # reusable components (dialogs, badges, pills) + pipes
@@ -85,6 +84,8 @@ All services live in `core/services/` and are `{ providedIn: 'root' }` singleton
 | `StarterKitService` | One-click sample certification, bank, questions and welcome note |
 | `BackupService` | Full JSON export of the account |
 | `LightboxService` | App-wide image viewer state |
+
+Icons: every icon is `<app-icon name="…">` (`shared/components/icon.component.ts`, outline SVGs); emojis and Unicode pictographs are not used (`scripts/check-no-emoji.mjs`, see `.kiro/steering/ui-icons.md`).
 | `QuizService` / `QuizAttemptsService` | Quiz run state (bank selection, clock, answers, annotations, flags, tutor Q&A, pass mark) and persisted attempts; up to 5 in-progress attempts can be open and switched between via "Save and exit". A session left open in one certification is parked when another certification's mock-exam tab opens |
 | `ChatService` | Chat session CRUD, message append/streaming, summary management |
 | `ScriptsService` | Transcript CRUD |

@@ -1,3 +1,4 @@
+import { IconComponent } from '../../shared/components/icon.component';
 import { ActivatedRoute } from '@angular/router';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -15,7 +16,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 @Component({
   selector: 'app-quiz-setup',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, IconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="setup-card">
@@ -73,7 +74,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
       @for (group of bankGroups(); track group.author) {
         <div class="bank-group">
           <div class="bank-group-head">
-            <span class="bank-author">👤 {{ group.author || i18n.t('banks.noAuthor') }}</span>
+            <span class="bank-author"><app-icon name="user" size="14" /> {{ group.author || i18n.t('banks.noAuthor') }}</span>
             <button type="button" class="history-link" (click)="toggleAuthor(group.author)">
               {{ authorFullySelected(group.author) ? i18n.t('quizSetup.unselectAuthor') : i18n.t('quizSetup.selectAuthor') }}
             </button>
@@ -81,8 +82,8 @@ import { I18nService } from '../../core/i18n/i18n.service';
           <div class="bank-grid">
             @for (b of group.banks; track b.bank.id) {
               <button type="button" class="bank-chip" [class.selected]="selectedBanks().has(b.bank.id)" (click)="toggleBank(b.bank.id)" [attr.aria-pressed]="selectedBanks().has(b.bank.id)">
-                <span class="bank-check" aria-hidden="true">{{ selectedBanks().has(b.bank.id) ? '✓' : '' }}</span>
-                <span class="bank-name">{{ b.bank.name }}</span>
+                <span class="bank-check" aria-hidden="true">@if (selectedBanks().has(b.bank.id)) { <app-icon name="check" size="12" /> }</span>
+                <span class="bank-name">{{ b.bank.version || i18n.t('banks.noVersion') }}</span>
                 <span class="bank-count">{{ b.count }}</span>
               </button>
             }
@@ -127,7 +128,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
       <div class="filters-row">
         <span class="switch-label">{{ i18n.t('quizSetup.questions') }}</span>
         <div class="stepper">
-          <button type="button" (click)="onChangeCount(-5)" [disabled]="effectiveCount() <= 1">−</button>
+          <button type="button" (click)="onChangeCount(-5)" [disabled]="effectiveCount() <= 1" [attr.aria-label]="i18n.t('quizSetup.fewer')"><app-icon name="minus" /></button>
           <input
             type="number"
             inputmode="numeric"
@@ -138,7 +139,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             [max]="filteredCount()"
             [attr.aria-label]="i18n.t('quizSetup.questions')"
           />
-          <button type="button" (click)="onChangeCount(5)" [disabled]="effectiveCount() >= filteredCount()">+</button>
+          <button type="button" (click)="onChangeCount(5)" [disabled]="effectiveCount() >= filteredCount()" [attr.aria-label]="i18n.t('quizSetup.more')"><app-icon name="plus" /></button>
         </div>
         <span class="hint-text">{{ i18n.t('quizSetup.ofAvailable', { count: filteredCount() }) }}</span>
       </div>
@@ -219,7 +220,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .banks-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); }
       .bank-group { display: flex; flex-direction: column; gap: 6px; padding: var(--space-sm) var(--space-md); border: 1px solid var(--bg-border); border-radius: var(--radius-md); }
       .bank-group-head { display: flex; align-items: center; justify-content: space-between; }
-      .bank-author { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-secondary); }
+      .bank-author { display: inline-flex; align-items: center; gap: 4px; font-size: var(--font-size-sm); font-weight: 600; color: var(--text-secondary); }
       .bank-grid { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); }
       .bank-chip { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 10px; border: 1px solid var(--bg-border); border-radius: var(--radius-md); background: var(--bg-input); color: var(--text-primary); text-align: left; cursor: pointer; }
       .bank-chip.selected { border-color: var(--color-purple); background: rgba(108, 92, 231, 0.08); }

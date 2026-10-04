@@ -1,3 +1,5 @@
+import { IconComponent } from '../../shared/components/icon.component';
+import { QuestionBank, bankLabel } from '../../core/models/bank.model';
 import { examPath } from '../../core/utils/routes.util';
 import { BanksService } from '../../core/services/banks.service';
 import { StorageService } from '../../core/services/storage.service';
@@ -16,7 +18,7 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
 @Component({
   selector: 'app-import-exam',
   standalone: true,
-  imports: [FormsModule, AiDisclaimerComponent],
+  imports: [IconComponent, FormsModule, AiDisclaimerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="import-card">
@@ -30,16 +32,27 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
         <span class="field-label">{{ i18n.t('importExam.targetBank') }}</span>
         <select class="select-input" [ngModel]="selectedBankId()" (ngModelChange)="selectedBankId.set($event)" [attr.aria-label]="i18n.t('importExam.targetBank')">
           @for (b of packBanks(); track b.id) {
-            <option [value]="b.id">{{ b.name }}{{ b.author ? ' · ' + b.author : '' }}</option>
+            <option [value]="b.id">{{ label(b) }}</option>
           }
-          <option value="__new__">+ {{ i18n.t('importExam.newBankForImport') }}</option>
+          <option value="__new__">{{ i18n.t('importExam.newBankForImport') }}</option>
         </select>
       </label>
       @if (selectedBankId() === '__new__') {
-        <label class="field">
-          <span class="field-label">{{ i18n.t('importExam.newBankName') }}</span>
-          <input type="text" class="select-input" [ngModel]="newBankName()" (ngModelChange)="newBankName.set($event)" [placeholder]="i18n.t('banks.namePlaceholder')" />
-        </label>
+        <div class="new-bank">
+          <label class="field">
+            <span class="field-label">{{ i18n.t('banks.author') }} *</span>
+            <input type="text" class="select-input" [ngModel]="newBankAuthor()" (ngModelChange)="newBankAuthor.set($event)" [placeholder]="i18n.t('banks.authorPlaceholder')" list="import-bank-authors" />
+            <datalist id="import-bank-authors">
+              @for (a of knownAuthors(); track a) {
+                <option [value]="a"></option>
+              }
+            </datalist>
+          </label>
+          <label class="field">
+            <span class="field-label">{{ i18n.t('banks.version') }}</span>
+            <input type="text" class="select-input" [ngModel]="newBankVersion()" (ngModelChange)="newBankVersion.set($event)" [placeholder]="i18n.t('banks.versionPlaceholder')" />
+          </label>
+        </div>
       }
 
       <label class="field">
@@ -149,7 +162,7 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
               <div class="job-actions">
                 <button type="button" class="btn-ghost-sm" (click)="onReview(job)">{{ i18n.t('importExam.reviewCount', { count: job.totalQuestions }) }}</button>
                 <button type="button" class="btn-ghost-sm" [disabled]="openingOriginal() === job.id" (click)="onViewOriginal(job)">
-                  {{ openingOriginal() === job.id ? i18n.t('importExam.opening') : i18n.t('importExam.viewOriginal') }}
+                  {{ openingOriginal() === job.id ? i18n.t('importExam.opening') : i18n.t('importExam.viewOriginal') }} <app-icon name="external-link" size="14" />
                 </button>
                 <button type="button" class="btn-ghost-sm" (click)="onDeleteJob(job)">{{ i18n.t('common.delete') }}</button>
               </div>
@@ -207,6 +220,7 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
       .subtitle code { background: var(--bg-elevated); padding: 1px 5px; border-radius: var(--radius-sm); }
 
       .field { display: flex; flex-direction: column; gap: var(--space-xs); }
+      .new-bank { display: grid; gap: var(--space-md); grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); padding: var(--space-md); border: 1px dashed var(--bg-border); border-radius: var(--radius-md); }
       .field-label { font-size: var(--font-size-sm); color: var(--text-muted); }
       .select-input, .file-input {
         min-height: var(--touch-min); padding: 0 var(--space-md); border-radius: var(--radius-md);
@@ -293,8 +307,14 @@ export class ImportExamComponent {
   /** Target bank. Empty = the certification's first bank (created on demand). */
   readonly bankId = input<string>('');
   protected readonly selectedBankId = signal('');
-  protected readonly newBankName = signal('');
+  protected readonly newBankAuthor = signal('');
+  protected readonly newBankVersion = signal('');
+  protected readonly knownAuthors = computed(() => [...new Set(this.packBanks().map((b) => b.author).filter(Boolean))]);
   protected readonly packBanks = computed(() => this.banks.forPack(this.packId()));
+
+  label(bank: QuestionBank): string {
+    return bankLabel(bank, this.i18n.t('banks.untitled'));
+  }
 
   constructor() {
     // Preselect the bank passed in (?bank= from the bank page), else keep a
@@ -356,15 +376,20 @@ export class ImportExamComponent {
     this.error.set(null);
     let bankId = this.selectedBankId();
     if (bankId === '__new__') {
+      if (!this.newBankAuthor().trim()) {
+        this.error.set(this.i18n.t('importExam.authorRequired'));
+        return;
+      }
       bankId = this.banks.create(packId, {
-        name: this.newBankName().trim() || file.name.replace(/\.[^.]+$/, ''),
-        author: '',
-        version: '',
+        author: this.newBankAuthor(),
+        // The file name is a sensible default edition label for an imported practice exam.
+        version: this.newBankVersion().trim() || file.name.replace(/\.[^.]+$/, ''),
         sourceUrl: '',
         description: '',
       }).id;
       this.selectedBankId.set(bankId);
-      this.newBankName.set('');
+      this.newBankAuthor.set('');
+      this.newBankVersion.set('');
     } else if (!bankId || this.banks.getById(bankId)?.packId !== packId) {
       bankId = this.banks.ensureDefault(packId).id;
     }

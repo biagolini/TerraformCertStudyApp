@@ -1,4 +1,3 @@
-import { flashcardsFromMarkdown, questionToFlashcard } from './flashcard.util';
 import { domainMastery, scoreChartPoints } from './performance.util';
 import { parseMarkdown } from '../../features/review-viewer/markdown-renderer.component';
 import { groupByAuthor } from '../services/banks.service';
@@ -59,27 +58,6 @@ function attempt(id: string, score: number, finishedAt: number, answers: Partial
     finishedAt,
   };
 }
-
-describe('flashcards', () => {
-  it('turns a question into a card with the correct answer on the back', () => {
-    const card = questionToFlashcard(q, 'Bank');
-    expect(card.front).toBe('Stem?');
-    expect(card.back).toContain('**B.** Right');
-    expect(card.back).toContain('because');
-    expect(card.back).not.toContain('Wrong');
-  });
-
-  it('reads Front | Back tables (any supported language) from Markdown', () => {
-    const md = 'Intro\n\n| Frente | Verso |\n|---|---|\n| What is S3? | Object storage |\n| Bad row | |\n\ntext';
-    const cards = flashcardsFromMarkdown(md, 'Note', 'n1');
-    expect(cards).toHaveLength(1);
-    expect(cards[0]).toMatchObject({ front: 'What is S3?', back: 'Object storage', source: 'Note' });
-  });
-
-  it('ignores tables without front/back headers', () => {
-    expect(flashcardsFromMarkdown('| a | b |\n|---|---|\n| 1 | 2 |', 'N', 'n')).toEqual([]);
-  });
-});
 
 describe('performance', () => {
   it('aggregates domain mastery with blanks counted as wrong, weakest first', () => {

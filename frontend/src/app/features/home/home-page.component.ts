@@ -1,3 +1,4 @@
+import { IconComponent } from '../../shared/components/icon.component';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -30,7 +31,7 @@ const STRIP_SIZE = 4;
   selector: 'app-home-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, RouterLink, CertificationDialogComponent],
+  imports: [IconComponent, FormsModule, RouterLink, CertificationDialogComponent],
   template: `
     <div class="ui-page">
       <header class="ui-page-head">
@@ -38,13 +39,13 @@ const STRIP_SIZE = 4;
           <h1>{{ i18n.t('home.title') }}</h1>
           <p>{{ i18n.t('home.subtitle') }}</p>
         </div>
-        <button type="button" class="ui-btn ui-btn-primary" (click)="openNew(null)">+ {{ i18n.t('home.addCertification') }}</button>
+        <button type="button" class="ui-btn ui-btn-primary" (click)="openNew(null)"><app-icon name="plus" /> {{ i18n.t('home.addCertification') }}</button>
       </header>
 
       @if (strip().length > 0) {
         <section class="suggest" [class.collapsed]="collapsed()" [attr.aria-label]="i18n.t('home.suggestedTitle')">
           <div class="suggest-head">
-            <span class="suggest-icon" aria-hidden="true">✦</span>
+            <span class="suggest-icon" aria-hidden="true"><app-icon name="sparkles" size="18" /></span>
             <div class="suggest-text">
               <strong>{{ i18n.t('home.suggestedTitle') }}</strong>
               @if (!collapsed()) {
@@ -53,9 +54,9 @@ const STRIP_SIZE = 4;
             </div>
             <div class="suggest-actions">
               @if (!collapsed()) {
-                <a routerLink="/profile" class="ui-chip ui-chip-accent">👤 {{ i18n.t('home.personalize') }}</a>
+                <a routerLink="/profile" class="ui-chip ui-chip-accent"><app-icon name="user" size="14" /> {{ i18n.t('home.personalize') }}</a>
               }
-              <button type="button" class="ui-btn ui-btn-ghost ui-btn-sm" (click)="openNew(null)">{{ i18n.t('home.browseAll', { n: available().length }) }} ›</button>
+              <button type="button" class="ui-btn ui-btn-ghost ui-btn-sm" (click)="openNew(null)">{{ i18n.t('home.browseAll', { n: available().length }) }} <app-icon name="chevron-right" /></button>
               <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" (click)="toggleCollapsed()" [attr.aria-expanded]="!collapsed()" [attr.aria-label]="collapsed() ? i18n.t('home.showSuggestions') : i18n.t('home.hideSuggestions')">
                 <svg class="chev" [class.open]="!collapsed()" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M6 9l6 6 6-6"/></svg>
               </button>
@@ -68,10 +69,10 @@ const STRIP_SIZE = 4;
                   <div class="mini-top">
                     <span class="ui-code" [style.--chip-color]="e.color">{{ e.code }}</span>
                     @if (profile.interests().has(e.provider)) {
-                      <span class="ui-chip ui-chip-accent tiny">★ {{ i18n.t('home.interestMatch') }}</span>
+                      <span class="ui-chip ui-chip-accent tiny"><app-icon name="star" size="12" /> {{ i18n.t('home.interestMatch') }}</span>
                     }
                     @if (e.examDurationMinutes) {
-                      <span class="ui-faint push">⏱ {{ e.examDurationMinutes }}m</span>
+                      <span class="ui-faint push"><app-icon name="clock" size="14" /> {{ e.examDurationMinutes }}m</span>
                     }
                   </div>
                   <h3 class="mini-name">{{ e.name }}</h3>
@@ -80,7 +81,7 @@ const STRIP_SIZE = 4;
                     <span class="ui-faint">{{ i18n.t('home.domainsCount', { n: e.domainCount }) }}</span>
                     <span class="push ui-actions">
                       <button type="button" class="ui-btn ui-btn-sm" (click)="openNew(e)">{{ i18n.t('home.prefill') }}</button>
-                      <button type="button" class="ui-btn ui-btn-sm add" [disabled]="adding() === e.id" (click)="quickAdd(e)">+ {{ i18n.t('home.add') }}</button>
+                      <button type="button" class="ui-btn ui-btn-sm add" [disabled]="adding() === e.id" (click)="quickAdd(e)"><app-icon name="plus" /> {{ i18n.t('home.add') }}</button>
                     </span>
                   </div>
                 </article>
@@ -92,7 +93,7 @@ const STRIP_SIZE = 4;
 
       @if (packs.packs().length === 0) {
         <section class="ui-empty empty">
-          <span class="empty-icon" aria-hidden="true">🎖</span>
+          <span class="empty-icon" aria-hidden="true"><app-icon name="award" size="28" /></span>
           <h3>{{ i18n.t('home.emptyTitle') }}</h3>
           <p>{{ i18n.t('home.emptyBody') }}</p>
           @if (quickStart().length > 0) {
@@ -107,16 +108,16 @@ const STRIP_SIZE = 4;
                       @if (e.examDurationMinutes) { {{ e.examDurationMinutes }} min · }
                       {{ i18n.t('home.domainsCount', { n: e.domainCount }) }}
                     </span>
-                    <span>{{ i18n.t('home.start') }} ›</span>
+                    <span>{{ i18n.t('home.start') }} <app-icon name="chevron-right" /></span>
                   </span>
                 </button>
               }
             </div>
           }
           <div class="ui-actions">
-            <button type="button" class="ui-btn ui-btn-primary" (click)="openNew(null)">+ {{ i18n.t('home.addCertification') }}</button>
+            <button type="button" class="ui-btn ui-btn-primary" (click)="openNew(null)"><app-icon name="plus" /> {{ i18n.t('home.addCertification') }}</button>
             <button type="button" class="ui-btn ui-btn-soft" [disabled]="loadingStarter()" (click)="loadStarter()">
-              ✦ {{ loadingStarter() ? i18n.t('common.loading') : i18n.t('home.loadStarter') }}
+              <app-icon name="sparkles" /> {{ loadingStarter() ? i18n.t('common.loading') : i18n.t('home.loadStarter') }}
             </button>
           </div>
           <p class="ui-faint">{{ i18n.t('home.starterHint') }}</p>
@@ -148,7 +149,7 @@ const STRIP_SIZE = 4;
                     </div>
                     <h3>{{ card.pack.name }}</h3>
                   </div>
-                  <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" (click)="openEdit(card.pack)" [attr.aria-label]="i18n.t('home.editCertification') + ': ' + card.pack.name" [title]="i18n.t('home.editCertification')">⋮</button>
+                  <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" (click)="openEdit(card.pack)" [attr.aria-label]="i18n.t('home.editCertification') + ': ' + card.pack.name" [title]="i18n.t('home.editCertification')"><app-icon name="more-vertical" size="18" /></button>
                 </div>
                 @if (card.pack.description) {
                   <p class="ui-muted ui-clamp-2 desc">{{ card.pack.description }}</p>
@@ -162,7 +163,7 @@ const STRIP_SIZE = 4;
                 <div class="study-meta ui-faint">
                   <span>
                     @if (card.pack.examDurationMinutes) {
-                      ⏱ {{ i18n.t('workspace.minutes', { n: card.pack.examDurationMinutes }) }}
+                      <app-icon name="clock" size="14" /> {{ i18n.t('workspace.minutes', { n: card.pack.examDurationMinutes }) }}
                       @if (card.pack.accommodationMinutes) {
                         <span class="extra">(+{{ card.pack.accommodationMinutes }}m {{ i18n.t('home.extra') }})</span>
                       }

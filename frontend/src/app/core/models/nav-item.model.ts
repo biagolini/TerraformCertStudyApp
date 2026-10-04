@@ -1,5 +1,5 @@
 /** Tabs of the certification workspace (/exam/:packId/<path>). */
-export type NavTabId = 'banks' | 'quiz' | 'performance' | 'notes' | 'flashcards' | 'transcripts' | 'chat' | 'export';
+export type NavTabId = 'banks' | 'quiz' | 'performance' | 'notes' | 'transcripts' | 'chat' | 'export';
 
 export interface NavItem {
   id: NavTabId;
@@ -32,12 +32,6 @@ export const NAV_ITEMS: NavItem[] = [
     path: 'notes',
     label: 'Notes',
     icon: 'M7 4h7l5 5v11a1 1 0 01-1 1H7a1 1 0 01-1-1V5a1 1 0 011-1zM14 4v5h5M9 13h6M9 17h6',
-  },
-  {
-    id: 'flashcards',
-    path: 'flashcards',
-    label: 'Flashcards',
-    icon: 'M8 4h11a1 1 0 011 1v11M4 8h11a1 1 0 011 1v10a1 1 0 01-1 1H5a1 1 0 01-1-1V9a1 1 0 011-1z',
   },
   {
     id: 'transcripts',

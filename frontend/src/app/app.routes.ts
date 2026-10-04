@@ -87,11 +87,6 @@ export const routes: Routes = [
             loadComponent: () => import('./features/notes/notes-page.component').then((m) => m.NotesPageComponent),
           },
           {
-            path: 'flashcards',
-            loadComponent: () =>
-              import('./features/flashcards/flashcards-page.component').then((m) => m.FlashcardsPageComponent),
-          },
-          {
             path: 'transcripts',
             loadComponent: () =>
               import('./features/transcripts/transcripts-page.component').then((m) => m.TranscriptsPageComponent),

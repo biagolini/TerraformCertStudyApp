@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { Question } from '../../core/models/question.model';
-import { QuestionBank } from '../../core/models/bank.model';
+import { QuestionBank, bankLabel } from '../../core/models/bank.model';
+import { IconComponent } from '../../shared/components/icon.component';
 import { QuestionsService } from '../../core/services/questions.service';
 import { BanksService } from '../../core/services/banks.service';
 import { PacksService } from '../../core/services/packs.service';
@@ -23,16 +24,16 @@ import { BankEditorComponent } from '../banks/bank-editor.component';
   selector: 'app-questions-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, QuestionInputComponent, QuestionListComponent, ReviewViewerComponent, BankEditorComponent],
+  imports: [RouterLink, IconComponent, QuestionInputComponent, QuestionListComponent, ReviewViewerComponent, BankEditorComponent],
   template: `
     @if (!(isMobile() && questionId())) {
       <section class="bank-head ui-card">
         <div class="head-row">
-          <a class="ui-btn ui-btn-sm" [routerLink]="banksLink()">← {{ i18n.t('banks.title') }}</a>
+          <a class="ui-btn ui-btn-sm" [routerLink]="banksLink()"><app-icon name="arrow-left" /> {{ i18n.t('banks.title') }}</a>
           <div class="head-title">
             @if (bank(); as b) {
-              <span class="author">👤 {{ b.author || i18n.t('banks.noAuthor') }}</span>
-              <h2>{{ b.name }} @if (b.version) { <span class="ui-faint">· {{ b.version }}</span> }</h2>
+              <span class="author"><app-icon name="user" size="14" /> {{ b.author || i18n.t('banks.noAuthor') }}</span>
+              <h2>{{ b.version || i18n.t('banks.noVersion') }}</h2>
               @if (b.description) {
                 <p class="ui-muted desc">{{ b.description }}</p>
               }
@@ -47,19 +48,19 @@ import { BankEditorComponent } from '../banks/bank-editor.component';
               <select class="ui-input" [value]="bankId()" (change)="switchBank($any($event.target).value)">
                 <option [value]="all">{{ i18n.t('banks.allQuestions') }}</option>
                 @for (b of banks.banks(); track b.id) {
-                  <option [value]="b.id">{{ b.name }}</option>
+                  <option [value]="b.id">{{ label(b) }}</option>
                 }
               </select>
             </label>
             @if (bank(); as b) {
               @if (b.sourceUrl) {
-                <a class="ui-btn ui-btn-sm" [href]="b.sourceUrl" target="_blank" rel="noopener noreferrer">{{ i18n.t('banks.source') }} ↗</a>
+                <a class="ui-btn ui-btn-sm" [href]="b.sourceUrl" target="_blank" rel="noopener noreferrer">{{ i18n.t('banks.source') }} <app-icon name="external-link" size="14" /></a>
               }
               <button type="button" class="ui-btn ui-btn-sm" (click)="editingBank.set(true)">{{ i18n.t('common.edit') }}</button>
-              <a class="ui-btn ui-btn-sm ui-btn-soft" [routerLink]="importLink()" [queryParams]="{ bank: b.id }">✦ {{ i18n.t('banks.importAi') }}</a>
+              <a class="ui-btn ui-btn-sm ui-btn-soft" [routerLink]="importLink()" [queryParams]="{ bank: b.id }"><app-icon name="sparkles" /> {{ i18n.t('banks.importAi') }}</a>
             }
             <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" (click)="toggleAdd()" [attr.aria-expanded]="adding()">
-              {{ adding() ? i18n.t('banks.closeAdd') : '+ ' + i18n.t('banks.addQuestion') }}
+              @if (adding()) { {{ i18n.t('banks.closeAdd') }} } @else { <app-icon name="plus" /> {{ i18n.t('banks.addQuestion') }} }
             </button>
           </div>
         </div>
@@ -87,7 +88,7 @@ import { BankEditorComponent } from '../banks/bank-editor.component';
             <span>{{ i18n.t('banks.addInto') }}</span>
             <select class="ui-input" [value]="targetBankId()" (change)="targetBankId.set($any($event.target).value)">
               @for (b of banks.banks(); track b.id) {
-                <option [value]="b.id">{{ b.name }}</option>
+                <option [value]="b.id">{{ label(b) }}</option>
               }
             </select>
           </label>
@@ -122,7 +123,7 @@ import { BankEditorComponent } from '../banks/bank-editor.component';
               {{ i18n.t('banks.moveTo') }}
               <select class="ui-input" [value]="q.bankId" (change)="moveQuestion(q, $any($event.target).value)">
                 @for (b of banks.banks(); track b.id) {
-                  <option [value]="b.id">{{ b.name }}</option>
+                  <option [value]="b.id">{{ label(b) }}</option>
                 }
               </select>
             </label>
@@ -168,6 +169,9 @@ import { BankEditorComponent } from '../banks/bank-editor.component';
         font-weight: 800;
       }
       .author {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
         color: var(--color-amber);
         font-weight: 600;
         font-size: var(--font-size-sm);
@@ -343,6 +347,10 @@ export class QuestionsPageComponent {
       if (lastBank !== null && lastBank !== id) this.questions.domainFilter.set('');
       lastBank = id;
     });
+  }
+
+  label(bank: QuestionBank): string {
+    return bankLabel(bank, this.i18n.t('banks.untitled'));
   }
 
   banksLink(): string[] {
