@@ -4,23 +4,23 @@
 <head>
   <meta charset="utf-8">
   <title>Login</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="../styles.css">
   <style>
-    /* Lifted from login.component.ts — the ONE known holdout still using hardcoded
-       hex colors instead of the app's --bg-*/--text-*/--color-* tokens (tracked,
-       not-yet-done fix). Values below are copied verbatim, not tokenized, so this
-       preview matches what actually ships today. */
-    .login-page { display: flex; align-items: center; justify-content: center; min-height: 480px; background: #1a1a2e; padding: 40px 0; }
-    .login-card { background: #fff; border-radius: 16px; padding: 48px 40px; width: 400px; max-width: 90vw; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.2); }
-    .login-card h1 { margin: 0 0 8px; font-size: 24px; color: #1a1a2e; }
-    .login-card .subtitle { color: #666; font-size: 14px; margin: 0 0 24px; }
-    .login-card .info { color: #333; font-size: 14px; margin: 0 0 16px; }
-    .login-card .error { background: #fee; color: #c00; padding: 10px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
-    .login-card form { display: flex; flex-direction: column; gap: 12px; }
-    .login-card input { padding: 12px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; outline: none; font-family: var(--font-family); }
-    .login-card input:focus { border-color: #4b64ff; }
-    .login-card button { padding: 12px; font-size: 16px; font-weight: 600; background: #4b64ff; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-family: var(--font-family); }
-    .login-card button:hover:not(:disabled) { background: #3a50d9; }
+    /* Lifted verbatim from login.component.ts — fully on tokens now, so it follows html.theme-light/-dark
+       like the rest of the app. Selectors are scoped under .login-card only because several states share
+       this page; min-height is reduced from 100vh for the same reason. */
+    .login-page { display: flex; align-items: center; justify-content: center; min-height: 420px; background: var(--bg-base); border-radius: var(--radius-lg); }
+    .login-card { background: var(--bg-surface); border-radius: var(--radius-lg); padding: 48px 40px; width: 400px; max-width: 90vw; text-align: center; box-shadow: var(--shadow-lg); }
+    .login-card h1 { margin: 0 0 8px; font-size: 24px; color: var(--text-primary); }
+    .login-card .subtitle { color: var(--text-muted); font-size: var(--font-size-base); margin: 0 0 24px; }
+    .login-card .info { color: var(--text-secondary); font-size: var(--font-size-base); margin: 0 0 16px; }
+    .login-card .error { background: rgba(214, 48, 49, 0.1); color: var(--color-red); padding: var(--space-sm); border-radius: var(--radius-md); font-size: var(--font-size-sm); margin-bottom: var(--space-md); }
+    .login-card form { display: flex; flex-direction: column; gap: var(--space-sm); }
+    .login-card input { padding: var(--space-sm) var(--space-md); border: 1px solid var(--bg-border); border-radius: var(--radius-md); background: var(--bg-input); color: var(--text-primary); font-size: var(--font-size-lg); font-family: var(--font-family); outline: none; }
+    .login-card input:focus { border-color: var(--color-blue); }
+    .login-card button { padding: var(--space-sm); font-size: var(--font-size-lg); font-weight: 600; background: var(--color-blue); color: #fff; border: none; border-radius: var(--radius-md); cursor: pointer; min-height: var(--touch-min); font-family: var(--font-family); }
+    .login-card button:hover:not(:disabled) { filter: brightness(0.92); }
     .login-card button:disabled { opacity: 0.6; cursor: not-allowed; }
   </style>
 </head>
@@ -29,7 +29,7 @@
   <div class="ds-page">
     <section class="ds-section">
       <h2>Login — default</h2>
-      <p class="ds-hint">login.component.ts renders on its own, outside the app shell — no header, no theme awareness (it has no <code>html.theme-*</code> class dependency, since every color here is a hardcoded hex, not a token). The theme toggle above only affects the rest of this page, not the card itself.</p>
+      <p class="ds-hint">login.component.ts renders on its own, outside the app shell — no header. Every color is a token, so the theme toggle switches the card too.</p>
       <div class="login-page">
         <div class="login-card">
           <h1>Cert Study Assistant</h1>
@@ -62,7 +62,7 @@
 
     <section class="ds-section">
       <h2>Login — signing in (loading)</h2>
-      <p class="ds-hint">Button label swaps to a progress string and disables; there is no spinner in this component (unlike buttons elsewhere in the app that use <code>mat-spinner</code>).</p>
+      <p class="ds-hint">Button label swaps to a progress string and disables; there is no spinner in this component .</p>
       <div class="login-page">
         <div class="login-card">
           <h1>Cert Study Assistant</h1>

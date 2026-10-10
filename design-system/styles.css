@@ -132,3 +132,13 @@ body {
   gap: var(--space-md);
   align-items: flex-start;
 }
+
+/* Screen mirrors render the full app shell edge to edge, so the theme toggle floats instead of taking a row. */
+.ds-toolbar-float {
+  position: fixed;
+  top: auto;
+  bottom: var(--space-md);
+  right: var(--space-md);
+  z-index: 100;
+  padding: 0;
+}

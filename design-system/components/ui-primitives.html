@@ -1,0 +1,543 @@
+<!-- @dsCard group="Components" -->
+<!doctype html>
+<html class="theme-light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UI primitives (ui-*)</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+/* frontend/src/styles/_ui.scss compiled verbatim (npx sass) — the shared primitives every certification-centric page composes. */
+.ui-page {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  min-width: 0;
+}
+
+.ui-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+.ui-page-head h1 {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.ui-page-head h2 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.ui-page-head p {
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.ui-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--bg-border);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: var(--font-size-base);
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+.ui-btn:hover:not(:disabled) {
+  background: var(--bg-elevated);
+}
+.ui-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ui-btn:focus-visible {
+  outline: 2px solid var(--color-purple);
+  outline-offset: 2px;
+}
+.ui-btn svg {
+  flex-shrink: 0;
+}
+
+.ui-btn-primary {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-surface);
+}
+.ui-btn-primary:hover:not(:disabled) {
+  background: var(--text-secondary);
+}
+
+.ui-btn-accent {
+  background: var(--color-purple);
+  border-color: var(--color-purple);
+  color: #ffffff;
+}
+.ui-btn-accent:hover:not(:disabled) {
+  background: var(--color-blue);
+  border-color: var(--color-blue);
+}
+
+.ui-btn-soft {
+  background: rgba(108, 92, 231, 0.1);
+  border-color: rgba(108, 92, 231, 0.35);
+  color: var(--color-purple);
+}
+.ui-btn-soft:hover:not(:disabled) {
+  background: rgba(108, 92, 231, 0.18);
+}
+
+.ui-btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+}
+
+.ui-btn-danger {
+  background: transparent;
+  border-color: rgba(214, 48, 49, 0.4);
+  color: var(--color-red);
+}
+.ui-btn-danger:hover:not(:disabled) {
+  background: rgba(214, 48, 49, 0.08);
+}
+
+.ui-btn-sm {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: var(--font-size-sm);
+}
+
+.ui-btn-icon {
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+}
+
+.ui-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  min-width: 0;
+}
+
+.ui-card-hover {
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+.ui-card-hover:hover {
+  border-color: var(--color-purple);
+  box-shadow: var(--shadow-md);
+}
+
+.ui-card-selected {
+  border-color: var(--color-purple);
+  box-shadow: 0 0 0 1px var(--color-purple);
+}
+
+.ui-grid {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+}
+
+.ui-grid-sm {
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
+}
+
+.ui-code {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  background: var(--chip-color, var(--color-purple));
+}
+
+.ui-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--bg-border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+button.ui-chip {
+  cursor: pointer;
+  min-height: 30px;
+}
+button.ui-chip.active, button.ui-chip[aria-pressed=true] {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-surface);
+}
+
+.ui-chip-accent {
+  background: rgba(225, 112, 85, 0.12);
+  border-color: rgba(225, 112, 85, 0.35);
+  color: var(--color-amber);
+}
+
+.ui-chip-good {
+  background: rgba(0, 184, 148, 0.12);
+  border-color: rgba(0, 184, 148, 0.35);
+  color: var(--color-green);
+}
+
+.ui-chip-bad {
+  background: rgba(214, 48, 49, 0.1);
+  border-color: rgba(214, 48, 49, 0.35);
+  color: var(--color-red);
+}
+
+.ui-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ui-muted {
+  color: var(--text-muted);
+}
+
+.ui-faint {
+  color: var(--text-faint);
+  font-size: var(--font-size-sm);
+}
+
+.ui-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ui-label {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.ui-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.ui-field > span {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.ui-input {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--bg-border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font: inherit;
+}
+.ui-input:focus {
+  outline: none;
+  border-color: var(--color-purple);
+  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.18);
+}
+
+textarea.ui-input {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.ui-form-row {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+}
+
+.ui-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-sm);
+  padding: var(--space-xl) var(--space-md);
+  border: 1px dashed var(--bg-border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+.ui-empty h3 {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+.ui-empty p {
+  color: var(--text-muted);
+  max-width: 520px;
+}
+
+.ui-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.ui-stat strong {
+  font-size: 18px;
+  font-weight: 800;
+}
+.ui-stat span {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.ui-search {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 460px;
+}
+.ui-search svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  pointer-events: none;
+}
+.ui-search input {
+  padding-left: 36px;
+}
+
+.ui-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 5vh var(--space-md);
+  background: var(--overlay-bg);
+  overflow-y: auto;
+}
+
+.ui-modal {
+  width: min(720px, 100%);
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+.ui-modal-wide {
+  width: min(980px, 100%);
+}
+
+.ui-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--bg-border);
+}
+.ui-modal-head h2 {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+}
+.ui-modal-head p {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.ui-modal-body {
+  padding: var(--space-lg);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.ui-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--bg-border);
+}
+
+.ui-progress {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  overflow: hidden;
+}
+.ui-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--bar-color, var(--color-purple));
+  border-radius: inherit;
+}
+
+.ui-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+/* Icon stroke, as in icon.component.ts */
+.ic { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+h1, h2, h3, p { margin: 0; }
+  </style>
+</head>
+<body>
+<div class="ds-toolbar"><button class="ds-theme-toggle" onclick="document.documentElement.classList.toggle('theme-dark'); document.documentElement.classList.toggle('theme-light');">Toggle theme</button></div>
+<div class="ds-page">
+  <section class="ds-section">
+    <h2>Page head</h2>
+    <p class="ds-hint">.ui-page-head — every global and workspace page opens with it: 26px/800 title, muted subtitle, .ui-actions on the right.</p>
+    <div class="ui-page-head">
+      <div><h1>My certifications</h1><p>One workspace per exam: question banks, mock exams, notes and progress.</p></div>
+      <div class="ui-actions"><button class="ui-btn ui-btn-primary"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg> Add certification</button></div>
+    </div>
+  </section>
+
+  <section class="ds-section">
+    <h2>Buttons</h2>
+    <p class="ds-hint">.ui-btn + modifier. Primary is inverted (text-primary fill) and used once per page; accent is the purple brand action; soft is for AI actions (Import with AI); danger is outline-only.</p>
+    <div class="ui-actions">
+      <button class="ui-btn ui-btn-primary"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg> Add question</button>
+      <button class="ui-btn"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg> New question bank</button>
+      <button class="ui-btn ui-btn-accent">Save</button>
+      <button class="ui-btn ui-btn-soft"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 3l1.9 5.8L20 10.7l-5.6 2.9L12 20l-2.4-6.4L4 10.7l6.1-1.9z"/></svg> Import with AI</button>
+      <button class="ui-btn ui-btn-ghost">Cancel</button>
+      <button class="ui-btn ui-btn-danger"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete</button>
+      <button class="ui-btn" disabled>Disabled</button>
+    </div>
+    <div class="ui-actions" style="margin-top: var(--space-md)">
+      <button class="ui-btn ui-btn-sm">Edit</button>
+      <button class="ui-btn ui-btn-sm ui-btn-primary">Open workspace</button>
+      <button class="ui-btn ui-btn-icon ui-btn-ghost" aria-label="More"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/><path d="M12 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/><path d="M12 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg></button>
+    </div>
+  </section>
+
+  <section class="ds-section">
+    <h2>Chips &amp; codes</h2>
+    <p class="ds-hint">.ui-code takes the certification color via --chip-color. button.ui-chip is a filter toggle (aria-pressed inverts it). Accent/good/bad chips carry status.</p>
+    <div class="ui-chip-row">
+      <span class="ui-code" style="--chip-color: #00cec9">DOP-C02</span>
+      <span class="ui-code" style="--chip-color: #6c5ce7">AIF-C01</span>
+      <span class="ui-chip">Studying</span>
+      <span class="ui-chip ui-chip-accent">Interest match</span>
+      <span class="ui-chip ui-chip-good">Earned</span>
+      <span class="ui-chip ui-chip-bad">Failed</span>
+    </div>
+    <div class="ui-chip-row" style="margin-top: var(--space-md)">
+      <button class="ui-chip" aria-pressed="true">All ecosystems</button>
+      <button class="ui-chip">AWS</button>
+      <button class="ui-chip">Microsoft Azure</button>
+      <button class="ui-chip">Google Cloud</button>
+    </div>
+  </section>
+
+  <section class="ds-section">
+    <h2>Cards &amp; stats</h2>
+    <p class="ds-hint">.ui-card (radius-lg, 1px border); .ui-card-hover lifts to purple border + shadow-md; .ui-card-selected adds a 1px purple ring. .ui-stat for number + uppercase caption. .ui-progress takes --bar-color.</p>
+    <div class="ui-grid">
+      <div class="ui-card ui-card-hover">
+        <span class="ui-label">Question bank</span>
+        <h3 style="margin: 6px 0">set 2</h3>
+        <p class="ui-muted ui-clamp-2">Practice exam linked to the six official domains of the certification.</p>
+        <div class="ui-progress" style="--bar-color: var(--color-green); margin-top: var(--space-md)"><span style="width: 64%"></span></div>
+      </div>
+      <div class="ui-card ui-card-selected">
+        <div style="display: flex; justify-content: space-around">
+          <div class="ui-stat"><strong>1</strong><span>Notes</span></div>
+          <div class="ui-stat"><strong>164</strong><span>Questions</span></div>
+          <div class="ui-stat"><strong>3</strong><span>Banks</span></div>
+        </div>
+        <p class="ui-faint" style="margin-top: var(--space-md)">Last studied 4 days ago</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="ds-section">
+    <h2>Fields</h2>
+    <p class="ds-hint">.ui-field wraps a label span + .ui-input (40px, purple focus ring). .ui-search adds a leading icon. .ui-form-row auto-fits columns.</p>
+    <label class="ui-search"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z"/><path d="m21 21-4.35-4.35"/></svg><input class="ui-input" placeholder="Search notes or tags"></label>
+    <div class="ui-form-row" style="margin-top: var(--space-md)">
+      <label class="ui-field"><span>Author / vendor *</span><input class="ui-input" placeholder="e.g. instructor or vendor name"></label>
+      <label class="ui-field"><span>Experience level</span><select class="ui-input"><option>Intermediate</option></select></label>
+    </div>
+    <label class="ui-field" style="margin-top: var(--space-md)"><span>About you and your goals</span><textarea class="ui-input" rows="3" placeholder="Focus areas, career milestones, upcoming exam dates…"></textarea></label>
+  </section>
+
+  <section class="ds-section">
+    <h2>Empty state</h2>
+    <div class="ui-empty">
+      <h3>No finished attempts yet</h3>
+      <p>Finish a mock exam to see your score evolution and domain mastery here.</p>
+      <button class="ui-btn ui-btn-primary">New mock exam</button>
+    </div>
+  </section>
+
+  <section class="ds-section">
+    <h2>Modal</h2>
+    <p class="ds-hint">.ui-modal (720px, .ui-modal-wide 980px) inside a fixed .ui-modal-backdrop; shown inline here.</p>
+    <div class="ui-modal" style="max-height: none">
+      <div class="ui-modal-head"><div><h2>New question bank</h2><p>A practice exam or question set of this certification.</p></div><button class="ui-btn ui-btn-icon ui-btn-ghost" aria-label="Close"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+      <div class="ui-modal-body"><label class="ui-field"><span>Name</span><input class="ui-input" value="Practice exam 3"></label></div>
+      <div class="ui-modal-foot"><button class="ui-btn ui-btn-ghost">Cancel</button><button class="ui-btn ui-btn-primary">Create</button></div>
+    </div>
+  </section>
+</div>
+</body>
+</html>
