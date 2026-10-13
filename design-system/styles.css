@@ -36,7 +36,8 @@
   --transition-slow: 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-html.theme-light {
+html.theme-light,
+.reading-theme-light {
   --bg-base: #f5f6fa;
   --bg-surface: #ffffff;
   --bg-elevated: #f0f1f8;
@@ -54,9 +55,15 @@ html.theme-light {
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.10);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.16);
   --overlay-bg: rgba(15, 17, 23, 0.32);
+
+  /* "Inverted" fill for primary buttons and active chips/segments: near-black on light. */
+  --inverse-bg: #1a1d2e;
+  --inverse-bg-hover: #2d3154;
+  --inverse-fg: #ffffff;
 }
 
-html.theme-dark {
+html.theme-dark,
+.reading-theme-dark {
   --bg-base: #0f1117;
   --bg-surface: #0d1021;
   --bg-elevated: #141826;
@@ -74,7 +81,34 @@ html.theme-dark {
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
   --overlay-bg: rgba(0, 0, 0, 0.55);
+
+  /* Brand purple on dark, so primary buttons don't glare as near-white slabs. */
+  --inverse-bg: #6c5ce7;
+  --inverse-bg-hover: #7d6ff0;
+  --inverse-fg: #ffffff;
 }
+
+/* Reading themes: the same token sets scoped to one element (study note text). */
+/* Sepia: warm paper tones, only offered as a reading theme for note text. */
+.reading-theme-sepia {
+  --bg-base: #efe6d4;
+  --bg-surface: #f8f1e3;
+  --bg-elevated: #f0e6d2;
+  --bg-border: #e2d5bc;
+  --bg-input: #fbf6ec;
+  --bg-subtle: #eadfc8;
+
+  --text-primary: #3b2f22;
+  --text-secondary: #4d3f2f;
+  --text-muted: #7a6a55;
+  --text-faint: #9c8b73;
+  --text-disabled: #c4b59c;
+
+  --inverse-bg: #3b2f22;
+  --inverse-bg-hover: #4d3f2f;
+  --inverse-fg: #fbf6ec;
+}
+
 
 * { box-sizing: border-box; }
 
@@ -131,4 +165,14 @@ body {
   flex-wrap: wrap;
   gap: var(--space-md);
   align-items: flex-start;
+}
+
+/* Screen mirrors render the full app shell edge to edge, so the theme toggle floats instead of taking a row. */
+.ds-toolbar-float {
+  position: fixed;
+  top: auto;
+  bottom: var(--space-md);
+  right: var(--space-md);
+  z-index: 100;
+  padding: 0;
 }

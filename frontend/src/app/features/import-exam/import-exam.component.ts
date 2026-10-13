@@ -1,13 +1,17 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { IconComponent } from '../../shared/components/icon.component';
+import { QuestionBank, bankLabel } from '../../core/models/bank.model';
+import { importPath } from '../../core/utils/routes.util';
+import { BanksService } from '../../core/services/banks.service';
+import { StorageService } from '../../core/services/storage.service';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { ImportExamService } from '../../core/services/import-exam.service';
-import { Pack } from '../../core/models/pack.model';
 import { ImportJob, isImportJobTerminal } from '../../core/models/import-job.model';
+import { ImportJobProgressComponent } from '../../shared/components/import-job-progress.component';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
 import { ConfirmDeleteDialogComponent } from '../../shared/components/confirm-delete-dialog.component';
-import { PackEditorComponent } from '../packs/pack-editor.component';
 import { I18nService } from '../../core/i18n/i18n.service';
 
 const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
@@ -15,7 +19,7 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
 @Component({
   selector: 'app-import-exam',
   standalone: true,
-  imports: [FormsModule, AiDisclaimerComponent, PackEditorComponent],
+  imports: [IconComponent, FormsModule, AiDisclaimerComponent, ImportJobProgressComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="import-card">
@@ -25,30 +29,29 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
         <p class="status-line">{{ i18n.t('common.loading') }}</p>
       }
 
-      <button type="button" class="new-pack-btn" (click)="packEditorOpen.set(true)">
-        {{ i18n.t('importExam.newPackForImport') }}
-      </button>
-      @if (packEditorOpen()) {
-        <app-pack-editor [pack]="null" (cancelled)="packEditorOpen.set(false)" (saved)="onPackCreated($event)" />
-      }
-
-      <label class="field">
-        <span class="field-label">{{ i18n.t('importExam.addExamFile') }}</span>
+      <label class="ui-field">
+        <span>{{ i18n.t('importExam.addExamFile') }}</span>
         <input
           #fileInput
           type="file"
-          class="file-input"
+          class="ui-input file-input"
           accept=".pdf,.md,.zip,.html,.htm"
           (change)="onFileSelected($event)"
           [attr.aria-label]="i18n.t('importExam.examFileToUpload')"
         />
       </label>
 
-      <label class="field">
-        <span class="field-label">{{ i18n.t('importExam.expectedQuestionsOptional') }}</span>
+      @if (duplicate(); as dup) {
+        <p class="warn-line" role="status">
+          {{ dup.sameBank ? i18n.t('importExam.duplicateSameBank') : i18n.t('importExam.duplicateOtherBank', { bank: dup.bankLabel }) }}
+        </p>
+      }
+
+      <label class="ui-field">
+        <span>{{ i18n.t('importExam.expectedQuestionsOptional') }}</span>
         <input
           type="number"
-          class="select-input"
+          class="ui-input"
           min="1"
           placeholder="e.g. 75"
           [ngModel]="expectedQuestions()"
@@ -60,12 +63,12 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
       @if (uploadProgress(); as up) {
         <div class="upload-progress">
           <p class="progress-line">{{ i18n.t('importExam.uploading', { filename: up.filename, pct: up.pct }) }}</p>
-          <div class="progress-track"><div class="progress-fill" [style.width.%]="up.pct"></div></div>
+          <div class="ui-progress bar"><span [style.width.%]="up.pct"></span></div>
         </div>
       } @else {
         <button
           type="button"
-          class="generate-btn"
+          class="ui-btn ui-btn-primary wide"
           (click)="onUpload(fileInput)"
           [disabled]="!selectedFile()"
         >{{ i18n.t('importExam.uploadFile') }}</button>
@@ -86,7 +89,7 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
               </label>
               <input
                 type="number"
-                class="job-expected-input"
+                class="ui-input job-expected-input"
                 min="1"
                 [placeholder]="i18n.t('importExam.expectedHash')"
                 [attr.aria-label]="i18n.t('importExam.expectedQuestionsIn', { filename: job.filename })"
@@ -97,7 +100,7 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
           }
           <button
             type="button"
-            class="generate-btn"
+            class="ui-btn ui-btn-primary wide"
             (click)="onProcessSelected()"
             [disabled]="checkedJobIds().size === 0"
           >{{ i18n.t('importExam.processSelected', { count: checkedJobIds().size }) }}</button>
@@ -109,16 +112,8 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
           <h3>{{ i18n.t('importExam.processing') }}</h3>
           @for (job of activeJobs(); track job.id) {
             <div class="job-status processing">
-              <div class="job-status-header">
-                <span class="job-filename">{{ job.filename }}</span>
-                <span class="job-badge">{{ job.status === 'GENERATING' ? i18n.t('importExam.generatingExplanations') : i18n.t('importExam.extracting') }}</span>
-              </div>
-              @if (progressTotal(job)) {
-                <div class="progress-track"><div class="progress-fill" [style.width.%]="progressPct(job)"></div></div>
-                <p class="progress-line">{{ i18n.t('importExam.processedOf', { processed: job.processedCount, total: progressTotal(job) }) }}</p>
-              } @else {
-                <p class="progress-line">{{ i18n.t('importExam.startingDetecting') }}</p>
-              }
+              <span class="job-filename">{{ job.filename }}</span>
+              <app-import-job-progress [job]="job" />
             </div>
           }
         </div>
@@ -137,11 +132,11 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
                 <p class="warn-line">{{ i18n.t('importExam.needAttention', { count: job.failedCount }) }}</p>
               }
               <div class="job-actions">
-                <button type="button" class="btn-ghost-sm" (click)="onReview(job)">{{ i18n.t('importExam.reviewCount', { count: job.totalQuestions }) }}</button>
-                <button type="button" class="btn-ghost-sm" [disabled]="openingOriginal() === job.id" (click)="onViewOriginal(job)">
-                  {{ openingOriginal() === job.id ? i18n.t('importExam.opening') : i18n.t('importExam.viewOriginal') }}
+                <button type="button" class="ui-btn ui-btn-sm" (click)="onReview(job)">{{ i18n.t('importExam.reviewCount', { count: job.totalQuestions }) }}</button>
+                <button type="button" class="ui-btn ui-btn-sm" [disabled]="openingOriginal() === job.id" (click)="onViewOriginal(job)">
+                  {{ openingOriginal() === job.id ? i18n.t('importExam.opening') : i18n.t('importExam.viewOriginal') }} <app-icon name="external-link" size="14" />
                 </button>
-                <button type="button" class="btn-ghost-sm" (click)="onDeleteJob(job)">{{ i18n.t('common.delete') }}</button>
+                <button type="button" class="ui-btn ui-btn-sm" (click)="onDeleteJob(job)">{{ i18n.t('common.delete') }}</button>
               </div>
               @if (originalFileError()?.jobId === job.id) {
                 <p class="error-line">{{ originalFileError()!.message }}</p>
@@ -155,10 +150,10 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
         <div class="job-section">
           <div class="job-section-header">
             <h3>{{ i18n.t('importExam.recent') }}</h3>
-            <button type="button" class="btn-ghost-sm" (click)="onClearHistory()">{{ i18n.t('importExam.clearHistory') }}</button>
+            <button type="button" class="ui-btn ui-btn-sm" (click)="onClearHistory()">{{ i18n.t('importExam.clearHistory') }}</button>
           </div>
           @for (job of doneJobs(); track job.id) {
-            <div class="job-status" [class]="job.status.toLowerCase()">
+            <div class="job-status" [class]="'job-status ' + job.status.toLowerCase()">
               <div class="job-status-header">
                 <span class="job-filename">{{ job.filename }}</span>
                 <span class="job-badge">{{ statusLabel(job.status) }}</span>
@@ -171,12 +166,12 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
               }
               <div class="job-actions">
                 @if (canReview(job)) {
-                  <button type="button" class="btn-ghost-sm" (click)="onReview(job)">{{ i18n.t('importExam.reviewQuestions') }}</button>
+                  <button type="button" class="ui-btn ui-btn-sm" (click)="onReview(job)">{{ i18n.t('importExam.reviewQuestions') }}</button>
                 } @else if (job.status === 'FAILED') {
-                  <button type="button" class="btn-ghost-sm" (click)="onRetry(job.id)">{{ i18n.t('common.retry') }}</button>
+                  <button type="button" class="ui-btn ui-btn-sm" (click)="onRetry(job.id)">{{ i18n.t('common.retry') }}</button>
                 }
                 @if (job.failures && job.failures.length > 0) {
-                  <button type="button" class="btn-ghost-sm" (click)="onDownloadReport(job)">{{ i18n.t('importExam.downloadReport') }}</button>
+                  <button type="button" class="ui-btn ui-btn-sm" (click)="onDownloadReport(job)">{{ i18n.t('importExam.downloadReport') }}</button>
                 }
               </div>
             </div>
@@ -196,57 +191,31 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
       .subtitle { color: var(--text-muted); font-size: var(--font-size-sm); line-height: 1.5; }
       .subtitle code { background: var(--bg-elevated); padding: 1px 5px; border-radius: var(--radius-sm); }
 
-      .field { display: flex; flex-direction: column; gap: var(--space-xs); }
-      .field-label { font-size: var(--font-size-sm); color: var(--text-muted); }
-      .select-input, .file-input {
-        min-height: var(--touch-min); padding: 0 var(--space-md); border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary);
-        font-size: var(--font-size-base); font-family: var(--font-family);
-      }
-      .file-input { padding: var(--space-sm) var(--space-md); }
-      .select-input:focus-visible { outline: none; border-color: var(--color-purple); }
+      .file-input { padding: var(--space-xs) var(--space-sm); }
       .file-input::file-selector-button {
-        margin-right: var(--space-md); height: 32px; padding: 0 var(--space-md);
+        margin-right: var(--space-md); height: 30px; padding: 0 var(--space-md);
         border-radius: var(--radius-md); border: 1px solid var(--bg-border);
         background: var(--bg-elevated); color: var(--text-primary);
-        font-size: var(--font-size-sm); font-weight: 500; font-family: var(--font-family);
+        font-size: var(--font-size-sm); font-weight: 600; font-family: var(--font-family);
         cursor: pointer;
       }
       .file-input::file-selector-button:hover { border-color: var(--color-purple); }
-
-      .generate-btn {
-        display: inline-flex; align-items: center; justify-content: center; width: 100%;
-        min-height: 48px; padding: 0 var(--space-lg); border-radius: var(--radius-md);
-        background: linear-gradient(135deg, var(--color-purple), var(--color-blue));
-        color: #ffffff; font-weight: 600; font-size: var(--font-size-lg);
-      }
-      .generate-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+      .wide { width: 100%; }
 
       .error-line { color: var(--color-red); font-size: var(--font-size-sm); }
       .warn-line { color: var(--color-amber); font-size: var(--font-size-sm); }
       .status-line { color: var(--text-muted); font-size: var(--font-size-sm); }
 
-      .new-pack-btn {
-        align-self: flex-start; padding: 0 var(--space-md); min-height: 36px; border-radius: var(--radius-md);
-        border: 1px dashed var(--bg-border); background: transparent; color: var(--text-secondary);
-        font-size: var(--font-size-sm); font-weight: 500;
-      }
-      .new-pack-btn:hover { border-color: var(--color-purple); color: var(--color-purple); }
-
       .upload-progress { display: flex; flex-direction: column; gap: var(--space-xs); }
 
-      .job-section { display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-md); border-radius: var(--radius-md); background: var(--bg-elevated); border: 1px solid var(--bg-border); }
+      .job-section { display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-md); border-radius: var(--radius-md); background: var(--bg-input); border: 1px solid var(--bg-border); }
       .job-section h3 { font-size: var(--font-size-sm); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 0; }
       .job-section-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); }
 
       .job-check-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); padding: var(--space-xs) 0; }
       .job-check-label { display: flex; align-items: center; gap: var(--space-sm); min-width: 0; cursor: pointer; }
       .job-check-row input[type='checkbox'] { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; }
-      .job-expected-input {
-        width: 100px; flex-shrink: 0; height: 32px; padding: 0 var(--space-sm); border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary);
-        font-size: var(--font-size-sm);
-      }
+      .job-expected-input { width: 100px; flex-shrink: 0; min-height: 32px; }
 
       .job-filename { font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .job-status { display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-sm); border-radius: var(--radius-md); background: var(--bg-surface); border: 1px solid var(--bg-border); }
@@ -256,19 +225,18 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.zip', '.html', '.htm'];
       .job-status.partial .job-badge { color: var(--color-amber); }
       .job-status.failed .job-badge { color: var(--color-red); }
 
-      .progress-track { height: 6px; border-radius: 999px; background: var(--bg-border); overflow: hidden; }
-      .progress-fill { height: 100%; background: linear-gradient(135deg, var(--color-purple), var(--color-blue)); border-radius: 999px; transition: width 300ms ease; }
+      .bar { flex: 1; }
       .progress-line { font-size: var(--font-size-sm); color: var(--text-secondary); margin: 0; }
 
-      .job-actions { display: flex; gap: var(--space-sm); }
-      .btn-ghost-sm { align-self: flex-start; padding: 0 var(--space-md); min-height: 36px; border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: transparent; color: var(--text-secondary); font-size: var(--font-size-sm); font-weight: 500; }
-      .btn-ghost-sm:hover { border-color: var(--color-purple); color: var(--text-primary); }
+      .job-actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
     `,
   ],
 })
 export class ImportExamComponent {
   protected readonly importService = inject(ImportExamService);
   private readonly router = inject(Router);
+  private readonly banks = inject(BanksService);
+  private readonly storage = inject(StorageService);
   private readonly dialog = inject(MatDialog);
   protected readonly i18n = inject(I18nService);
 
@@ -278,8 +246,12 @@ export class ImportExamComponent {
    * same as it works for Questions — no separate in-page target-pack
    * selector to keep in sync with the URL any more. */
   readonly packId = input.required<string>();
+  /** The practice exam (bank) every file uploaded here lands in — fixed by the route. */
+  readonly bankId = input.required<string>();
 
-  protected readonly packEditorOpen = signal(false);
+  label(bank: QuestionBank): string {
+    return bankLabel(bank, this.i18n.t('banks.untitled'));
+  }
 
   protected readonly selectedFile = signal<File | null>(null);
   protected readonly expectedQuestions = signal<number | null>(null);
@@ -291,9 +263,31 @@ export class ImportExamComponent {
   readonly uploadProgress = this.importService.uploadProgress;
 
   private readonly jobsForPack = computed(() =>
-    this.importService.jobs().filter((j) => j.packId === this.packId()),
+    this.importService.jobs().filter((j) => j.packId === this.packId() && j.bankId === this.bankId()),
   );
+
+  /** The chosen file was already uploaded, here or into another practice exam
+   * of this certification — usually an accident, so say so before uploading. */
+  protected readonly duplicate = computed(() => {
+    const file = this.selectedFile();
+    if (!file) return null;
+    const earlier = this.importService.jobs().find((j) => j.packId === this.packId() && j.filename === file.name);
+    if (!earlier) return null;
+    const bank = this.banks.getById(earlier.bankId);
+    return { sameBank: earlier.bankId === this.bankId(), bankLabel: bank ? this.label(bank) : earlier.filename };
+  });
   protected readonly readyJobs = computed(() => this.jobsForPack().filter((j) => j.status === 'UPLOADED'));
+  /** Ready files the user has seen here; a new one starts checked, so "Process selected" works right away. */
+  private readonly seenReady = new Set<string>();
+
+  constructor() {
+    effect(() => {
+      const fresh = this.readyJobs().filter((j) => !this.seenReady.has(j.id));
+      if (fresh.length === 0) return;
+      fresh.forEach((j) => this.seenReady.add(j.id));
+      untracked(() => this.checkedJobIds.set(new Set([...this.checkedJobIds(), ...fresh.map((j) => j.id)])));
+    });
+  }
   protected readonly activeJobs = computed(() =>
     this.jobsForPack().filter((j) => j.status === 'EXTRACTING' || j.status === 'GENERATING'),
   );
@@ -306,16 +300,6 @@ export class ImportExamComponent {
       .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)),
   );
 
-  /** Reuses the exact same full pack editor the packs drawer's "New pack"
-   * opens (name/description/domains/color/timing/…), not a lightweight
-   * inline text field — the earlier version of this button only asked for
-   * a name, which meant a pack created for an import always needed a
-   * second trip to the drawer to fill in domains/timing before it was
-   * actually usable. */
-  onPackCreated(pack: Pack): void {
-    this.packEditorOpen.set(false);
-    void this.router.navigate(['/import', pack.id]);
-  }
 
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -334,7 +318,15 @@ export class ImportExamComponent {
     const packId = this.packId();
     if (!file || !packId) return;
     this.error.set(null);
-    const result = await this.importService.uploadFile(packId, file, this.expectedQuestions() ?? undefined);
+    const bankId = this.bankId();
+    if (this.banks.getById(bankId)?.packId !== packId) {
+      this.error.set(this.i18n.t('importExam.bankMissing'));
+      return;
+    }
+    // create_import validates the bank server-side, so a bank created a
+    // moment ago must not still be sitting in the 500ms write debounce.
+    await this.storage.flushPendingSync();
+    const result = await this.importService.uploadFile(packId, bankId, file, this.expectedQuestions() ?? undefined);
     if ('error' in result) {
       this.error.set(result.error);
     } else {
@@ -377,7 +369,7 @@ export class ImportExamComponent {
   }
 
   onReview(job: ImportJob): void {
-    this.router.navigate(['/questions', job.packId, 'import', job.id]);
+    this.router.navigate(importPath(job.packId, job.bankId, job.id));
   }
 
   /** Deletes one job outright — used for "Ready to review"/"Ready to
@@ -455,19 +447,6 @@ export class ImportExamComponent {
     anchor.click();
     document.body.removeChild(anchor);
     URL.revokeObjectURL(url);
-  }
-
-  /** GENERATING's progress is against explainTotal (how many drafts were
-   * approved for Phase 2), not totalQuestions (Phase 1's own count, which
-   * is usually larger — not every drafted question gets approved). */
-  progressTotal(job: Pick<ImportJob, 'status' | 'totalQuestions' | 'explainTotal'>): number | null {
-    return job.status === 'GENERATING' ? (job.explainTotal ?? null) : job.totalQuestions;
-  }
-
-  progressPct(job: Pick<ImportJob, 'status' | 'processedCount' | 'totalQuestions' | 'explainTotal'>): number {
-    const total = this.progressTotal(job);
-    if (!total) return 0;
-    return Math.min(100, (job.processedCount / total) * 100);
   }
 
   statusLabel(status: string): string {

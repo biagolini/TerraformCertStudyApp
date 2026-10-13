@@ -1,5 +1,6 @@
 import { QuizMode, QuizScope, QuizSettings } from './quiz.model';
 import { TextRange } from '../utils/text-range.util';
+import { AlternativeSnapshot } from '../utils/alternative-shuffle.util';
 
 export type QuizAttemptStatus = 'IN_PROGRESS' | 'FINISHED';
 
@@ -26,13 +27,24 @@ export interface QuizAttemptAnswer {
   checked: boolean;
   /** Frozen at attempt time — highlight/strikethrough offsets are only valid against this exact text. */
   stemSnapshot: string;
-  alternativesSnapshot: { letter: string; text: string }[];
+  /** In the order shown. With shuffled alternatives, `letter` is the letter
+   * shown (and the one `selected`/`correctLetters` use) and `sourceLetter`
+   * the bank's. */
+  alternativesSnapshot: AlternativeSnapshot[];
   /** Keyed by block id: `'stem'` or an alternative's letter. */
   highlights: Partial<Record<string, TextRange[]>>;
   strikethroughs: Partial<Record<string, TextRange[]>>;
   note: string;
   timeSpentSeconds: number;
   markedForReview: boolean;
+  /** Tutor Q&A about this question during or after the attempt (see TutorDialogComponent). */
+  tutor?: TutorMessage[];
+}
+
+export interface TutorMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  at: number;
 }
 
 export interface QuizAttempt {
@@ -69,4 +81,13 @@ export interface QuizAttempt {
   finishedAt?: number;
   /** epoch ms — set once if the exam clock ever hit zero during this attempt. */
   timeLimitReachedAt?: number;
+  /** Pass mark (0..100) in force when the attempt started — the verdict stays stable if the certification's mark is edited later. */
+  passingScorePercent?: number;
+  /** Banks the questions were drawn from (empty = all banks). */
+  bankIds?: string[];
+}
+
+/** Pass/fail against the attempt's own snapshot of the pass mark. */
+export function attemptPassed(attempt: Pick<QuizAttempt, 'scorePercent' | 'passingScorePercent'>, fallbackPercent: number): boolean {
+  return attempt.scorePercent >= (attempt.passingScorePercent ?? fallbackPercent);
 }

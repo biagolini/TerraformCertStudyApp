@@ -1,0 +1,36 @@
+{
+  "name": "Google Cloud Professional Cloud Architect (PCA)",
+  "version": "",
+  "color": "#0ea5e9",
+  "description": "Validates ability to design, develop, and manage robust, secure, scalable, highly available, and dynamic solutions on Google Cloud. 120 minutes.",
+  "exportIntroQuestions": "",
+  "exportIntroTranscripts": "",
+  "exportIntroChat": "",
+  "domains": [
+    {
+      "name": "Designing Cloud Solution Architecture",
+      "description": "Section 1: Designing for business use cases, compute/storage/network infrastructure, and disaster recovery.",
+      "order": 1
+    },
+    {
+      "name": "Managing and Provisioning Infrastructure",
+      "description": "Section 2: Configuring networks, storage systems, and compute resources.",
+      "order": 2
+    },
+    {
+      "name": "Designing for Security and Compliance",
+      "description": "Section 3: Designing for security (IAM, encryption, network perimeters) and legal compliance.",
+      "order": 3
+    },
+    {
+      "name": "Analyzing and Optimizing Technical Processes",
+      "description": "Section 4: Managing software development lifecycle (SDLC), continuous integration and continuous delivery (CI/CD).",
+      "order": 4
+    },
+    {
+      "name": "Ensuring Reliability and Operations",
+      "description": "Section 5: Monitoring, logging, incident management, and capacity planning.",
+      "order": 5
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { SaveAsNoteComponent } from '../../shared/components/save-as-note.component';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Script } from '../../core/models/script.model';
@@ -9,14 +10,14 @@ import { I18nService } from '../../core/i18n/i18n.service';
 @Component({
   selector: 'app-script-viewer',
   standalone: true,
-  imports: [FormsModule, AiDisclaimerComponent, MarkdownRendererComponent],
+  imports: [SaveAsNoteComponent, FormsModule, AiDisclaimerComponent, MarkdownRendererComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="viewer">
       @if (script(); as s) {
         <header class="viewer-header">
           @if (showBackButton()) {
-            <button type="button" class="back-btn" (click)="back.emit()" [attr.aria-label]="i18n.t('scriptViewer.backToList')">
+            <button type="button" class="ui-btn ui-btn-ghost" (click)="back.emit()" [attr.aria-label]="i18n.t('scriptViewer.backToList')">
               <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                 <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M15 6l-6 6 6 6"/>
               </svg>
@@ -27,7 +28,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
           <div class="header-actions">
             <button
               type="button"
-              class="icon-btn"
+              class="ui-btn ui-btn-ghost ui-btn-icon"
               (click)="onToggleEdit(s)"
               [class.active]="editing()"
               [attr.aria-label]="editing() ? i18n.t('reviewViewer.exitEditMode') : i18n.t('scriptViewer.editManually')"
@@ -38,7 +39,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             </button>
             <button
               type="button"
-              class="icon-btn delete-btn"
+              class="ui-btn ui-btn-ghost ui-btn-icon delete-btn"
               (click)="onDelete(s.id)"
               [attr.aria-label]="i18n.t('scriptViewer.deleteThisScript')"
             >
@@ -53,12 +54,12 @@ import { I18nService } from '../../core/i18n/i18n.service';
           @if (editing()) {
             <div class="edit-mode">
               <p class="edit-hint">{{ i18n.t('scriptViewer.editHint') }}</p>
-              <textarea class="edit-textarea" [(ngModel)]="editDraft" [attr.aria-label]="i18n.t('scriptViewer.editMarkdown')"></textarea>
+              <textarea class="ui-input" [(ngModel)]="editDraft" [attr.aria-label]="i18n.t('scriptViewer.editMarkdown')"></textarea>
               <div class="edit-actions">
-                <button type="button" class="btn btn-ghost" (click)="onCancelEdit()">{{ i18n.t('common.cancel') }}</button>
+                <button type="button" class="ui-btn" (click)="onCancelEdit()">{{ i18n.t('common.cancel') }}</button>
                 <button
                   type="button"
-                  class="btn btn-primary"
+                  class="ui-btn ui-btn-primary"
                   (click)="onSaveEdit(s.id)"
                   [disabled]="!editDraft.trim()"
                 >{{ i18n.t('common.save') }}</button>
@@ -69,6 +70,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
               [message]="i18n.t('scriptViewer.aiDisclaimer')"
             />
             <app-markdown-renderer [source]="s.content" />
+            <div class="note-row"><app-save-as-note [title]="s.title" [content]="s.content" [tags]="['transcript']" /></div>
             <details class="sources">
               <summary>{{ i18n.t('scriptViewer.sourceTranscripts', { count: s.sources.length }) }}</summary>
               <ol class="sources-list">
@@ -107,15 +109,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
         padding: var(--space-md) var(--space-lg);
         border-bottom: 1px solid var(--bg-border);
       }
-      .back-btn {
-        display: inline-flex; align-items: center; gap: var(--space-xs);
-        min-height: var(--touch-min);
-        padding: 0 var(--space-sm);
-        border-radius: var(--radius-md);
-        color: var(--text-secondary);
-        font-size: var(--font-size-sm);
-      }
-      .back-btn:hover { background: var(--bg-subtle); color: var(--text-primary); }
       .title {
         flex: 1; min-width: 0;
         font-size: var(--font-size-lg);
@@ -124,14 +117,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
         overflow-wrap: anywhere;
       }
       .header-actions { display: inline-flex; align-items: center; gap: var(--space-xs); }
-      .icon-btn {
-        display: inline-flex; align-items: center; justify-content: center;
-        width: var(--touch-min); height: var(--touch-min);
-        border-radius: var(--radius-md);
-        color: var(--text-muted);
-      }
-      .icon-btn:hover { background: var(--bg-subtle); color: var(--text-primary); }
-      .icon-btn.active { background: var(--bg-elevated); color: var(--color-purple); }
       .delete-btn:hover { color: var(--color-red); }
       .viewer-body {
         flex: 1; overflow-y: auto;
@@ -140,32 +125,8 @@ import { I18nService } from '../../core/i18n/i18n.service';
       }
       .edit-mode { display: flex; flex-direction: column; gap: var(--space-sm); flex: 1; }
       .edit-hint { color: var(--text-muted); font-size: var(--font-size-sm); }
-      .edit-textarea {
-        flex: 1; min-height: 360px;
-        padding: var(--space-md);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: var(--bg-input);
-        color: var(--text-primary);
-        font-family: var(--font-mono);
-        font-size: var(--font-size-base);
-        line-height: 1.5;
-        resize: vertical;
-      }
-      .edit-textarea:focus-visible { outline: none; border-color: var(--color-purple); }
       .edit-actions { display: flex; justify-content: flex-end; gap: var(--space-sm); }
-      .btn {
-        min-height: var(--touch-min);
-        padding: 0 var(--space-md);
-        border-radius: var(--radius-md);
-        font-weight: 600;
-        font-size: var(--font-size-base);
-      }
-      .btn-primary { background: var(--color-purple); color: #ffffff; }
-      .btn-primary:hover:not(:disabled) { background: var(--color-blue); }
-      .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--bg-border); }
-      .btn-ghost:hover { background: var(--bg-subtle); }
-      .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+      .note-row { margin-top: var(--space-md); }
       .viewer-empty {
         flex: 1; display: flex; flex-direction: column;
         align-items: center; justify-content: center;
@@ -203,6 +164,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
         word-break: break-word;
         color: var(--text-secondary);
       }
+      .ui-btn-icon.active { color: var(--color-purple); background: var(--bg-elevated); }
     `,
   ],
 })

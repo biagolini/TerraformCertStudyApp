@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { QuizService } from '../../core/services/quiz.service';
+import { PacksService } from '../../core/services/packs.service';
 import { QuizHistoryComponent } from './quiz-history.component';
 import { QuizResultsComponent } from './quiz-results.component';
 import { QuizRunnerComponent } from './quiz-runner.component';
@@ -28,12 +29,7 @@ import { QuizSetupComponent } from './quiz-setup.component';
   `,
   styles: [
     `
-      // Routed directly at /quiz — this host element sits as a direct
-      // child of .app-main's 2-column grid (a sibling of <router-outlet>,
-      // inserted by the router rather than written in AppComponent's own
-      // template, so a rule from THAT component's stylesheet can't reach
-      // it under Angular's view encapsulation — :host is the correct way
-      // to size this component's own host element instead).
+      // Spans both columns of the workspace grid (ExamWorkspaceComponent).
       :host {
         display: block;
         grid-column: 1 / -1;
@@ -43,4 +39,12 @@ import { QuizSetupComponent } from './quiz-setup.component';
 })
 export class QuizComponent {
   protected readonly quiz = inject(QuizService);
+  private readonly packs = inject(PacksService);
+
+  constructor() {
+    // QuizService is app-wide: a session (or results view) left open in
+    // another certification is parked/cleared instead of shown here.
+    const owner = this.quiz.sessionPackId();
+    if (owner && owner !== this.packs.activePack().id) this.quiz.release();
+  }
 }

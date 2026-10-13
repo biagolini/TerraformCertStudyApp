@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { BedrockService } from '../../core/services/bedrock.service';
 import { ModelsService } from '../../core/services/models.service';
 import { PacksService } from '../../core/services/packs.service';
+import { BanksService } from '../../core/services/banks.service';
 import { QuestionEnrichmentService } from '../../core/services/question-enrichment.service';
 import { QuestionsService } from '../../core/services/questions.service';
 import { SettingsService } from '../../core/services/settings.service';
@@ -37,10 +38,10 @@ import { I18nService } from '../../core/i18n/i18n.service';
         </p>
       </header>
 
-      <div class="mode-toggle" role="tablist" [attr.aria-label]="i18n.t('questionInput.reviewMode')">
+      <div class="ui-segmented" role="tablist" [attr.aria-label]="i18n.t('questionInput.reviewMode')">
         <button
           type="button"
-          class="mode-btn"
+          class=""
           [class.active]="activeView() === 'generate'"
           (click)="onSetMode('generate')"
           [disabled]="streaming() || savingManual()"
@@ -49,7 +50,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
         >{{ i18n.t('settings.generateWithAi') }}</button>
         <button
           type="button"
-          class="mode-btn"
+          class=""
           [class.active]="activeView() === 'manual'"
           (click)="onSetMode('manual')"
           [disabled]="streaming() || savingManual()"
@@ -66,7 +67,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             [disabled]="streaming() || finalizing()"
             rows="8"
             [placeholder]="i18n.t('questionInput.draftPlaceholder')"
-            class="textarea"
+            class="ui-input tall"
           ></textarea>
         </label>
         @if (streaming() || finalizing()) {
@@ -83,7 +84,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
         <label class="model-row">
           <span class="model-label">{{ i18n.t('questionInput.model') }}</span>
           <select
-            class="model-select"
+            class="ui-input grow"
             [ngModel]="selectedModel()"
             (ngModelChange)="onSelectModel($event)"
             [disabled]="streaming() || finalizing() || savingManual() || generatingTitle()"
@@ -98,14 +99,14 @@ import { I18nService } from '../../core/i18n/i18n.service';
 
       @if (activeView() === 'generate') {
         @if (streaming()) {
-          <button type="button" class="stop-btn" (click)="onStop()">
+          <button type="button" class="ui-btn ui-btn-danger wide" (click)="onStop()">
             <span class="stop-icon" aria-hidden="true"></span>
             <span>{{ i18n.t('questionInput.stop') }}</span>
           </button>
         } @else {
           <button
             type="button"
-            class="generate-btn"
+            class="ui-btn ui-btn-primary wide"
             (click)="onGenerate()"
             [disabled]="!canGenerate() || finalizing()"
           >
@@ -113,10 +114,10 @@ import { I18nService } from '../../core/i18n/i18n.service';
           </button>
         }
       } @else {
-        <label class="field">
-          <span class="field-label">{{ i18n.t('questionInput.domain') }}</span>
+        <label class="ui-field">
+          <span class="">{{ i18n.t('questionInput.domain') }}</span>
           <select
-            class="model-select"
+            class="ui-input grow"
             [ngModel]="selectedDomain()"
             (ngModelChange)="onSelectDomain($event)"
             [disabled]="savingManual()"
@@ -128,12 +129,12 @@ import { I18nService } from '../../core/i18n/i18n.service';
           </select>
         </label>
 
-        <label class="field">
-          <span class="field-label">{{ i18n.t('questionInput.titleOptional') }}</span>
+        <label class="ui-field">
+          <span class="">{{ i18n.t('questionInput.titleOptional') }}</span>
           <div class="title-row">
             <input
               type="text"
-              class="title-input"
+              class="ui-input grow"
               [(ngModel)]="manualTitle"
               [disabled]="savingManual()"
               [placeholder]="i18n.t('questionInput.titlePlaceholder')"
@@ -141,7 +142,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             />
             <button
               type="button"
-              class="btn-ghost-sm"
+              class="ui-btn ui-btn-sm"
               (click)="onGenerateTitle()"
               [disabled]="generatingTitle() || savingManual() || !manualReview.trim() || !!manualTitle.trim()"
             >
@@ -152,10 +153,10 @@ import { I18nService } from '../../core/i18n/i18n.service';
 
         <label class="textarea-wrap">
           <div class="field-label-row">
-            <span class="field-label">{{ i18n.t('questionInput.readyMadeReviewLabel') }}</span>
+            <span class="">{{ i18n.t('questionInput.readyMadeReviewLabel') }}</span>
             <button
               type="button"
-              class="btn-ghost-sm"
+              class="ui-btn ui-btn-sm"
               (click)="onAutofillFromPaste()"
               [disabled]="savingManual() || !manualReview.trim()"
             >{{ i18n.t('questionInput.autofillTitleDomain') }}</button>
@@ -165,7 +166,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             [disabled]="savingManual()"
             rows="10"
             [placeholder]="i18n.t('questionInput.manualReviewPlaceholder')"
-            class="textarea"
+            class="ui-input tall"
           ></textarea>
         </label>
 
@@ -173,7 +174,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 
         <button
           type="button"
-          class="generate-btn"
+          class="ui-btn ui-btn-primary wide"
           (click)="onSaveManual()"
           [disabled]="!manualReview.trim() || savingManual()"
         >
@@ -216,14 +217,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
         color: var(--text-muted);
         font-size: var(--font-size-sm);
       }
-      .warning {
-        background: var(--bg-elevated);
-        color: var(--color-amber);
-        padding: var(--space-sm) var(--space-md);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--color-amber);
-        font-size: var(--font-size-sm);
-      }
       .options-row {
         display: flex;
         flex-direction: column;
@@ -238,35 +231,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
         font-size: var(--font-size-sm);
         color: var(--text-muted);
       }
-      .model-select {
-        flex: 1;
-        min-height: 36px;
-        padding: 0 var(--space-sm);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: var(--bg-input);
-        color: var(--text-primary);
-        font-size: var(--font-size-sm);
-      }
-      .model-select:focus-visible {
-        outline: none;
-        border-color: var(--color-purple);
-      }
-      .model-select:disabled {
-        opacity: 0.55;
-        cursor: not-allowed;
-      }
-      .search-toggle {
-        display: inline-flex;
-        align-items: center;
-        gap: var(--space-xs);
-        font-size: var(--font-size-sm);
-        color: var(--text-secondary);
-        cursor: pointer;
-      }
-      .search-toggle input[type='checkbox'] {
-        accent-color: var(--color-purple);
-      }
       .textarea-wrap {
         display: block;
       }
@@ -280,28 +244,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
         clip: rect(0 0 0 0);
         white-space: nowrap;
         border: 0;
-      }
-      .textarea {
-        width: 100%;
-        min-height: 180px;
-        padding: var(--space-md);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: var(--bg-input);
-        color: var(--text-primary);
-        font-family: var(--font-family);
-        font-size: var(--font-size-base);
-        line-height: 1.55;
-        resize: vertical;
-        transition: border-color var(--transition-fast);
-      }
-      .textarea:focus-visible {
-        outline: none;
-        border-color: var(--color-purple);
-      }
-      .textarea:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
       }
       .live-preview {
         display: flex;
@@ -327,50 +269,10 @@ import { I18nService } from '../../core/i18n/i18n.service';
         line-height: 1.55;
         color: var(--text-secondary);
       }
-      .generate-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: var(--space-sm);
-        width: 100%;
-        min-height: 48px;
-        padding: 0 var(--space-lg);
-        border-radius: var(--radius-md);
-        background: linear-gradient(135deg, var(--color-purple), var(--color-blue));
-        color: #ffffff;
-        font-weight: 600;
-        font-size: var(--font-size-lg);
-        transition: filter var(--transition-fast);
-      }
-      .generate-btn:hover:not(:disabled) {
-        filter: brightness(1.08);
-      }
-      .generate-btn:disabled {
-        opacity: 0.55;
-        cursor: not-allowed;
-      }
-      .stop-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: var(--space-sm);
-        width: 100%;
-        min-height: 48px;
-        padding: 0 var(--space-lg);
-        border-radius: var(--radius-md);
-        background: var(--color-red);
-        color: #ffffff;
-        font-weight: 600;
-        font-size: var(--font-size-lg);
-        transition: filter var(--transition-fast);
-      }
-      .stop-btn:hover {
-        filter: brightness(1.1);
-      }
       .stop-icon {
         width: 14px;
         height: 14px;
-        background: #ffffff;
+        background: currentColor;
         border-radius: 3px;
       }
       .lang-hint {
@@ -380,41 +282,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .error {
         color: var(--color-red);
         font-size: var(--font-size-sm);
-      }
-      .mode-toggle {
-        display: flex;
-        gap: 2px;
-        padding: 3px;
-        background: var(--bg-elevated);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-      }
-      .mode-btn {
-        flex: 1;
-        min-height: 34px;
-        border-radius: var(--radius-sm);
-        background: transparent;
-        color: var(--text-secondary);
-        font-size: var(--font-size-sm);
-        font-weight: 600;
-      }
-      .mode-btn.active {
-        background: var(--bg-surface);
-        color: var(--color-purple);
-        box-shadow: var(--shadow-sm);
-      }
-      .mode-btn:disabled {
-        opacity: 0.55;
-        cursor: not-allowed;
-      }
-      .field {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-xs);
-      }
-      .field-label {
-        font-size: var(--font-size-sm);
-        color: var(--text-muted);
       }
       .field-label-row {
         display: flex;
@@ -428,43 +295,10 @@ import { I18nService } from '../../core/i18n/i18n.service';
         gap: var(--space-sm);
         align-items: stretch;
       }
-      .title-input {
-        flex: 1;
-        min-width: 0;
-        min-height: 36px;
-        padding: 0 var(--space-md);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: var(--bg-input);
-        color: var(--text-primary);
-        font-size: var(--font-size-base);
-      }
-      .title-input:focus-visible {
-        outline: none;
-        border-color: var(--color-purple);
-      }
-      .title-input:disabled {
-        opacity: 0.6;
-      }
-      .btn-ghost-sm {
-        flex-shrink: 0;
-        padding: 0 var(--space-md);
-        min-height: 36px;
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: transparent;
-        color: var(--text-secondary);
-        font-size: var(--font-size-sm);
-        font-weight: 500;
-      }
-      .btn-ghost-sm:hover:not(:disabled) {
-        border-color: var(--color-purple);
-        color: var(--text-primary);
-      }
-      .btn-ghost-sm:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
+      .wide { width: 100%; min-height: 48px; font-size: var(--font-size-lg); }
+      .tall { min-height: 180px; }
+      .grow { flex: 1; min-width: 0; }
+      .field-label-row > span { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-secondary); }
     `,
   ],
 })
@@ -474,6 +308,9 @@ export class QuestionInputComponent {
   private readonly questionsService = inject(QuestionsService);
   private readonly modelsService = inject(ModelsService);
   private readonly packs = inject(PacksService);
+  private readonly banks = inject(BanksService);
+  /** Bank new questions go into. Empty = the certification's first bank (created on demand). */
+  readonly bankId = input<string>('');
   private readonly enrichment = inject(QuestionEnrichmentService);
   protected readonly i18n = inject(I18nService);
 
@@ -578,9 +415,14 @@ export class QuestionInputComponent {
 
     const relatedServices = await this.enrichment.extractRelatedServices(parsed.stem, parsed.alternatives);
     const now = Date.now();
+    const bankId =
+      (this.bankId() && this.banks.getById(this.bankId())?.packId === packId ? this.bankId() : '') ||
+      this.banks.ensureDefault(packId).id;
+    this.banks.touch(bankId);
     return {
       id: crypto.randomUUID(),
       packId,
+      bankId,
       title,
       domain,
       stem: parsed.stem,

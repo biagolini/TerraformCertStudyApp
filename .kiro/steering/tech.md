@@ -14,15 +14,16 @@ Defaults to follow when adding or changing anything in the stack. Rationale and 
 
 ## Runtime
 
-- Lambda functions are Python `3.13`, standard library plus `boto3`. Add a dependency only with a reason.
-- Functions that serve HTTP (`converse`, `data`, `review`) run Flask behind the Lambda Web Adapter layer with `handler = "run.sh"`; streaming ones set `AWS_LWA_INVOKE_MODE`.
+- Lambda functions are Python `3.13` on `arm64`, standard library plus `boto3`. Add a dependency only with a reason.
+- Functions that serve HTTP (`converse`, `data`, `review`) run Flask behind the Lambda Web Adapter layer with `handler = "run.sh"`; streaming ones set `AWS_LWA_INVOKE_MODE`. Not a container image, and not API Gateway integrated directly with a handler function. Add a new HTTP Lambda the same way: its own `aws_lambda_<name>.tf` and its own `lambda/<name>/app.py`.
 - Lambda packaging: `null_resource` + `local-exec` running `pip install --platform manylinux2014_aarch64 ... --only-binary=:all:` then `zip`, keyed off a `filesha256` trigger so a build re-runs only when its source changes. Artifacts land in the gitignored `.build/`.
 - The AgentCore review agent ships as a container image through ECR, built by a script (no native Terraform resource exists for AgentCore).
 
 ## Frontend
 
-- Angular 21 standalone SPA with Signals; Angular Material only for a few dialogs/spinners.
+- Angular 21 standalone SPA with Signals and plain SCSS (no Tailwind); Angular Material only for a few dialogs/spinners. Conventions are in `frontend.md`.
 - Vitest with jsdom for unit tests, specs colocated as `*.spec.ts`.
+- Local dev: `npm start` in `frontend/` (ng serve on :4200); `npm run build`, `npm test`. With `frontend_deploy_enabled = true` in `terraform.tfvars`, `terraform apply` builds the SPA, syncs it to S3 and invalidates CloudFront.
 - The build is static and served from S3 behind CloudFront. Never assume a server-side runtime in the frontend.
 
 ## AI

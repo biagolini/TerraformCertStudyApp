@@ -1,6 +1,5 @@
 import { Component, inject } from '@angular/core';
 import { MatDialogModule, MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { I18nService } from '../../core/i18n/i18n.service';
 
@@ -11,7 +10,7 @@ export interface ConfirmDeleteData {
 @Component({
   selector: 'app-confirm-delete-dialog',
   standalone: true,
-  imports: [MatDialogModule, MatButtonModule, MatProgressSpinnerModule],
+  imports: [MatDialogModule, MatProgressSpinnerModule],
   template: `
     <h2 mat-dialog-title>{{ i18n.t('confirmDelete.title') }}</h2>
     <mat-dialog-content>
@@ -22,8 +21,8 @@ export interface ConfirmDeleteData {
       @if (loading) {
         <mat-spinner diameter="24"></mat-spinner>
       } @else {
-        <button mat-button mat-dialog-close>{{ i18n.t('common.cancel') }}</button>
-        <button mat-flat-button color="warn" (click)="confirm()">{{ i18n.t('common.delete') }}</button>
+        <button type="button" class="ui-btn" mat-dialog-close>{{ i18n.t('common.cancel') }}</button>
+        <button type="button" class="ui-btn ui-btn-danger" (click)="confirm()">{{ i18n.t('common.delete') }}</button>
       }
     </mat-dialog-actions>
   `,
@@ -36,17 +35,9 @@ export interface ConfirmDeleteData {
     }
     h2[mat-dialog-title] { color: var(--text-primary); }
     mat-dialog-content { color: var(--text-secondary); }
-    .warn { color: var(--mat-sys-error, #d32f2f); font-size: 0.85em; margin-top: 4px; }
-    mat-dialog-actions { padding: 8px 24px 16px; }
+    .warn { color: var(--color-red); font-size: var(--font-size-sm); margin-top: var(--space-xs); }
+    mat-dialog-actions { gap: var(--space-sm); padding: var(--space-sm) var(--space-lg) var(--space-md); }
     mat-spinner { margin: 0 auto; }
-    button[mat-button] {
-      color: var(--text-secondary);
-      border: 1px solid var(--bg-border);
-    }
-    button[mat-flat-button] {
-      background: var(--mat-sys-error, #d32f2f);
-      color: #ffffff;
-    }
   `],
 })
 export class ConfirmDeleteDialogComponent {

@@ -14,7 +14,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="image-upload">
-      <span class="field-label">{{ i18n.t('imageUpload.attachImage') }}</span>
+      <span class="ui-label">{{ i18n.t('imageUpload.attachImage') }}</span>
       <div class="upload-row">
         <input
           #fileInput
@@ -23,7 +23,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
           hidden
           (change)="onFileSelected($event)"
         />
-        <button type="button" class="btn-ghost-sm" (click)="fileInput.click()" [disabled]="uploading()">
+        <button type="button" class="ui-btn ui-btn-sm" (click)="fileInput.click()" [disabled]="uploading()">
           {{ i18n.t('imageUpload.chooseImage') }}
         </button>
         @if (selectedFile()) {
@@ -31,7 +31,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
         }
         <button
           type="button"
-          class="btn-ghost-sm"
+          class="ui-btn ui-btn-sm"
           (click)="onUpload()"
           [disabled]="!selectedFile() || uploading()"
         >
@@ -46,7 +46,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
       @if (snippet()) {
         <div class="snippet-row">
           <code class="snippet">{{ snippet() }}</code>
-          <button type="button" class="btn-ghost-sm" (click)="onCopy()">
+          <button type="button" class="ui-btn ui-btn-sm" (click)="onCopy()">
             {{ copied() ? i18n.t('imageUpload.copied') : i18n.t('imageUpload.copy') }}
           </button>
         </div>
@@ -66,10 +66,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
         padding: var(--space-sm);
         border: 1px dashed var(--bg-border);
         border-radius: var(--radius-md);
-      }
-      .field-label {
-        font-size: var(--font-size-sm);
-        color: var(--text-secondary);
       }
       .upload-row {
         display: flex;
@@ -108,26 +104,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
         margin: 0;
         font-size: var(--font-size-xs);
         color: var(--text-faint);
-      }
-      .btn-ghost-sm {
-        flex-shrink: 0;
-        padding: 0 var(--space-md);
-        min-height: 36px;
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: transparent;
-        color: var(--text-secondary);
-        font-size: var(--font-size-sm);
-        font-weight: 500;
-        cursor: pointer;
-      }
-      .btn-ghost-sm:hover:not(:disabled) {
-        border-color: var(--color-purple);
-        color: var(--text-primary);
-      }
-      .btn-ghost-sm:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
       }
     `,
   ],

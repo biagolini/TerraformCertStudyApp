@@ -1,32 +1,36 @@
+import { IconComponent } from '../../shared/components/icon.component';
+import { ActivatedRoute } from '@angular/router';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { packDisplayLabel } from '../../core/models/pack.model';
 import { MAX_IN_PROGRESS_ATTEMPTS, QuizAttempt } from '../../core/models/quiz-attempt.model';
 import { QuizMode, QuizScope } from '../../core/models/quiz.model';
 import { PacksService } from '../../core/services/packs.service';
+import { BanksService } from '../../core/services/banks.service';
+import { BankPickerComponent, everyBankSelected } from '../../shared/components/bank-picker.component';
+import { ProfileService } from '../../core/services/profile.service';
 import { QuizAttemptsService } from '../../core/services/quiz-attempts.service';
-import { QuizService } from '../../core/services/quiz.service';
+import { formatClock, QuizService } from '../../core/services/quiz.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 
 @Component({
   selector: 'app-quiz-setup',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, IconComponent, BankPickerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="setup-card">
+    <section class="ui-card setup-card">
       <header class="card-header">
         <div>
           <h2>{{ i18n.t('quizSetup.title') }}</h2>
           <p class="subtitle">{{ i18n.t('quizSetup.subtitle') }}</p>
         </div>
-        <button type="button" class="history-link" (click)="quiz.viewHistory()">{{ i18n.t('quizSetup.history') }}</button>
+        <button type="button" class="ui-btn ui-btn-sm" (click)="quiz.viewHistory()">{{ i18n.t('quizSetup.history') }}</button>
       </header>
 
       @if (inProgress().length > 0) {
         <div class="resume-list">
-          <span class="field-label">{{ i18n.t('quizSetup.inProgressCount', { count: inProgress().length, max: maxInProgress }) }}</span>
+          <span class="ui-label">{{ i18n.t('quizSetup.inProgressCount', { count: inProgress().length, max: maxInProgress }) }}</span>
           @for (attempt of inProgress(); track attempt.id) {
             <div class="resume-row">
               <div class="resume-meta">
@@ -41,8 +45,8 @@ import { I18nService } from '../../core/i18n/i18n.service';
                 </span>
               </div>
               <div class="resume-actions">
-                <button type="button" class="btn-ghost-sm" (click)="onDiscard(attempt)">{{ i18n.t('quizSetup.discard') }}</button>
-                <button type="button" class="btn-resume" (click)="onResume(attempt)">{{ i18n.t('quizSetup.resume') }}</button>
+                <button type="button" class="ui-btn ui-btn-sm" (click)="onDiscard(attempt)">{{ i18n.t('quizSetup.discard') }}</button>
+                <button type="button" class="ui-btn ui-btn-primary" (click)="onResume(attempt)">{{ i18n.t('quizSetup.resume') }}</button>
               </div>
             </div>
           }
@@ -55,42 +59,22 @@ import { I18nService } from '../../core/i18n/i18n.service';
         </div>
       }
 
-      <span class="field-label">{{ i18n.t('quizSetup.scope') }}</span>
-      <div class="scope-group">
-        <button
-          type="button"
-          class="scope-card"
-          [class.selected]="scope() === 'pack'"
-          (click)="onSelectScope('pack')"
-        >
-          <span class="scope-title">{{ i18n.t('quizSetup.thisPack') }}</span>
-          <span class="scope-count">{{ activePackLabel() }} — {{ readyLabel('pack') }}</span>
-        </button>
-        <button
-          type="button"
-          class="scope-card"
-          [class.selected]="scope() === 'exam'"
-          (click)="onSelectScope('exam')"
-        >
-          <span class="scope-title">{{ i18n.t('quizSetup.allPacksForExam') }}</span>
-          <span class="scope-count">{{ examLabel() }} — {{ readyLabel('exam') }}</span>
-        </button>
-        <button
-          type="button"
-          class="scope-card"
-          [class.selected]="scope() === 'all'"
-          (click)="onSelectScope('all')"
-        >
-          <span class="scope-title">{{ i18n.t('quizSetup.allPacks') }}</span>
-          <span class="scope-count">{{ i18n.t('quizSetup.everyCertification') }} — {{ readyLabel('all') }}</span>
-        </button>
+      <div class="banks-head">
+        <span class="ui-label">{{ i18n.t('quizSetup.banks') }}</span>
+        @if (banks.banks().length > 0) {
+          <button type="button" class="ui-btn ui-btn-sm" (click)="selectAllBanks()">
+            {{ allBanksSelected() ? i18n.t('quizSetup.clearBanks') : i18n.t('quizSetup.selectAllBanks') }}
+          </button>
+        }
       </div>
+      <p class="hint-text">{{ i18n.t('quizSetup.banksHint') }}</p>
+      <app-bank-picker [selected]="selectedBanks()" (selectedChange)="onBanksChange($event)" />
 
-      <span class="field-label">{{ i18n.t('quizSetup.mode') }}</span>
-      <div class="mode-toggle" role="tablist" [attr.aria-label]="i18n.t('quizSetup.quizMode')">
+      <span class="ui-label">{{ i18n.t('quizSetup.mode') }}</span>
+      <div class="ui-segmented" role="tablist" [attr.aria-label]="i18n.t('quizSetup.quizMode')">
         <button
           type="button"
-          class="mode-btn"
+          class=""
           [class.active]="mode() === 'instant'"
           (click)="mode.set('instant')"
           role="tab"
@@ -98,7 +82,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
         >{{ i18n.t('quizSetup.instantFeedback') }}</button>
         <button
           type="button"
-          class="mode-btn"
+          class=""
           [class.active]="mode() === 'exam'"
           (click)="mode.set('exam')"
           role="tab"
@@ -107,13 +91,13 @@ import { I18nService } from '../../core/i18n/i18n.service';
       </div>
 
       @if (domainsList().length > 0) {
-        <span class="field-label">{{ i18n.t('quizSetup.filterByDomain') }}</span>
+        <span class="ui-label">{{ i18n.t('quizSetup.filterByDomain') }}</span>
         <div class="filters-row">
           @for (d of domainsList(); track d.name) {
             <button
               type="button"
-              class="filter-chip"
-              [class.selected]="selectedDomains().has(d.name)"
+              class="ui-chip"
+              [class.active]="selectedDomains().has(d.name)"
               (click)="onToggleDomain(d.name)"
             >{{ d.name }} ({{ d.count }})</button>
           }
@@ -123,7 +107,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
       <div class="filters-row">
         <span class="switch-label">{{ i18n.t('quizSetup.questions') }}</span>
         <div class="stepper">
-          <button type="button" (click)="onChangeCount(-5)" [disabled]="effectiveCount() <= 1">−</button>
+          <button type="button" (click)="onChangeCount(-5)" [disabled]="effectiveCount() <= 1" [attr.aria-label]="i18n.t('quizSetup.fewer')"><app-icon name="minus" /></button>
           <input
             type="number"
             inputmode="numeric"
@@ -134,7 +118,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             [max]="filteredCount()"
             [attr.aria-label]="i18n.t('quizSetup.questions')"
           />
-          <button type="button" (click)="onChangeCount(5)" [disabled]="effectiveCount() >= filteredCount()">+</button>
+          <button type="button" (click)="onChangeCount(5)" [disabled]="effectiveCount() >= filteredCount()" [attr.aria-label]="i18n.t('quizSetup.more')"><app-icon name="plus" /></button>
         </div>
         <span class="hint-text">{{ i18n.t('quizSetup.ofAvailable', { count: filteredCount() }) }}</span>
       </div>
@@ -142,7 +126,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
       <div class="filters-row">
         <button
           type="button"
-          class="switch"
+          class="ui-switch"
           [class.on]="shuffle()"
           (click)="shuffle.set(!shuffle())"
           role="switch"
@@ -152,11 +136,32 @@ import { I18nService } from '../../core/i18n/i18n.service';
         <span class="switch-label">{{ i18n.t('quizSetup.shuffleOrder') }}</span>
       </div>
 
+      <div class="filters-row">
+        <button
+          type="button"
+          class="ui-switch"
+          [class.on]="shuffleAlternatives()"
+          (click)="shuffleAlternatives.set(!shuffleAlternatives())"
+          role="switch"
+          [attr.aria-checked]="shuffleAlternatives()"
+          [attr.aria-label]="i18n.t('quizSetup.shuffleAlternatives')"
+        ><span class="thumb"></span></button>
+        <span class="switch-label">{{ i18n.t('quizSetup.shuffleAlternatives') }}</span>
+      </div>
+
       @if (quiz.timerAvailable()) {
+        @if (mode() === 'instant') {
+          <!-- Instant feedback always paces each question against the real exam;
+               only exam simulation has an optional whole-exam clock. -->
+          <div class="filters-row">
+            <app-icon name="clock" />
+            <span class="switch-label">{{ i18n.t('quizSetup.perQuestionClock', { time: perQuestionLabel(), label: examDurationLabel() }) }}</span>
+          </div>
+        } @else {
         <div class="filters-row">
           <button
             type="button"
-            class="switch"
+            class="ui-switch"
             [class.on]="trackTime()"
             (click)="trackTime.set(!trackTime())"
             role="switch"
@@ -165,13 +170,14 @@ import { I18nService } from '../../core/i18n/i18n.service';
           ><span class="thumb"></span></button>
           <span class="switch-label">{{ i18n.t('quizSetup.trackTimeWithLabel', { label: examDurationLabel() }) }}</span>
         </div>
+        }
         @if (accommodationMinutes() > 0) {
           <div class="filters-row">
             <button
               type="button"
-              class="switch"
+              class="ui-switch"
               [class.on]="useAccommodation()"
-              [disabled]="!trackTime()"
+              [disabled]="!timeTracked()"
               (click)="useAccommodation.set(!useAccommodation())"
               role="switch"
               [attr.aria-checked]="useAccommodation()"
@@ -186,7 +192,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
         <p class="empty-hint">{{ i18n.t('quizSetup.noQuestionsInScope') }}</p>
       }
 
-      <button type="button" class="start-btn" [disabled]="filteredCount() === 0 || atInProgressLimit()" (click)="onStart()">
+      <button type="button" class="ui-btn ui-btn-primary start" [disabled]="filteredCount() === 0 || atInProgressLimit()" (click)="onStart()">
         {{ i18n.t('quizSetup.startQuiz') }}
       </button>
     </section>
@@ -199,47 +205,16 @@ import { I18nService } from '../../core/i18n/i18n.service';
         flex-direction: column;
         gap: var(--space-md);
         padding: var(--space-lg);
-        background: var(--bg-surface);
-        border-radius: var(--radius-lg);
-        box-shadow: var(--shadow-sm);
         max-width: 640px;
         margin: 0 auto;
       }
       .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-md); }
       .card-header h2 { font-size: var(--font-size-xl); margin-bottom: var(--space-xs); }
       .subtitle { color: var(--text-muted); font-size: var(--font-size-sm); }
-      .history-link { flex-shrink: 0; padding: var(--space-xs) var(--space-md); border-radius: var(--radius-pill); border: 1px solid var(--bg-border); background: transparent; color: var(--text-secondary); font-size: var(--font-size-sm); font-weight: 600; }
-      .history-link:hover { border-color: var(--color-purple); color: var(--color-purple); }
-      .field-label { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-secondary); }
 
-      .scope-group { display: flex; flex-direction: column; gap: var(--space-sm); }
-      @media (min-width: 640px) {
-        .scope-group { flex-direction: row; }
-      }
-      .scope-card {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        padding: var(--space-md);
-        border-radius: var(--radius-md);
-        border: 1.5px solid var(--bg-border);
-        background: var(--bg-input);
-        text-align: left;
-        cursor: pointer;
-      }
-      .scope-card:hover { border-color: var(--color-purple); }
-      .scope-card.selected { border-color: var(--color-purple); background: var(--bg-elevated); }
-      .scope-title { font-weight: 600; font-size: var(--font-size-base); color: var(--text-primary); }
-      .scope-count { font-size: var(--font-size-xs); color: var(--text-muted); }
-
-      .mode-toggle { display: inline-flex; gap: 2px; padding: 3px; background: var(--bg-elevated); border-radius: var(--radius-md); border: 1px solid var(--bg-border); align-self: flex-start; }
-      .mode-btn { padding: 0 var(--space-md); min-height: 34px; border-radius: var(--radius-sm); background: transparent; border: none; color: var(--text-secondary); font-family: var(--font-family); font-size: var(--font-size-sm); font-weight: 600; cursor: pointer; }
-      .mode-btn.active { background: var(--bg-surface); color: var(--color-purple); box-shadow: var(--shadow-sm); }
+      .banks-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); }
 
       .filters-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
-      .filter-chip { padding: 4px var(--space-md); border-radius: var(--radius-pill); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-secondary); font-size: var(--font-size-sm); cursor: pointer; }
-      .filter-chip.selected { background: var(--color-purple); border-color: var(--color-purple); color: #fff; }
 
       .stepper { display: inline-flex; align-items: center; gap: var(--space-sm); border: 1px solid var(--bg-border); border-radius: var(--radius-md); background: var(--bg-input); padding: 0 var(--space-xs); height: 36px; }
       .stepper button { width: 28px; height: 28px; border: none; background: transparent; color: var(--text-secondary); font-size: var(--font-size-lg); cursor: pointer; border-radius: var(--radius-sm); }
@@ -256,12 +231,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .hint-text { color: var(--text-faint); font-size: var(--font-size-xs); }
       .switch-label { font-size: var(--font-size-sm); color: var(--text-secondary); }
 
-      .switch { width: 38px; height: 22px; border-radius: 999px; background: var(--bg-border); position: relative; border: none; cursor: pointer; flex-shrink: 0; padding: 0; }
-      .switch.on { background: var(--color-purple); }
-      .switch:disabled { opacity: 0.5; cursor: not-allowed; }
-      .switch .thumb { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left var(--transition-fast); }
-      .switch.on .thumb { left: 18px; }
-
       .empty-hint { color: var(--text-muted); font-size: var(--font-size-sm); line-height: 1.5; margin: 0; }
 
       .resume-list { display: flex; flex-direction: column; gap: var(--space-sm); }
@@ -274,32 +243,13 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .resume-exam { font-weight: 600; font-size: var(--font-size-base); color: var(--text-primary); }
       .resume-sub { font-size: var(--font-size-xs); color: var(--text-muted); }
       .resume-actions { display: flex; gap: var(--space-sm); flex-shrink: 0; }
-      .btn-resume {
-        padding: 0 var(--space-md); min-height: var(--touch-min); border-radius: var(--radius-md); border: none;
-        background: var(--color-purple); color: #fff; font-weight: 600; font-size: var(--font-size-sm); cursor: pointer;
-      }
-      .btn-resume:hover { filter: brightness(1.08); }
-      .btn-ghost-sm {
-        padding: 0 var(--space-md); min-height: var(--touch-min); border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border); background: transparent; color: var(--text-secondary);
-        font-size: var(--font-size-sm); cursor: pointer;
-      }
-      .btn-ghost-sm:hover { background: var(--bg-subtle); }
 
       .conflict-banner {
         display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-md);
         border-radius: var(--radius-md); border: 1.5px solid var(--color-red); background: var(--bg-elevated);
       }
       .conflict-banner p { font-size: var(--font-size-sm); color: var(--text-secondary); margin: 0; }
-
-      .start-btn {
-        display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm);
-        width: 100%; min-height: 48px; padding: 0 var(--space-lg); border-radius: var(--radius-md);
-        border: none; background: linear-gradient(135deg, var(--color-purple), var(--color-blue));
-        color: #ffffff; font-weight: 600; font-size: var(--font-size-lg); cursor: pointer;
-      }
-      .start-btn:hover:not(:disabled) { filter: brightness(1.08); }
-      .start-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+      .start { width: 100%; min-height: 48px; font-size: var(--font-size-lg); }
     `,
   ],
 })
@@ -310,13 +260,24 @@ export class QuizSetupComponent {
   private readonly attemptsService = inject(QuizAttemptsService);
   protected readonly i18n = inject(I18nService);
 
-  protected readonly inProgress = this.attemptsService.inProgressAttempts;
+  protected readonly banks = inject(BanksService);
+  private readonly profile = inject(ProfileService);
+  /** Open sessions of this certification (the 5-session limit still counts every certification). */
+  protected readonly inProgress = computed(() => {
+    const packId = this.packs.activePack().id;
+    return this.attemptsService.inProgressAttempts().filter((a) => a.packId === packId);
+  });
   protected readonly maxInProgress = MAX_IN_PROGRESS_ATTEMPTS;
-  protected readonly atInProgressLimit = computed(() => this.inProgress().length >= MAX_IN_PROGRESS_ATTEMPTS);
+  protected readonly atInProgressLimit = computed(
+    () => this.attemptsService.inProgressAttempts().length >= MAX_IN_PROGRESS_ATTEMPTS,
+  );
   private static readonly DATE_LOCALES: Record<string, string> = { en: 'en-US', pt: 'pt-BR', es: 'es-ES', it: 'it-IT' };
 
   constructor() {
     void this.attemptsService.load();
+    // ?domain= (Performance page "Practice") preselects one domain.
+    const domain = inject(ActivatedRoute).snapshot.queryParamMap.get('domain');
+    if (domain) queueMicrotask(() => this.selectedDomains.set(new Set([domain])));
   }
 
   protected readonly scope = signal<QuizScope>('pack');
@@ -324,8 +285,16 @@ export class QuizSetupComponent {
   protected readonly selectedDomains = signal<ReadonlySet<string>>(new Set());
   protected readonly countOverride = signal<number | null>(null);
   protected readonly shuffle = signal(true);
+  protected readonly shuffleAlternatives = signal(true);
   protected readonly trackTime = signal(this.settings.defaultTrackTime());
-  protected readonly useAccommodation = signal(this.settings.defaultUseAccommodation());
+  protected readonly useAccommodation = signal(
+    this.settings.defaultUseAccommodation() || this.profile.profile().useAccommodationByDefault,
+  );
+  /** Empty = every bank (also what a certification with a single bank always uses). */
+  protected readonly selectedBanks = signal<ReadonlySet<string>>(new Set());
+  private readonly bankIdList = computed(() => [...this.selectedBanks()]);
+
+  protected readonly allBanksSelected = computed(() => everyBankSelected(this.banks.banks(), this.selectedBanks()));
 
   protected readonly accommodationMinutes = computed(() => this.packs.activePack().accommodationMinutes ?? 0);
   protected readonly examDurationLabel = computed(() => {
@@ -333,19 +302,29 @@ export class QuizSetupComponent {
     return this.i18n.t('quizSetup.durationLabel', { minutes: pack.examDurationMinutes, count: pack.examTotalQuestions });
   });
 
-  protected readonly activePackLabel = computed(() => packDisplayLabel(this.packs.activePack()));
-  protected readonly examLabel = computed(() => {
-    const examPacks = this.quiz.scopePools().examPacks;
-    if (examPacks.length <= 1) return this.packs.activePack().name;
-    const versions = examPacks.map((p) => p.version).filter(Boolean).join(' + ');
-    return versions ? `${this.packs.activePack().name} (${versions})` : this.packs.activePack().name;
+  /** Instant mode always tracks time (the per-question clock); exam mode only
+   * when the student turns the whole-exam clock on. */
+  protected readonly timeTracked = computed(
+    () => this.quiz.timerAvailable() && (this.mode() === 'instant' || this.trackTime()),
+  );
+
+  /** Seconds per question of the REAL exam: its duration (plus accommodation,
+   * when used) over its official question count. Never this session's count,
+   * and never a universal value: two 75-question exams with different
+   * durations get different budgets. Mirrors QuizService.perQuestionSeconds. */
+  protected readonly perQuestionLabel = computed(() => {
+    const pack = this.packs.activePack();
+    const minutes =
+      (pack.examDurationMinutes ?? 0) + (this.useAccommodation() ? (pack.accommodationMinutes ?? 0) : 0);
+    const total = pack.examTotalQuestions ?? 0;
+    return total > 0 ? formatClock((minutes * 60) / total) : '';
   });
 
-  protected readonly domainsList = computed(() => this.quiz.domainsForScope(this.scope()));
+  protected readonly domainsList = computed(() => this.quiz.domainsForScope(this.scope(), this.bankIdList()));
 
   protected readonly filteredCount = computed(() => {
     const domains = this.selectedDomains();
-    if (domains.size === 0) return this.quiz.scopePools().counts[this.scope()];
+    if (domains.size === 0) return this.quiz.poolFor(this.scope(), this.bankIdList()).length;
     return this.domainsList()
       .filter((d) => domains.has(d.name))
       .reduce((sum, d) => sum + d.count, 0);
@@ -357,13 +336,14 @@ export class QuizSetupComponent {
     return Math.max(1, Math.min(desired, max));
   });
 
-  readyLabel(scope: QuizScope): string {
-    const count = this.quiz.scopePools().counts[scope];
-    return this.i18n.t('quizSetup.questionCount', { count });
+  onBanksChange(next: ReadonlySet<string>): void {
+    this.selectedBanks.set(next);
+    this.selectedDomains.set(new Set());
+    this.countOverride.set(null);
   }
 
-  onSelectScope(scope: QuizScope): void {
-    this.scope.set(scope);
+  selectAllBanks(): void {
+    this.selectedBanks.set(this.allBanksSelected() ? new Set() : new Set(this.banks.banks().map((b) => b.id)));
     this.selectedDomains.set(new Set());
     this.countOverride.set(null);
   }
@@ -414,13 +394,15 @@ export class QuizSetupComponent {
 
   private beginQuiz(): void {
     this.quiz.start({
-      scope: this.scope(),
+      scope: 'pack',
+      bankIds: this.bankIdList(),
       mode: this.mode(),
       domains: [...this.selectedDomains()],
       count: this.effectiveCount(),
       shuffle: this.shuffle(),
-      trackTime: this.quiz.timerAvailable() && this.trackTime(),
-      useAccommodation: this.quiz.timerAvailable() && this.trackTime() && this.useAccommodation(),
+      shuffleAlternatives: this.shuffleAlternatives(),
+      trackTime: this.timeTracked(),
+      useAccommodation: this.timeTracked() && this.useAccommodation(),
     });
   }
 }

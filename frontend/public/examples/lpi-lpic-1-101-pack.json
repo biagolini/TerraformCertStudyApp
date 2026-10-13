@@ -1,0 +1,31 @@
+{
+  "name": "LPIC-1 System Administrator (Exam 101-500)",
+  "version": "5.0",
+  "color": "#f39c12",
+  "description": "Linux Professional Institute LPIC-1, first of the two exams (101-500). Validates the ability to perform maintenance tasks on the command line, install and configure a Linux system, and configure basic networking. Covers system architecture, Linux installation and package management, GNU and Unix commands, and devices, Linux filesystems and the Filesystem Hierarchy Standard. 60 questions, 90 minutes, passing score 500/800.",
+  "exportIntroQuestions": "## About this document\n\nThis document is a collection of practice exam questions for the **LPIC-1 System Administrator (Exam 101-500)** certification.\n\n### Certification context\n\nThe exam validates hands-on Linux administration on the command line: boot process and hardware, package management (dpkg/apt and rpm/yum/dnf), text processing with GNU tools, processes, filesystems, permissions and the FHS.\n\n### About the questions\n\nEach question is independent and should be analyzed as a standalone scenario.",
+  "exportIntroTranscripts": "## About this document\n\nThis document contains technical summaries of lessons for the **LPIC-1 System Administrator (Exam 101-500)** certification.",
+  "exportIntroChat": "## About this document\n\nThis document contains AI study conversations about the **LPIC-1 System Administrator (Exam 101-500)** certification.",
+  "domains": [
+    {
+      "name": "System Architecture",
+      "description": "Topic 101: determine and configure hardware settings, boot the system, change runlevels/boot targets and shutdown or reboot the system.",
+      "order": 1
+    },
+    {
+      "name": "Linux Installation and Package Management",
+      "description": "Topic 102: design hard disk layout, install a boot manager, manage shared libraries, Debian and RPM/YUM package management, Linux as a virtualization guest.",
+      "order": 2
+    },
+    {
+      "name": "GNU and Unix Commands",
+      "description": "Topic 103: work on the command line, process text streams with filters, file management, streams/pipes/redirects, processes, priorities, regular expressions, vi.",
+      "order": 3
+    },
+    {
+      "name": "Devices, Linux Filesystems, Filesystem Hierarchy Standard",
+      "description": "Topic 104: partitions and filesystems, filesystem integrity, mounting, permissions and ownership, hard and symbolic links, finding system files and the FHS.",
+      "order": 4
+    }
+  ]
+}

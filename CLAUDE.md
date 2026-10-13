@@ -4,17 +4,53 @@ AI-powered study app for IT certification exams (AWS, Anthropic CCAF, and
 others). Paste an exam question, get a structured Markdown review via Amazon
 Bedrock (streamed token-by-token); paste a lesson transcript, get a layered
 summary; or hold an open tutor chat. Angular 21 SPA on CloudFront/S3, Cognito
-auth, two Python Lambdas behind API Gateway, single-table DynamoDB — all
-provisioned with Terraform. See `README.md` and `docs/architecture.md` for
-the full picture.
+auth, Python Lambdas behind API Gateway (chat/review streaming, data CRUD,
+plus a Step Functions pipeline and a review agent for AI exam import),
+single-table DynamoDB — all provisioned with Terraform. See `README.md` and
+`docs/architecture.md` for the full picture.
 
-Previously scaffolded with Kiro (`.kiro/` kept for reference only). As of
-2026-08 this project is worked on with Claude Code — this file is what future
-sessions read; if `.kiro/steering/*` and this file ever disagree, this file
-wins. It also inherits the shared conventions in the root
+Previously scaffolded with Kiro. As of 2026-08 this project is worked on
+with Claude Code — this file is what future sessions read. `.kiro/steering/`
+carries the same rules in Kiro's format, so the project stays portable
+between the two tools: when you add or change a rule here, update the
+matching steering file too (and keep both 100% in English). If they ever
+disagree, this file wins. It also inherits the shared conventions in the root
 `/Users/biagolini/DevEnv/Terraform/CLAUDE.md` (state bucket, account
 profiles, project layout) — this file only covers what's specific to this
 project.
+
+## What this project is (and is not)
+
+A free, independent study tool. It is **not affiliated with, endorsed by, or
+built for any course provider, training company, practice-exam vendor, or
+instructor**, and it must never recommend, cite, or name one — not in code,
+comments, tests, i18n strings, docs, examples, design-system files, or commit
+messages. The author names users give their own question banks are user
+data: when real screens or user examples end up in the repo (design-system
+captures, fixtures, test values), replace them with generic placeholders
+("Instructor A", "my-export"). The same goes for the certification a user
+happens to be studying: use neutral examples, never one taken from their
+data. The repo is public.
+
+The goal is an open study companion with several features: writing study
+notes, building and taking mock exams from your own questions, and
+creating, importing, and sharing those questions.
+
+**Self-hosted, self-managed.** Each student deploys it to their own AWS
+account and owns everything in it — their notes, questions, attempts, and
+the infrastructure itself. That makes keeping the environment secure,
+updated, backed up, and within budget the student's own responsibility.
+The project's maintainers provide the code as is and take no responsibility
+for failures, bugs, data loss, or costs arising from it.
+
+**Vibe-coded, so expect inconsistencies.** The code was generated with more
+than one AI coding tool and models from many different vendors, so
+conventions, patterns, and quality vary across the codebase. Whenever you
+(the AI working here) notice an inconsistency, a bug, or a risky pattern —
+even outside the task at hand — tell the user: explain what the problem is,
+why it matters, and what you recommend, then suggest going ahead with the
+improvement. Don't fix unrelated things silently, and don't stay silent
+about them either.
 
 ## Never commit a real domain
 
@@ -32,18 +68,29 @@ backend/
   infrastructure/        Reusable Terraform module — one aws_<service>.tf per service
     lambda/converse/      Flask + Lambda Web Adapter, Bedrock converse_stream, NDJSON
     lambda/data/           Flask + Lambda Web Adapter, DynamoDB CRUD + model discovery
+    lambda/review/         Streams /review (generate/refine) from the AgentCore review agent
+    lambda/import_*/       AI exam import pipeline steps (preprocess, extract, explain,
+                            finalize), orchestrated by Step Functions — see
+                            docs/question-import-pipeline.md
+    lambda/mcp_aws_docs/   AWS documentation lookup used by the review agent
+    agent/review_agent/    AgentCore Runtime review agent (uses lambda/mcp_aws_docs)
     scripts/deploy_frontend.sh
   environments/production/  Module instantiation + backend config
 frontend/                 Angular 21 SPA
   src/app/core/            Models, services (auth/storage/bedrock/etc.), guards, utils
-  src/app/features/        login, question-input, question-list, review-viewer,
-                            transcripts, chat, packs, export, settings, methods
+  src/app/features/        Global pages: home, profile, settings, costs, backup, login.
+                            Certification workspace (/exam/:packId, workspace/)
+                            tabs: banks, questions, import-exam, import-review,
+                            quiz, performance, notes, transcripts, chat, export.
+                            Shared pieces: question-input, question-list,
+                            review-viewer, packs (certification dialog), tutor
   src/app/shared/           Reusable components (theme-toggle, sync-status, domain-badge…) + pipes
   src/styles/_variables.scss  The single source of truth for all design tokens
   public/examples/          Pack template JSONs (13 certifications), served by the app
-design-system/            Hand-authored HTML mirroring the tokens/components above,
+design-system/            HTML mirrors of the tokens, components and screens above,
                            published to claude.ai/design — see "Design system" below
-docs/                      architecture.md, backend.md, frontend.md
+docs/                      architecture.md, backend.md, frontend.md, dynamodb-schema.md,
+                           question-import-pipeline.md and other topic notes
 ```
 
 ## Commands
@@ -130,10 +177,15 @@ Angular 21, standalone components, Signals, `OnPush` everywhere, plain SCSS
 
 ## Design system
 
-`design-system/` is hand-authored HTML (not generated from a compiled
-component library — this is Angular, not React) that mirrors
-`frontend/src/styles/_variables.scss` and the real component CSS 1:1. It is
-published to a claude.ai/design project named **"Cert Study Assistant"** via
+`design-system/` mirrors `frontend/src/styles/_variables.scss` and the real
+component CSS 1:1 (not generated from a compiled component library — this is
+Angular, not React). `foundations/`, `components/` (except `app-shell.html`)
+and `screens/login.html` are hand-authored; `app-shell.html` and the other
+`screens/` are captured from the running app
+(rendered DOM plus the CSS rules that apply to it) with real account data
+replaced by neutral samples — `design-system/README.md` explains how, and a
+changed screen is recaptured rather than hand-edited. It is published to a
+claude.ai/design project named **"Cert Study Assistant"** via
 the `DesignSync` tool, kept in sync **by hand** — same approach as
 `TerraformNinho/design-system`.
 
@@ -151,7 +203,51 @@ For one-off full-screen mockups (not token-level, not kept in sync
 automatically), use the `/design` skill instead — it publishes a separate,
 disposable Claude Artifact rather than updating this project.
 
+## File naming
+
+README files are always named `README.md`, in capitals, never `readme.md`
+or `Readme.md`, in every folder.
+
 ## Git workflow
 
-Commit directly to `main` and push — solo-maintained repo, no feature
-branches or PRs unless asked.
+`main` is protected by a GitHub ruleset: no direct pushes, no force pushes,
+no deletion. Changes reach `main` only through a pull request, merged with
+squash, so each PR lands as a single commit.
+
+- **One branch per change**, created from an up-to-date `main` and named
+  after the commit type: `feat/<topic>`, `fix/<topic>`, `docs/<topic>`,
+  `refactor/<topic>`, `chore/<topic>`, `test/<topic>` (kebab-case, short).
+  Never commit on `main`.
+- **Commit locally as often as useful.** Small checkpoint commits are fine
+  (they make mistakes easy to undo); they are squashed when the PR is
+  merged. Do not rewrite history that was already pushed.
+- **Never push and never merge.** Pushing is done by the user with their
+  own credentials (hardware-key MFA). Do not push through the `gh` token, a
+  credential helper, or any other route, and do not run `gh pr merge`.
+- **Consolidating:** when the user asks for it, make sure the branch is
+  verified and the working tree clean, propose the PR title (it becomes the
+  squashed commit on `main`, so it follows the commit-message rules below)
+  and a short description, and ask the user to push the branch. Once it is
+  on GitHub, open the PR with `gh pr create` if the user asks; the user
+  reviews and merges it.
+
+### Commit messages
+
+These rules apply to commit messages and to PR titles alike. The convention
+lives in `.vscode/settings.json`
+(`github.copilot.chat.commitMessageGeneration.instructions`) — this is the
+same rule; if one changes, update the other.
+
+- One subject line, imperative mood, **max 72 characters**, no body, no
+  bullets, no `Co-Authored-By` or other trailer. Add a short body only when
+  the change is genuinely too complex for the subject alone.
+- Conventional Commits prefix: `feat`, `fix`, `docs`, `style`, `refactor`,
+  `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+- Optional scope = the top-level area that changed: `frontend`, `backend`
+  (Terraform and Lambda code — never `infra`/`terraform`), `design-system`,
+  `docs`. Several areas join with `+`: `feat(frontend+backend): …`.
+- Summarize the essence; split unrelated changes into separate commits
+  rather than listing them in one subject.
+
+Examples: `feat(frontend): add backup page with one JSON per table`,
+`fix(frontend+design-system): show the active certification in the switcher`.

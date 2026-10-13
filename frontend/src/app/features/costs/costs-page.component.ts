@@ -34,7 +34,7 @@ interface BreakdownRow {
 
 const KNOWN_ACTIONS = [
   'reviewGenerate', 'reviewRefine', 'chat', 'chatSummary', 'transcriptScript',
-  'titleGeneration', 'relatedServices', 'translate', 'importExtract', 'importExplain',
+  'titleGeneration', 'relatedServices', 'translate', 'importExtract', 'importExplain', 'tutor', 'noteCopilot',
 ];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -48,17 +48,17 @@ const DEFAULT_BUDGET_LIMIT_USD = 10;
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="costs">
-      <header class="card-header">
+      <header class="ui-page-head head">
         <h2>{{ i18n.t('costsPage.title') }}</h2>
         <p class="subtitle">{{ i18n.t('costsPage.subtitle') }}</p>
         <app-ai-disclaimer [message]="i18n.t('costsPage.aiDisclaimer')" />
       </header>
 
-      <div class="card range-card">
-        <label class="field">
-          <span class="label">{{ i18n.t('costsPage.range') }}</span>
+      <div class="ui-card card range-card">
+        <label class="ui-field">
+          <span class="">{{ i18n.t('costsPage.range') }}</span>
           <select
-            class="select-input"
+            class="ui-input"
             [ngModel]="rangePreset()"
             (ngModelChange)="rangePreset.set($event)"
           >
@@ -71,21 +71,21 @@ const DEFAULT_BUDGET_LIMIT_USD = 10;
         </label>
         @if (rangePreset() === 'custom') {
           <div class="custom-range">
-            <label class="field">
-              <span class="label">{{ i18n.t('costsPage.rangeFrom') }}</span>
+            <label class="ui-field">
+              <span class="">{{ i18n.t('costsPage.rangeFrom') }}</span>
               <input
                 type="date"
-                class="date-input"
+                class="ui-input"
                 [min]="oneYearAgoIso"
                 [ngModel]="customStart()"
                 (ngModelChange)="customStart.set($event)"
               />
             </label>
-            <label class="field">
-              <span class="label">{{ i18n.t('costsPage.rangeTo') }}</span>
+            <label class="ui-field">
+              <span class="">{{ i18n.t('costsPage.rangeTo') }}</span>
               <input
                 type="date"
-                class="date-input"
+                class="ui-input"
                 [min]="oneYearAgoIso"
                 [ngModel]="customEnd()"
                 (ngModelChange)="customEnd.set($event)"
@@ -95,7 +95,7 @@ const DEFAULT_BUDGET_LIMIT_USD = 10;
         }
       </div>
 
-      <div class="card budget-card">
+      <div class="ui-card card budget-card">
         <h3>{{ i18n.t('costsPage.budgetTitle') }}</h3>
         <p class="helper">{{ i18n.t('costsPage.budgetDescription') }}</p>
         <label class="toggle-row">
@@ -107,19 +107,19 @@ const DEFAULT_BUDGET_LIMIT_USD = 10;
           <span>{{ i18n.t('costsPage.budgetEnable') }}</span>
         </label>
         @if (budgetEnabled()) {
-          <label class="field">
-            <span class="label">{{ i18n.t('costsPage.budgetLimit') }}</span>
+          <label class="ui-field">
+            <span class="">{{ i18n.t('costsPage.budgetLimit') }}</span>
             <input
               type="number"
               min="0.01"
               step="0.01"
-              class="date-input"
+              class="ui-input"
               [(ngModel)]="budgetLimitInput"
             />
           </label>
         }
         <div class="budget-actions">
-          <button type="button" class="save-btn" (click)="saveBudget()" [disabled]="budgetSaving()">
+          <button type="button" class="ui-btn ui-btn-primary" (click)="saveBudget()" [disabled]="budgetSaving()">
             {{ i18n.t('costsPage.budgetSave') }}
           </button>
           @if (budgetSaved()) {
@@ -136,30 +136,30 @@ const DEFAULT_BUDGET_LIMIT_USD = 10;
       </div>
 
       @if (loading()) {
-        <div class="card"><p class="helper">{{ i18n.t('costsPage.loading') }}</p></div>
+        <div class="ui-card card"><p class="helper">{{ i18n.t('costsPage.loading') }}</p></div>
       } @else if (error()) {
-        <div class="card"><p class="helper error">{{ i18n.t('costsPage.loadFailed') }}</p></div>
+        <div class="ui-card card"><p class="helper error">{{ i18n.t('costsPage.loadFailed') }}</p></div>
       } @else {
         <div class="summary-grid">
-          <div class="card summary-card">
+          <div class="ui-card card summary-card">
             <span class="summary-label">{{ i18n.t('costsPage.totalCost') }}</span>
             <span class="summary-value">{{ formatCost(rangeTotals().costUsd) }}</span>
           </div>
-          <div class="card summary-card">
+          <div class="ui-card card summary-card">
             <span class="summary-label">{{ i18n.t('costsPage.totalTokens') }}</span>
             <span class="summary-value">{{ formatTokens(rangeTotals().tokens) }}</span>
           </div>
-          <div class="card summary-card">
+          <div class="ui-card card summary-card">
             <span class="summary-label">{{ i18n.t('costsPage.totalCalls') }}</span>
             <span class="summary-value">{{ rangeFilteredItems().length }}</span>
           </div>
         </div>
 
-        <div class="card">
-          <label class="field">
-            <span class="label">{{ i18n.t('costsPage.groupBy') }}</span>
+        <div class="ui-card card">
+          <label class="ui-field">
+            <span class="">{{ i18n.t('costsPage.groupBy') }}</span>
             <select
-              class="select-input"
+              class="ui-input"
               [ngModel]="groupBy()"
               (ngModelChange)="groupBy.set($event)"
             >
@@ -185,7 +185,7 @@ const DEFAULT_BUDGET_LIMIT_USD = 10;
           }
         </div>
 
-        <div class="card">
+        <div class="ui-card card">
           <h3>{{ i18n.t('costsPage.history') }}</h3>
           @if (historyRows().length === 0) {
             <p class="helper">{{ i18n.t('costsPage.empty') }}</p>
@@ -252,22 +252,11 @@ const DEFAULT_BUDGET_LIMIT_USD = 10;
         flex-direction: column;
         gap: var(--space-md);
       }
-      .card-header h2 {
-        font-size: var(--font-size-xl);
-        margin-bottom: var(--space-xs);
-      }
-      .subtitle {
-        color: var(--text-muted);
-        font-size: var(--font-size-sm);
-      }
       .card {
-        background: var(--bg-surface);
-        border-radius: var(--radius-lg);
-        padding: var(--space-lg);
-        box-shadow: var(--shadow-sm);
         display: flex;
         flex-direction: column;
-        gap: var(--space-sm);
+        gap: var(--space-md);
+        padding: var(--space-lg);
       }
       .card h3 {
         font-size: var(--font-size-lg);
@@ -291,25 +280,6 @@ const DEFAULT_BUDGET_LIMIT_USD = 10;
         flex-wrap: wrap;
         gap: var(--space-md);
       }
-      .field {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-xs);
-      }
-      .label {
-        font-size: var(--font-size-sm);
-        color: var(--text-muted);
-      }
-      .select-input,
-      .date-input {
-        height: var(--touch-min);
-        padding: 0 var(--space-md);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: var(--bg-input);
-        color: var(--text-primary);
-        font-size: var(--font-size-base);
-      }
       .summary-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -328,14 +298,12 @@ const DEFAULT_BUDGET_LIMIT_USD = 10;
         font-weight: 700;
         color: var(--text-primary);
       }
-      .breakdown-list,
-      .history-list {
+      .breakdown-list, .history-list {
         display: flex;
         flex-direction: column;
         gap: var(--space-xs);
       }
-      .breakdown-row,
-      .history-row {
+      .breakdown-row, .history-row {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -426,19 +394,7 @@ const DEFAULT_BUDGET_LIMIT_USD = 10;
         align-items: center;
         gap: var(--space-sm);
       }
-      .save-btn {
-        height: var(--touch-min);
-        padding: 0 var(--space-lg);
-        border-radius: var(--radius-md);
-        background: var(--color-purple);
-        color: #fff;
-        font-weight: 600;
-        font-size: var(--font-size-base);
-      }
-      .save-btn:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-      }
+      .head { flex-direction: column; align-items: stretch; }
     `,
   ],
 })

@@ -62,7 +62,35 @@ variable "bedrock_extraction_model_id" {
 }
 
 variable "review_agent_model_id" {
-  description = "Bedrock model ID the AgentCore Runtime review agent uses to write question explanations. Quality over speed is the explicit priority for this pipeline, which originally pointed this at Claude Sonnet — but Anthropic models are blocked in this account behind an AWS Marketplace payment-instrument issue (see docs/review-agent-model-cost-comparison.md). Using Nova 2 Lite (with reasoning — see REASONING_MODEL_PATTERNS in agent/review_agent/app.py) as the interim default: already working in this account, cheaper than Nova Pro, and reasoning fits the agent's research-then-write pattern. Swap back to a Claude id here once Marketplace billing is fixed — no other code changes needed."
+  description = "Default Bedrock model the AgentCore Runtime review agent uses to write question explanations (the user can pick another per run in Settings, AI import review model). Nova 2 Lite with reasoning (see REASONING_MODEL_PATTERNS in agent/review_agent/app.py): available without an AWS Marketplace subscription, cheaper than Nova Pro, and reasoning fits the agent's research-then-write pattern. Third-party models (for example Claude) need Bedrock model access and a valid AWS Marketplace payment method in the deploying account; see docs/review-agent-model-cost-comparison.md."
   type        = string
   default     = "us.amazon.nova-2-lite-v1:0"
+}
+
+# ============================================================================
+# AWS Backup (aws_backup.tf)
+# ============================================================================
+
+variable "backup_enabled" {
+  description = "Daily AWS Backup of the DynamoDB tables with user data and the assets bucket"
+  type        = bool
+  default     = true
+}
+
+variable "backup_retention_days" {
+  description = "Days each daily recovery point is kept"
+  type        = number
+  default     = 15
+}
+
+variable "backup_schedule" {
+  description = "AWS Backup schedule expression (UTC). Default: every day at 05:00 UTC"
+  type        = string
+  default     = "cron(0 5 ? * * *)"
+}
+
+variable "backup_vault_force_destroy" {
+  description = "Let terraform destroy delete the backup vault together with its recovery points. Keep false unless tearing everything down on purpose"
+  type        = bool
+  default     = false
 }

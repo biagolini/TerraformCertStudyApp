@@ -1,9 +1,12 @@
+import { IconComponent } from '../../shared/components/icon.component';
+import { TutorDialogComponent } from '../tutor/tutor-dialog.component';
 import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { correctLetters, Question } from '../../core/models/question.model';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
 import { DomainBadgeComponent } from '../../shared/components/domain-badge.component';
 import { resolveSelectionBlock } from '../../core/utils/text-range.util';
+import { formatQuestionForCopy } from '../../core/utils/question-copy.util';
 import { resolveTranslationTargetLabel } from '../../core/utils/translate-prompt.util';
 import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.component';
 import { QuizAnnotatedTextComponent } from './quiz-annotated-text.component';
@@ -18,19 +21,35 @@ import { I18nService } from '../../core/i18n/i18n.service';
 @Component({
   selector: 'app-quiz-runner',
   standalone: true,
-  imports: [AiDisclaimerComponent, DomainBadgeComponent, MarkdownRendererComponent, QuizAnnotatedTextComponent, FormsModule],
+  imports: [IconComponent, AiDisclaimerComponent, DomainBadgeComponent, MarkdownRendererComponent, QuizAnnotatedTextComponent, FormsModule, TutorDialogComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (question(); as q) {
-      <section class="runner">
+      <section class="runner" [class.with-tutor]="tutorOpen()">
         <header class="runner-header">
-          <div class="progress-track"><div class="progress-fill" [style.width.%]="progressPct()"></div></div>
+          <div class="ui-progress bar"><span [style.width.%]="progressPct()"></span></div>
           <span class="progress-text">{{ i18n.t('importReview.questionOf', { current: progress().index + 1, total: progress().total }) }}</span>
           @if (clock(); as c) {
-            <span class="clock-pill" [class.overtime]="c.overtime">
-              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-              {{ clockLabel(c) }}
-            </span>
+            @if (isInstant()) {
+              <!-- Per-question countdown; once it passes zero it counts the overtime up. -->
+              <button
+                type="button"
+                class="clock-pill clock-btn"
+                [class.overtime]="c.overtime"
+                [disabled]="answer().checked"
+                (click)="resetTimeConfirm.set(true)"
+                [title]="questionClockTitle(c)"
+                [attr.aria-label]="questionClockTitle(c)"
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                {{ clockLabel(c) }}
+              </button>
+            } @else {
+              <span class="clock-pill" [class.overtime]="c.overtime">
+                <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                {{ clockLabel(c) }}
+              </span>
+            }
             <button
               type="button"
               class="pause-btn"
@@ -48,6 +67,12 @@ import { I18nService } from '../../core/i18n/i18n.service';
             <span class="score-pill">{{ i18n.t('quizRunner.score', { percent: formatPercent(), correct: score().correct, answered: score().answered }) }}</span>
           }
         </header>
+        @if (clockUnavailable()) {
+          <p class="clock-unavailable">
+            <app-icon name="clock" size="14" />
+            {{ i18n.t('quizRunner.clockUnavailable') }}
+          </p>
+        }
 
         <div #toolbarSentinel></div>
         @if (toolRows().length > 0) {
@@ -142,6 +167,18 @@ import { I18nService } from '../../core/i18n/i18n.service';
                       <span>{{ i18n.t('importReview.next') }}</span>
                     </button>
                   }
+                  @case ('pauseExam') {
+                    <button
+                      type="button"
+                      class="tool-btn"
+                      (click)="quiz.leave()"
+                      [title]="i18n.t('quizRunner.pauseExamHint')"
+                      [attr.aria-label]="i18n.t('quizRunner.pauseExamHint')"
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M9 6v12M15 6v12"/></svg>
+                      <span>{{ i18n.t('quizRunner.pauseExam') }}</span>
+                    </button>
+                  }
                 }
               }
             </div>
@@ -153,7 +190,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
         }
         @if (noteOpen()) {
           <textarea
-            class="note-textarea"
+            class="ui-input"
             [ngModel]="annotations().note"
             (ngModelChange)="quiz.setNote($event)"
             [placeholder]="i18n.t('quizRunner.notePlaceholder')"
@@ -165,8 +202,8 @@ import { I18nService } from '../../core/i18n/i18n.service';
           <div class="time-up-banner">
             <p><strong>{{ i18n.t('quizRunner.timesUp') }}</strong> {{ i18n.t('quizRunner.timesUpQuestion') }}</p>
             <div class="time-up-actions">
-              <button type="button" class="btn btn-ghost" (click)="onContinuePastTime()">{{ i18n.t('quizRunner.continue') }}</button>
-              <button type="button" class="btn btn-primary" (click)="quiz.finish()">{{ i18n.t('quizRunner.endExamNow') }}</button>
+              <button type="button" class="ui-btn" (click)="onContinuePastTime()">{{ i18n.t('quizRunner.continue') }}</button>
+              <button type="button" class="ui-btn ui-btn-primary" (click)="quiz.finish()">{{ i18n.t('quizRunner.endExamNow') }}</button>
             </div>
           </div>
         }
@@ -175,13 +212,21 @@ import { I18nService } from '../../core/i18n/i18n.service';
           <div class="paused-banner">
             <p><strong>{{ i18n.t('quizRunner.paused') }}</strong> {{ i18n.t('quizRunner.pausedMessage') }}</p>
             <div class="time-up-actions">
-              <button type="button" class="btn btn-ghost" (click)="quiz.leave()">{{ i18n.t('quizRunner.saveAndExit') }}</button>
-              <button type="button" class="btn btn-primary" (click)="quiz.unpause()">{{ i18n.t('quizRunner.resume') }}</button>
+              <button type="button" class="ui-btn" (click)="quiz.leave()">{{ i18n.t('quizRunner.saveAndExit') }}</button>
+              <button type="button" class="ui-btn ui-btn-primary" (click)="quiz.unpause()">{{ i18n.t('quizRunner.resume') }}</button>
             </div>
           </div>
         } @else {
         <div class="runner-body">
-          <div class="question-main">
+          <div
+            class="question-main"
+            [class.swipe-anim]="swipeAnimating()"
+            [style.transform]="swipeOffset() ? 'translateX(' + swipeOffset() + 'px)' : null"
+            (touchstart)="onSwipeStart($event)"
+            (touchmove)="onSwipeMove($event)"
+            (touchend)="onSwipeEnd($event)"
+            (touchcancel)="onSwipeCancel()"
+          >
             <div class="q-domain">
               @if (showFeedback()) {
                 <span
@@ -191,6 +236,18 @@ import { I18nService } from '../../core/i18n/i18n.service';
                   [attr.aria-label]="answer().correct ? i18n.t('quizRunner.verdictCorrect') : i18n.t('quizRunner.verdictIncorrect')"
                   [title]="answer().correct ? i18n.t('quizRunner.verdictCorrect') : i18n.t('quizRunner.verdictIncorrect')"
                 ></span>
+              }
+              @if (showFeedback()) {
+                <span
+                  class="time-spent"
+                  [class.ok]="perQuestionBudget() > 0 && !spentOverBudget(q.id)"
+                  [class.bad]="perQuestionBudget() > 0 && spentOverBudget(q.id)"
+                  [title]="spentTitle(q.id)"
+                  [attr.aria-label]="spentTitle(q.id)"
+                >
+                  <app-icon name="clock" size="14" />
+                  {{ formatSpent(q.id) }}
+                </span>
               }
               @if (answer().checked) {
                 <app-domain-badge [domain]="q.domain" />
@@ -289,6 +346,20 @@ import { I18nService } from '../../core/i18n/i18n.service';
               </div>
             }
 
+            <div class="copy-row">
+              <button
+                type="button"
+                class="ui-btn ui-btn-ghost ui-btn-icon copy"
+                [class.done]="copyState() === 'copied'"
+                (click)="onCopyQuestion(q)"
+                [title]="copyTitle()"
+                [attr.aria-label]="copyTitle()"
+              >
+                <app-icon [name]="copyState() === 'copied' ? 'check' : 'copy'" size="16" />
+              </button>
+              <span class="ui-sr-only" aria-live="polite">{{ copyState() === 'copied' ? i18n.t('quizRunner.copied') : copyState() === 'failed' ? i18n.t('quizRunner.copyFailed') : '' }}</span>
+            </div>
+
             @if (showFeedback()) {
               <app-ai-disclaimer
                 [tight]="true"
@@ -297,8 +368,8 @@ import { I18nService } from '../../core/i18n/i18n.service';
             }
 
             <div class="runner-actions">
-              <button type="button" class="btn btn-ghost" [disabled]="progress().index === 0" (click)="quiz.previous()">{{ i18n.t('importReview.previous') }}</button>
-              <button type="button" class="btn btn-ghost flag-btn" [class.active]="quiz.isCurrentFlagged()" (click)="quiz.toggleReviewFlag()">
+              <button type="button" class="ui-btn" [disabled]="progress().index === 0" (click)="quiz.previous()">{{ i18n.t('importReview.previous') }}</button>
+              <button type="button" class="ui-btn flag-btn" [class.active]="quiz.isCurrentFlagged()" (click)="quiz.toggleReviewFlag()">
                 <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M6 3v18M6 4h11l-3 4 3 4H6"/></svg>
                 <span>{{ quiz.isCurrentFlagged() ? i18n.t('quizRunner.unmark') : i18n.t('quizRunner.markForReview') }}</span>
               </button>
@@ -307,47 +378,82 @@ import { I18nService } from '../../core/i18n/i18n.service';
                 @if (!answer().checked) {
                   <button
                     type="button"
-                    class="btn btn-ghost"
+                    class="ui-btn"
                     [disabled]="answer().selected.length === 0"
                     (click)="quiz.checkAnswer()"
                   >{{ i18n.t('quizRunner.checkAnswer') }}</button>
                   @if (!isLast()) {
-                    <button type="button" class="btn btn-ghost" (click)="quiz.next()">{{ i18n.t('importReview.next') }}</button>
+                    <button type="button" class="ui-btn" (click)="quiz.next()">{{ i18n.t('importReview.next') }}</button>
                   }
                 } @else {
-                  <button type="button" class="btn btn-primary" (click)="onNextInstant()">
+                  <button type="button" class="ui-btn ui-btn-primary" (click)="onNextInstant()">
                     {{ isLast() ? i18n.t('quizRunner.seeResults') : i18n.t('quizRunner.nextQuestion') }}
                   </button>
                 }
               } @else if (!isLast()) {
-                <button type="button" class="btn btn-ghost" (click)="quiz.next()">{{ i18n.t('importReview.next') }}</button>
+                <button type="button" class="ui-btn" (click)="quiz.next()">{{ i18n.t('importReview.next') }}</button>
               }
-              <button type="button" class="btn btn-ghost" (click)="quiz.leave()" [title]="i18n.t('quizRunner.saveAndExitHint')">{{ i18n.t('quizRunner.saveAndExit') }}</button>
-              <button type="button" class="btn btn-danger-outline" (click)="quiz.finish()">{{ i18n.t('quizRunner.endExam') }}</button>
+              <button type="button" class="ui-btn" (click)="quiz.leave()" [title]="i18n.t('quizRunner.saveAndExitHint')">{{ i18n.t('quizRunner.saveAndExit') }}</button>
+              <button type="button" class="ui-btn ui-btn-danger" (click)="requestFinish()">{{ i18n.t('quizRunner.endExam') }}</button>
             </div>
+            @if (isInstant()) {
+              <button
+                type="button"
+                class="ui-btn ui-btn-sm tutor-btn"
+                [disabled]="!answer().checked"
+                [title]="answer().checked ? i18n.t('tutor.askHint') : i18n.t('tutor.answerFirst')"
+                [attr.aria-pressed]="tutorOpen()"
+                (click)="tutorOpen.set(!tutorOpen())"
+              ><app-icon name="sparkles" /> {{ i18n.t('tutor.ask') }}</button>
+            }
           </div>
 
           <aside class="palette">
             <h4>{{ i18n.t('importReview.itemNavigator') }}</h4>
-            <div class="palette-grid">
-              @for (flag of answeredFlags(); track $index) {
-                <button
-                  type="button"
-                  class="palette-dot"
-                  [class.answered]="flag"
-                  [class.current]="$index === progress().index"
-                  (click)="quiz.goTo($index)"
-                >
-                  {{ $index + 1 }}
-                  @if (reviewFlags()[$index]) { <span class="flag-dot" aria-hidden="true"></span> }
+            <div class="palette-filters" role="group" [attr.aria-label]="i18n.t('quizRunner.navigatorFilter')">
+              @for (f of navFilters; track f) {
+                <button type="button" class="ui-chip palette-filter" [class.active]="navFilter() === f" (click)="navFilter.set(f)" [attr.aria-pressed]="navFilter() === f">
+                  {{ i18n.t('quizRunner.filter_' + f) }}
                 </button>
               }
             </div>
+            <div class="palette-grid">
+              @for (cell of navCells(); track cell.index) {
+                <button
+                  type="button"
+                  class="palette-dot"
+                  [class.answered]="cell.answered"
+                  [class.current]="cell.index === progress().index"
+                  [class.correct]="cell.status === 'correct'"
+                  [class.incorrect]="cell.status === 'incorrect'"
+                  [class.overtime]="cell.overtime"
+                  [attr.aria-label]="i18n.t('quizRunner.goToQuestion', { n: cell.index + 1 })"
+                  (click)="quiz.goTo(cell.index)"
+                >
+                  {{ cell.index + 1 }}
+                  @if (cell.flagged) { <span class="flag-dot" aria-hidden="true"></span> }
+                </button>
+              } @empty {
+                <p class="palette-summary">{{ i18n.t('quizRunner.filterEmpty') }}</p>
+              }
+            </div>
+            @if (quiz.nextUnansweredIndex() >= 0) {
+              <button type="button" class="ui-btn palette-jump" (click)="quiz.goTo(quiz.nextUnansweredIndex())">
+                {{ i18n.t('quizRunner.nextUnanswered') }} <app-icon name="arrow-right" />
+              </button>
+            }
             <div class="palette-legend">
               <div class="legend-row"><span class="legend-swatch current"></span> {{ i18n.t('importReview.currentItem') }}</div>
               <div class="legend-row"><span class="legend-swatch" style="background:var(--color-purple)"></span> {{ i18n.t('quizRunner.answered') }}</div>
               <div class="legend-row"><span class="legend-swatch outline"></span> {{ i18n.t('quizRunner.unanswered') }}</div>
               <div class="legend-row"><span class="legend-swatch outline"><span class="flag-dot" aria-hidden="true"></span></span> {{ i18n.t('quizRunner.markedForReview') }}</div>
+              @if (settings().mode === 'instant') {
+                <div class="legend-row"><span class="legend-swatch" style="background:var(--color-green)"></span> {{ i18n.t('quizResults.statusCorrect') }}</div>
+                <div class="legend-row"><span class="legend-swatch" style="background:var(--color-red)"></span> {{ i18n.t('quizResults.statusIncorrect') }}</div>
+              }
+              @if (perQuestionBudget() > 0) {
+                <div class="legend-row"><span class="legend-swatch outline overtime-swatch"></span> {{ i18n.t('quizRunner.overtime') }}</div>
+              }
             </div>
             <p class="palette-summary">{{ i18n.t('quizRunner.answeredOfTotal', { answered: answeredCount(), total: progress().total }) }}</p>
             @if (quiz.flaggedCount() > 0) {
@@ -370,18 +476,62 @@ import { I18nService } from '../../core/i18n/i18n.service';
         </div>
       }
     }
+    @if (finishConfirm()) {
+      <div class="finish-dialog" role="dialog" aria-modal="true" aria-labelledby="finish-title" (click)="finishConfirm.set(false)">
+        <div class="finish-card" (click)="$event.stopPropagation()">
+          <h3 id="finish-title">{{ i18n.t('quizRunner.finishTitle') }}</h3>
+          <div class="finish-stats">
+            <div><strong>{{ answeredCount() }}</strong><span>{{ i18n.t('quizRunner.answered') }}</span></div>
+            <div class="blank"><strong>{{ progress().total - answeredCount() }}</strong><span>{{ i18n.t('quizRunner.blank') }}</span></div>
+            <div><strong>{{ quiz.flaggedCount() }}</strong><span>{{ i18n.t('quizRunner.flagged') }}</span></div>
+          </div>
+          @if (progress().total - answeredCount() > 0) {
+            <p class="hint">{{ i18n.t('quizRunner.finishBlankWarning', { n: progress().total - answeredCount() }) }}</p>
+          }
+          <div class="finish-actions">
+            @if (quiz.nextUnansweredIndex() >= 0) {
+              <button type="button" class="ui-btn" (click)="goToUnansweredFromDialog()">{{ i18n.t('quizRunner.goToUnanswered') }}</button>
+            }
+            <button type="button" class="ui-btn" (click)="finishConfirm.set(false)">{{ i18n.t('quizRunner.keepGoing') }}</button>
+            <button type="button" class="ui-btn ui-btn-primary" (click)="confirmFinish()">{{ i18n.t('quizRunner.finishNow') }}</button>
+          </div>
+        </div>
+      </div>
+    }
+    @if (resetTimeConfirm()) {
+      <div class="finish-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-time-title" (click)="resetTimeConfirm.set(false)">
+        <div class="finish-card" (click)="$event.stopPropagation()">
+          <h3 id="reset-time-title">{{ i18n.t('quizRunner.resetTimeTitle') }}</h3>
+          <p class="hint">{{ i18n.t('quizRunner.resetTimeMessage', { time: formatSpent(question()?.id ?? '') }) }}</p>
+          <div class="finish-actions">
+            <button type="button" class="ui-btn" (click)="resetTimeConfirm.set(false)">{{ i18n.t('common.cancel') }}</button>
+            <button type="button" class="ui-btn ui-btn-primary" (click)="confirmResetTime()">{{ i18n.t('quizRunner.resetTimeConfirm') }}</button>
+          </div>
+        </div>
+      </div>
+    }
+    @if (tutorOpen() && question(); as q) {
+      <app-tutor-dialog [question]="q" [selected]="answer().selected" [locked]="!answer().checked" (closed)="tutorOpen.set(false)" />
+    }
   `,
   styles: [
     `
       :host { display: block; }
       .runner { display: flex; flex-direction: column; gap: var(--space-lg); background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: var(--space-lg); max-width: 960px; margin: 0 auto; }
       .runner-header { display: flex; align-items: center; gap: var(--space-md); }
-      .progress-track { flex: 1; height: 6px; border-radius: 999px; background: var(--bg-border); overflow: hidden; }
-      .progress-fill { height: 100%; background: linear-gradient(135deg, var(--color-purple), var(--color-blue)); border-radius: 999px; }
+      .bar { flex: 1; }
       .progress-text { font-size: var(--font-size-xs); color: var(--text-muted); white-space: nowrap; }
       .score-pill { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-secondary); background: var(--bg-elevated); padding: 4px var(--space-md); border-radius: var(--radius-pill); white-space: nowrap; }
       .clock-pill { display: inline-flex; align-items: center; gap: 4px; font-size: var(--font-size-sm); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-secondary); background: var(--bg-elevated); padding: 4px var(--space-md); border-radius: var(--radius-pill); white-space: nowrap; }
       .clock-pill.overtime { color: #fff; background: var(--color-red); }
+      .copy-row { display: flex; justify-content: flex-end; margin-top: var(--space-xs); }
+      .clock-unavailable { display: flex; align-items: center; gap: 6px; margin: calc(-1 * var(--space-sm)) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }
+      .clock-btn { border: 1px solid transparent; font-family: var(--font-family); cursor: pointer; }
+      .clock-btn:hover:not(:disabled) { border-color: var(--color-purple); }
+      .clock-btn:disabled { cursor: default; }
+      .time-spent { display: inline-flex; align-items: center; gap: 4px; padding: 2px var(--space-sm); border-radius: var(--radius-pill); font-size: var(--font-size-xs); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-secondary); background: var(--bg-elevated); }
+      .time-spent.ok { color: var(--color-green); background: rgba(0, 184, 148, 0.14); }
+      .time-spent.bad { color: var(--color-red); background: rgba(214, 48, 49, 0.14); }
       .pause-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-secondary); cursor: pointer; flex-shrink: 0; }
       .pause-btn:hover { border-color: var(--color-purple); color: var(--color-purple); }
 
@@ -442,8 +592,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .debug-header { display: flex; justify-content: space-between; align-items: center; color: #fff; font-weight: 700; margin-bottom: 4px; }
       .debug-header button { background: #333; color: #fff; border: none; border-radius: 4px; padding: 2px 8px; font-size: 11px; }
       .debug-line { white-space: pre-wrap; word-break: break-word; border-bottom: 1px solid rgba(255,255,255,0.08); padding: 2px 0; }
-      .note-textarea { width: 100%; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary); font-family: var(--font-family); font-size: var(--font-size-sm); line-height: 1.5; resize: vertical; box-sizing: border-box; }
-      .note-textarea:focus-visible { outline: none; border-color: var(--color-purple); }
       /* Fixed light-yellow background regardless of theme, so the text color must
        * be fixed too — inheriting the theme's text color left dark-theme's light
        * text unreadable against this background. */
@@ -454,8 +602,11 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .time-up-banner p { margin: 0; font-size: var(--font-size-sm); color: var(--text-primary); }
       .time-up-actions { display: flex; gap: var(--space-sm); flex-shrink: 0; }
 
-      .runner-body { display: flex; gap: var(--space-lg); align-items: flex-start; }
-      .question-main { flex: 1; min-width: 0; }
+      .runner-body { display: flex; gap: var(--space-lg); align-items: flex-start; overflow-x: clip; }
+      /* touch-action keeps vertical scrolling and pinch-zoom native while the
+       * horizontal axis is left to the swipe handler (see onSwipeStart). */
+      .question-main { flex: 1; min-width: 0; touch-action: pan-y pinch-zoom; will-change: transform; }
+      .question-main.swipe-anim { transition: transform 180ms ease-out; }
 
       .q-domain { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-sm); }
       /* Second, at-a-glance right/wrong marker, always in the same spot in front
@@ -499,14 +650,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
 
       .runner-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-sm); margin-top: var(--space-lg); }
       .spacer { flex: 1; }
-      .btn { min-height: var(--touch-min); padding: 0 var(--space-lg); border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-base); border: none; font-family: var(--font-family); cursor: pointer; }
-      .btn-primary { background: linear-gradient(135deg, var(--color-purple), var(--color-blue)); color: #ffffff; }
-      .btn-primary:hover { filter: brightness(1.08); }
-      .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--bg-border); }
-      .btn-ghost:hover:not(:disabled) { background: var(--bg-subtle); }
-      .btn-danger-outline { background: transparent; color: var(--color-red); border: 1px solid var(--color-red); }
-      .btn-danger-outline:hover { background: rgba(214, 48, 49, 0.08); }
-      .btn:disabled { opacity: 0.5; cursor: not-allowed; }
       .flag-btn { display: inline-flex; align-items: center; gap: 6px; }
       .flag-btn.active { border-color: var(--color-amber); color: var(--color-amber); background: rgba(225, 112, 85, 0.08); }
 
@@ -525,6 +668,26 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .palette-dot.answered { background: var(--color-purple); border-color: var(--color-purple); color: #fff; }
       .palette-dot.current { box-shadow: 0 0 0 2px var(--color-blue) inset; }
       .palette-dot .flag-dot { position: absolute; top: -3px; right: -3px; }
+      .palette-filters { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: var(--space-sm); }
+      .palette-dot.correct { background: var(--color-green) !important; border-color: var(--color-green) !important; color: #fff !important; }
+      .palette-dot.incorrect { background: var(--color-red) !important; border-color: var(--color-red) !important; color: #fff !important; }
+      .palette-dot.overtime { box-shadow: inset 0 -3px 0 var(--color-amber); }
+      .overtime-swatch { box-shadow: inset 0 -3px 0 var(--color-amber); }
+      .palette-jump { width: 100%; margin-top: var(--space-sm); }
+      .tutor-btn { margin-top: var(--space-sm); align-self: flex-start; }
+      /* Room for the docked tutor panel (440px) on screens wide enough to show both. */
+      @media (min-width: 1200px) {
+        .runner.with-tutor { margin-right: 460px; }
+      }
+      .finish-dialog { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: var(--space-md); background: var(--overlay-bg); }
+      .finish-card { width: min(420px, 100%); background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-md); }
+      .finish-card h3 { font-size: var(--font-size-lg); }
+      .finish-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm); text-align: center; }
+      .finish-stats strong { display: block; font-size: 22px; }
+      .finish-stats span { font-size: var(--font-size-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+      .finish-stats .blank strong { color: var(--color-amber); }
+      .finish-card .hint { font-size: var(--font-size-sm); color: var(--text-muted); line-height: 1.5; }
+      .finish-actions { display: flex; justify-content: flex-end; gap: var(--space-sm); flex-wrap: wrap; }
       .palette-legend { margin-top: var(--space-md); display: flex; flex-direction: column; gap: 6px; font-size: var(--font-size-xs); color: var(--text-muted); }
       .legend-row { display: flex; align-items: center; gap: 6px; }
       .legend-swatch { position: relative; width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
@@ -535,9 +698,15 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .palette-summary { margin: var(--space-sm) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }
 
       @media (max-width: 640px) {
+        .runner { padding: var(--space-md); gap: var(--space-md); }
         .runner-body { flex-direction: column; }
         .palette { width: 100%; }
       }
+      @media (prefers-reduced-motion: reduce) {
+        .question-main.swipe-anim { transition: none; }
+      }
+      .copy { width: 32px; min-height: 32px; color: var(--text-faint); }
+      .copy.done { color: var(--color-green); }
     `,
   ],
 })
@@ -569,6 +738,54 @@ export class QuizRunnerComponent {
   protected readonly requiredCount = computed(() => correctLetters(this.question() ?? { alternatives: [] }).length);
 
   protected readonly isInstant = computed(() => this.quiz.settings().mode === 'instant');
+  protected readonly settings = this.quiz.settings;
+  protected readonly instantChecked = computed(() => this.isInstant() && this.answer().checked);
+  protected readonly finishConfirm = signal(false);
+  protected readonly tutorOpen = signal(false);
+  protected readonly navFilters = ['all', 'answered', 'unanswered', 'flagged'] as const;
+  protected readonly navFilter = signal<'all' | 'answered' | 'unanswered' | 'flagged'>('all');
+  protected readonly perQuestionBudget = computed(() => {
+    this.quiz.settings();
+    return this.quiz.clockEnabled() ? this.quiz.perQuestionSeconds() : 0;
+  });
+  /** Instant mode with no clock means the certification lacks a duration or an
+   * official question count; say so instead of silently showing nothing. */
+  protected readonly clockUnavailable = computed(() => this.isInstant() && this.clock() === null);
+
+  /** Navigator cells: answered/flagged state, instant-mode grading, and overtime against the per-question budget. */
+  protected readonly navCells = computed(() => {
+    const answers = this.quiz.answerByQuestionId();
+    const flags = this.reviewFlags();
+    const filter = this.navFilter();
+    const budget = this.perQuestionBudget();
+    const instant = this.isInstant();
+    return this.quiz
+      .questions()
+      .map((q, index) => {
+        const a = answers[q.id];
+        const answered = (a?.selected.length ?? 0) > 0;
+        const status: 'correct' | 'incorrect' | null = instant && a?.checked ? (a.correct ? 'correct' : 'incorrect') : null;
+        return { index, answered, flagged: flags[index] ?? false, status, overtime: budget > 0 && this.quiz.liveTimeSpent(q.id) > budget };
+      })
+      .filter((c) =>
+        filter === 'all' ? true : filter === 'answered' ? c.answered : filter === 'unanswered' ? !c.answered : c.flagged,
+      );
+  });
+
+  /** Ending early always confirms, showing exactly what would be submitted blank. */
+  requestFinish(): void {
+    this.finishConfirm.set(true);
+  }
+
+  confirmFinish(): void {
+    this.finishConfirm.set(false);
+    this.quiz.finish();
+  }
+
+  goToUnansweredFromDialog(): void {
+    this.finishConfirm.set(false);
+    this.quiz.goTo(this.quiz.nextUnansweredIndex());
+  }
   protected readonly isLast = computed(() => this.progress().index === this.progress().total - 1);
   protected readonly showFeedback = computed(() => this.isInstant() && this.answer().checked);
   protected readonly progressPct = computed(() => {
@@ -597,23 +814,14 @@ export class QuizRunnerComponent {
   private readonly toolbarSentinelRef = viewChild<{ nativeElement: HTMLElement }>('toolbarSentinel');
   protected readonly toolbarStuck = signal(false);
 
-  /** The toolbar is "compact" once it has detached from the flow and is pinned at
-   * the top of a phone-width viewport: the point where the question's own bottom
-   * action row (Check answer / Next) has scrolled out of reach and it is worth
-   * surfacing those two actions up here. Desktop keeps them out of the toolbar,
-   * where the bottom row is always in view. */
-  protected readonly compactToolbar = computed(() => this.toolbarStuck() && this.viewport.isMobile());
-
   /** User-configured tool set (see SettingsComponent's "Quiz toolbar" block),
    * minus the ones that don't apply in the current context. */
   protected readonly visibleTools = computed(() => {
     const hidden = new Set(this.appSettings.hiddenQuizTools());
-    const compact = this.compactToolbar();
     const instant = this.isInstant();
     return this.appSettings
       .orderedQuizTools()
       .filter((tool) => !hidden.has(tool.id))
-      .filter((tool) => (tool.compactOnly ? compact : true))
       .filter((tool) => (tool.instantOnly ? instant : true));
   });
 
@@ -665,6 +873,7 @@ export class QuizRunnerComponent {
       this.translatedContent.set(null);
       this.showTranslated.set(false);
       this.translateError.set(null);
+      this.copyState.set('idle');
     });
     if (this.debugEnabled()) {
       const onSelectionChange = () => {
@@ -674,6 +883,10 @@ export class QuizRunnerComponent {
       document.addEventListener('selectionchange', onSelectionChange);
       destroyRef.onDestroy(() => document.removeEventListener('selectionchange', onSelectionChange));
     }
+
+    const onKeydown = (event: KeyboardEvent) => this.onKeydown(event);
+    document.addEventListener('keydown', onKeydown);
+    destroyRef.onDestroy(() => document.removeEventListener('keydown', onKeydown));
 
     afterNextRender(() => {
       const sentinel = this.toolbarSentinelRef()?.nativeElement;
@@ -692,7 +905,43 @@ export class QuizRunnerComponent {
   );
 
   clockLabel(c: { remainingSeconds: number; overtime: boolean }): string {
-    return formatClock(Math.abs(c.remainingSeconds));
+    // The "+" tells counting-up overtime apart from a countdown at a glance.
+    return (c.overtime ? '+' : '') + formatClock(Math.abs(c.remainingSeconds));
+  }
+
+  protected readonly resetTimeConfirm = signal(false);
+
+  questionClockTitle(c: { overtime: boolean }): string {
+    const budget = formatClock(this.perQuestionBudget());
+    if (this.answer().checked) return this.i18n.t('quizRunner.questionClockFrozen', { budget });
+    return c.overtime
+      ? this.i18n.t('quizRunner.questionClockOvertime', { budget })
+      : this.i18n.t('quizRunner.questionClockLeft', { budget });
+  }
+
+  confirmResetTime(): void {
+    this.resetTimeConfirm.set(false);
+    this.quiz.resetCurrentQuestionTime();
+  }
+
+  formatSpent(questionId: string): string {
+    return formatClock(this.quiz.liveTimeSpent(questionId));
+  }
+
+  spentOverBudget(questionId: string): boolean {
+    const budget = this.perQuestionBudget();
+    // Compared on whole seconds, the precision the student actually sees.
+    return budget > 0 && Math.round(this.quiz.liveTimeSpent(questionId)) > Math.round(budget);
+  }
+
+  spentTitle(questionId: string): string {
+    const time = this.formatSpent(questionId);
+    const budget = this.perQuestionBudget();
+    if (budget <= 0) return this.i18n.t('quizRunner.timeSpent', { time });
+    return this.i18n.t(this.spentOverBudget(questionId) ? 'quizRunner.timeSpentOver' : 'quizRunner.timeSpentWithin', {
+      time,
+      budget: formatClock(budget),
+    });
   }
 
   formatPercent(): string {
@@ -860,9 +1109,186 @@ export class QuizRunnerComponent {
     this.quiz.clearAnnotations();
   }
 
+  // ---------------------------------------------------------------------------
+  // Swipe between questions (carousel style) and arrow-key navigation.
+  //
+  // The gesture has to coexist with text selection, which highlight and
+  // strikethrough depend on: a long-press selection never moves before the
+  // axis is decided, and a drag that starts while text is selected (moving a
+  // selection handle) is ignored. Only a clearly horizontal drag counts.
+  // ---------------------------------------------------------------------------
+  protected readonly swipeOffset = signal(0);
+  protected readonly swipeAnimating = signal(false);
+  private swipe: { x: number; y: number; t: number; axis: 'x' | 'y' | null; width: number } | null = null;
+  private static readonly SWIPE_LOCK_PX = 10;
+  private static readonly SWIPE_ANIM_MS = 180;
+
+  private canGo(direction: 'next' | 'previous'): boolean {
+    const { index, total } = this.progress();
+    return direction === 'next' ? index < total - 1 : index > 0;
+  }
+
+  private static hasTextSelection(): boolean {
+    const sel = document.getSelection();
+    return !!sel && !sel.isCollapsed && sel.toString().length > 0;
+  }
+
+  onSwipeStart(event: TouchEvent): void {
+    this.swipe = null;
+    if (event.touches.length !== 1 || this.swipeAnimating()) return;
+    const target = event.target as HTMLElement | null;
+    // Inputs keep their own gestures; wide code blocks and tables scroll sideways.
+    if (target?.closest('textarea, input, select, pre, table')) return;
+    const touch = event.touches[0];
+    const width = (event.currentTarget as HTMLElement).getBoundingClientRect().width || window.innerWidth;
+    this.swipe = { x: touch.clientX, y: touch.clientY, t: Date.now(), axis: null, width };
+  }
+
+  onSwipeMove(event: TouchEvent): void {
+    const s = this.swipe;
+    if (!s || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    const dx = touch.clientX - s.x;
+    const dy = touch.clientY - s.y;
+    if (s.axis === null) {
+      if (Math.abs(dx) < QuizRunnerComponent.SWIPE_LOCK_PX && Math.abs(dy) < QuizRunnerComponent.SWIPE_LOCK_PX) return;
+      s.axis = Math.abs(dx) > Math.abs(dy) * 1.5 ? 'x' : 'y';
+      if (s.axis === 'x' && QuizRunnerComponent.hasTextSelection()) {
+        this.swipe = null;
+        return;
+      }
+    }
+    if (s.axis !== 'x') return;
+    // Rubber-band at the first/last question so the drag still feels alive.
+    const blocked = !this.canGo(dx < 0 ? 'next' : 'previous');
+    this.swipeOffset.set(blocked ? dx * 0.25 : dx);
+  }
+
+  onSwipeEnd(event: TouchEvent): void {
+    const s = this.swipe;
+    this.swipe = null;
+    if (!s || s.axis !== 'x') return;
+    const dx = (event.changedTouches[0]?.clientX ?? s.x) - s.x;
+    const direction: 'next' | 'previous' = dx < 0 ? 'next' : 'previous';
+    const flick = Date.now() - s.t < 300 && Math.abs(dx) > 40;
+    if (this.canGo(direction) && (Math.abs(dx) > s.width * 0.25 || flick)) {
+      this.slideTo(direction, s.width);
+    } else {
+      this.snapBack();
+    }
+  }
+
+  onSwipeCancel(): void {
+    if (this.swipe?.axis === 'x') this.snapBack();
+    this.swipe = null;
+  }
+
+  private snapBack(): void {
+    if (this.swipeOffset() === 0) return;
+    this.swipeAnimating.set(true);
+    this.swipeOffset.set(0);
+    setTimeout(() => this.swipeAnimating.set(false), QuizRunnerComponent.SWIPE_ANIM_MS);
+  }
+
+  /** Slides the current question out, swaps it, and slides the new one in
+   * from the opposite edge, like a photo carousel. */
+  private slideTo(direction: 'next' | 'previous', width: number): void {
+    const out = direction === 'next' ? -width : width;
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    const go = () => (direction === 'next' ? this.quiz.next() : this.quiz.previous());
+    if (reduceMotion) {
+      go();
+      this.swipeOffset.set(0);
+      return;
+    }
+    this.swipeAnimating.set(true);
+    this.swipeOffset.set(out);
+    setTimeout(() => {
+      go();
+      // Jump to the opposite edge without a transition, then animate to rest.
+      this.swipeAnimating.set(false);
+      this.swipeOffset.set(-out);
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          this.swipeAnimating.set(true);
+          this.swipeOffset.set(0);
+          setTimeout(() => this.swipeAnimating.set(false), QuizRunnerComponent.SWIPE_ANIM_MS);
+        }),
+      );
+    }, QuizRunnerComponent.SWIPE_ANIM_MS);
+  }
+
+  /** Left/right arrows move between questions on a keyboard, unless the user
+   * is typing (note field) or a dialog is open. */
+  private onKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+    if (this.finishConfirm() || this.resetTimeConfirm() || this.quiz.paused()) return;
+    const direction = event.key === 'ArrowRight' ? 'next' : 'previous';
+    if (!this.canGo(direction)) return;
+    event.preventDefault();
+    if (direction === 'next') this.quiz.next();
+    else this.quiz.previous();
+  }
+
+  protected readonly copyState = signal<'idle' | 'copied' | 'failed'>('idle');
+  private copyResetTimer: ReturnType<typeof setTimeout> | null = null;
+
+  protected copyTitle(): string {
+    if (this.copyState() === 'copied') return this.i18n.t('quizRunner.copied');
+    if (this.copyState() === 'failed') return this.i18n.t('quizRunner.copyFailed');
+    return this.showFeedback() ? this.i18n.t('quizRunner.copyQuestionRevealed') : this.i18n.t('quizRunner.copyQuestion');
+  }
+
+  /** Copies what is on screen: the translated text while the translation is
+   * shown, and the answer and comments only once they are revealed, so a
+   * copy taken mid-question never carries the answer with it. */
+  async onCopyQuestion(question: Question): Promise<void> {
+    const reveal = this.showFeedback();
+    const text = formatQuestionForCopy(
+      {
+        stem: this.displayStem(question),
+        alternatives: question.alternatives.map((alt, i) => ({
+          letter: alt.letter,
+          text: this.displayAltText(alt, i),
+          isCorrect: alt.isCorrect,
+          comment: reveal ? this.displayAltComment(alt, i) : '',
+        })),
+        generalComment: reveal ? this.displayGeneralComment(question) : null,
+      },
+      {
+        reveal,
+        selected: this.answer().selected,
+        labels: {
+          questionHeading: this.i18n.t('quizRunner.copyQuestionHeading'),
+          optionsHeading: this.i18n.t('quizRunner.copyOptionsHeading'),
+          answerHeading: this.i18n.t('quizRunner.copyAnswerHeading'),
+          commentsHeading: this.i18n.t('quizRunner.copyComments'),
+          studentChoseOne: this.i18n.t('quizRunner.copyStudentChoseOne'),
+          studentChoseMany: this.i18n.t('quizRunner.copyStudentChoseMany'),
+          correctOne: this.i18n.t('quizRunner.copyCorrectOne'),
+          correctMany: this.i18n.t('quizRunner.copyCorrectMany'),
+          generalComment: this.i18n.t('reviewViewer.generalComment'),
+        },
+      },
+    );
+    try {
+      await navigator.clipboard.writeText(text);
+      this.copyState.set('copied');
+    } catch {
+      // Clipboard API unavailable (insecure context or denied permission).
+      this.copyState.set('failed');
+    }
+    if (this.copyResetTimer) clearTimeout(this.copyResetTimer);
+    this.copyResetTimer = setTimeout(() => this.copyState.set('idle'), 2000);
+  }
+
   onNextInstant(): void {
     if (this.isLast()) {
-      this.quiz.finish();
+      if (this.answeredCount() < this.progress().total) this.requestFinish();
+      else this.quiz.finish();
     } else {
       this.quiz.next();
     }

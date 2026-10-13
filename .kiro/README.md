@@ -12,11 +12,14 @@ This folder contains the local [Kiro CLI](https://kiro.dev) configuration. These
 ├── settings/
 │   └── mcp.json                 ← project MCP servers
 └── steering/                    ← persistent RULES loaded into context every turn
-    ├── workflow.md              ← how work should be done (verification, secrets, git, docs index)
-    ├── product.md               ← product context that should drive decisions
+    ├── workflow.md              ← how work should be done (verification, secrets, git, commits, docs index)
+    ├── product.md               ← product context and independence rules that drive decisions
     ├── tech.md                  ← stack defaults (versions, runtimes, packaging)
     ├── terraform.md             ← Terraform conventions
-    └── structure.md             ← where things live
+    ├── structure.md             ← where things live
+    ├── ui-icons.md              ← icons and visual symbols (no emojis)
+    ├── frontend.md              ← Angular conventions, design tokens, i18n, sync
+    └── design-system.md         ← design-system mirror rules
 ```
 
 ## Steering vs. Documentation (an intentional split)
@@ -26,6 +29,8 @@ Steering files are loaded into the agent's context on **every turn**, so they ar
 Project **documentation** deliberately does NOT live here. It lives in [`docs/`](../docs/) and [`README.md`](../README.md), and the agent reads those files on demand. Putting design detail in steering would burn context on every turn and duplicate what `docs/` already maintains for humans. `steering/workflow.md` carries only a short index of which doc covers what, so the agent knows where to look.
 
 Practical rule when adding content: if it tells the agent *how to behave*, it belongs in `steering/`. If it describes *how the system works*, it belongs in `docs/`.
+
+The same rules exist for Claude Code in the root `CLAUDE.md`. The two are kept equivalent so either tool works the same way here; when a rule changes in one, change it in the other (`CLAUDE.md` wins if they disagree).
 
 ## What Each File Does
 

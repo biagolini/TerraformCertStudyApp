@@ -13,6 +13,12 @@ How to write Terraform in this repo. The service-by-service inventory is in `doc
 - Lambda source lives in `backend/infrastructure/lambda/<function>/`; the matching `aws_lambda_<function>.tf` builds and wires it.
 - Generated Lambda zips go to `backend/infrastructure/.build/` (gitignored).
 
+## Providers and State
+
+- `hashicorp/aws` is pinned `~> 6.0` in `required_providers` in `environments/production/config.tf`; the module itself declares no version, so the environment controls it.
+- `backend "s3" {}` is empty in code. Real values are in `backend.hcl` (gitignored), with native S3 locking (`use_lockfile = true`, no DynamoDB lock table).
+- From Terraform 1.15, `terraform validate` evaluates the partial `backend "s3" {}` block and fails on a missing `bucket`/`key`, even with `-backend=false`. To validate offline, add a temporary, gitignored `override.tf` with `terraform { backend "local" {} }` and delete it afterwards.
+
 ## Style
 
 - Section headers as `# ====...====` blocks in every `.tf` file.
@@ -22,6 +28,9 @@ How to write Terraform in this repo. The service-by-service inventory is in `doc
 - `create_before_destroy = true` where a replacement would otherwise cause downtime.
 - `filesha256(...)` / `sha256(jsonencode(...))` as build and deployment triggers, so a rebuild happens only when the source actually changes.
 - Mark sensitive variables `sensitive = true`; authenticate with `profile`, never hardcoded keys.
+- Explain the why of a design choice in a comment next to the resource, not in a separate doc.
+- Cost-conscious and secure by default: least-privilege IAM, no public buckets, lifecycle rules that expire disposable data.
+- Deployable by copying the `.example` files, filling in values, and running `terraform apply`, with no undocumented manual steps.
 
 ## Module Inputs Worth Knowing
 

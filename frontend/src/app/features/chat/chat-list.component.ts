@@ -20,11 +20,11 @@ import { I18nService } from '../../core/i18n/i18n.service';
           <span class="count">{{ count() }}</span>
         </div>
         @if (count() > 0) {
-          <button type="button" class="link danger" (click)="onDeleteAll()">{{ i18n.t('chatList.deleteAll') }}</button>
+          <button type="button" class="ui-btn ui-btn-sm ui-btn-ghost ui-btn-danger" (click)="onDeleteAll()">{{ i18n.t('chatList.deleteAll') }}</button>
         }
       </header>
 
-      <button type="button" class="new-btn" (click)="onNewConversation()">
+      <button type="button" class="ui-btn ui-btn-soft" (click)="onNewConversation()">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
           <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
         </svg>
@@ -53,7 +53,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
                 </button>
                 <button
                   type="button"
-                  class="chat-delete"
+                  class="ui-btn ui-btn-ghost ui-btn-icon chat-delete"
                   (click)="onDeleteOne(session)"
                   [attr.aria-label]="i18n.t('chatList.deleteConversation')"
                 >
@@ -89,28 +89,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
         color: var(--text-secondary);
         font-size: var(--font-size-sm); font-weight: 600;
       }
-      .link {
-        color: var(--color-blue);
-        background: none;
-        padding: 0;
-        min-height: auto;
-        font-weight: 500;
-        font-size: var(--font-size-sm);
-      }
-      .link:hover { text-decoration: underline; }
-      .link.danger { color: var(--color-red); }
-      .new-btn {
-        display: flex; align-items: center; justify-content: center; gap: var(--space-xs);
-        padding: var(--space-sm) var(--space-md);
-        border-radius: var(--radius-md);
-        border: 1px dashed var(--bg-border);
-        background: var(--bg-elevated);
-        color: var(--text-primary);
-        font-weight: 500;
-        min-height: var(--touch-min);
-        transition: border-color var(--transition-fast), background var(--transition-fast);
-      }
-      .new-btn:hover { border-color: var(--color-purple); background: var(--bg-subtle); }
       .empty {
         padding: var(--space-xl); text-align: center;
         color: var(--text-muted);
@@ -171,14 +149,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .chat-meta {
         font-size: var(--font-size-xs);
         color: var(--text-faint);
-      }
-      .chat-delete {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: var(--touch-min);
-        color: var(--text-muted);
-        flex-shrink: 0;
       }
       .chat-delete:hover { color: var(--color-red); }
     `,

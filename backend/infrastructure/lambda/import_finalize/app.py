@@ -64,6 +64,24 @@ def _normalize_failure(result):
     that Python can't catch, and needs separate handling here."""
     if not isinstance(result, dict):
         return {"index": None, "error": "Unknown failure", "preview": None}
+    if "errorType" in result:
+        # Phase 2 shape (FailedItem state): the Lambda raised a named error
+        # and Step Functions exhausted its retries. `cause` is the Lambda's
+        # error JSON; its errorMessage is the human-readable reason.
+        message = None
+        try:
+            cause = json.loads(result.get("cause") or "{}")
+            message = cause.get("errorMessage")
+            request_id = cause.get("requestId")
+        except (TypeError, ValueError):
+            request_id = None
+        return {
+            "index": result.get("index"),
+            "error": message or result.get("cause") or result.get("errorType") or "Unknown error",
+            "errorType": result.get("errorType"),
+            "preview": None,
+            "requestId": request_id,
+        }
     if "index" in result and "status" in result:
         return {
             "index": result.get("index"),

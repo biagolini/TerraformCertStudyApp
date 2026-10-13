@@ -1,3 +1,6 @@
+import { importPath } from '../../core/utils/routes.util';
+import { IconComponent } from './icon.component';
+import { ImportJobProgressComponent } from './import-job-progress.component';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ImportExamService } from '../../core/services/import-exam.service';
@@ -12,11 +15,13 @@ import { I18nService } from '../../core/i18n/i18n.service';
  * isImportJobRunning, so the moment extraction finished it just vanished,
  * leaving no way back into the review screen short of remembering to open
  * /import by hand. Mirrors SyncStatusComponent's icon-toggle + dropdown-
- * panel pattern; an AWAITING_REVIEW line is clickable (opens the review
- * screen directly), a still-running one isn't (nothing to act on yet). */
+ * panel pattern; an AWAITING_REVIEW line opens the review screen, a
+ * still-running one shows its progress bar and opens its exam's import page
+ * (the way back to that progress after the window was closed). */
 @Component({
   selector: 'app-import-status-pill',
   standalone: true,
+  imports: [IconComponent, ImportJobProgressComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (visibleJobs().length > 0) {
@@ -41,15 +46,13 @@ import { I18nService } from '../../core/i18n/i18n.service';
               @if (job.status === 'AWAITING_REVIEW') {
                 <button type="button" class="job-line job-line-action" (click)="onReview(job)">
                   <p class="panel-title">{{ job.filename }}</p>
-                  <p class="panel-body panel-action">{{ i18n.t('importPill.readyToReview', { count: job.totalQuestions }) }}</p>
+                  <p class="panel-body panel-action">{{ i18n.t('importPill.readyToReview', { count: job.totalQuestions }) }} <app-icon name="arrow-right" size="14" /></p>
                 </button>
               } @else {
-                <div class="job-line">
+                <button type="button" class="job-line job-line-action" (click)="onOpen(job)">
                   <p class="panel-title">{{ job.filename }}</p>
-                  <p class="panel-body">
-                    {{ progressTotal(job) ? i18n.t('importPill.processedOf', { processed: job.processedCount, total: progressTotal(job) }) : i18n.t('importPill.detecting') }}
-                  </p>
-                </div>
+                  <app-import-job-progress [job]="job" />
+                </button>
               }
             }
           </div>
@@ -83,6 +86,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .panel-title { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-primary); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .panel-body { font-size: var(--font-size-sm); color: var(--text-secondary); line-height: 1.45; margin: 2px 0 0; }
       .panel-action { color: var(--color-purple); font-weight: 600; }
+      .job-line-action app-import-job-progress { margin-top: 6px; }
       @keyframes import-pulse {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.4; }
@@ -114,10 +118,6 @@ export class ImportStatusPillComponent {
     return this.i18n.t('importPill.processingOnly', { count: running });
   });
 
-  progressTotal(job: Pick<ImportJob, 'status' | 'totalQuestions' | 'explainTotal'>): number | null {
-    return job.status === 'GENERATING' ? (job.explainTotal ?? null) : job.totalQuestions;
-  }
-
   constructor() {
     if (typeof document !== 'undefined') {
       document.addEventListener('click', (event) => {
@@ -133,8 +133,14 @@ export class ImportStatusPillComponent {
     this.panelOpen.update((open) => !open);
   }
 
+  /** A running import: its exam's import page, where the progress lives. */
+  onOpen(job: ImportJob): void {
+    this.panelOpen.set(false);
+    void this.router.navigate(importPath(job.packId, job.bankId));
+  }
+
   onReview(job: ImportJob): void {
     this.panelOpen.set(false);
-    void this.router.navigate(['/questions', job.packId, 'import', job.id]);
+    void this.router.navigate(importPath(job.packId, job.bankId, job.id));
   }
 }

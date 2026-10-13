@@ -5,6 +5,7 @@ import json
 import os
 import re
 import time
+import unicodedata
 import uuid
 
 import boto3
@@ -27,6 +28,12 @@ IMPORT_EXPLAIN_STATE_MACHINE_ARN = os.environ.get("IMPORT_EXPLAIN_STATE_MACHINE_
 IMPORT_EXTRACT_LAMBDA_ARN = os.environ.get("IMPORT_EXTRACT_LAMBDA_ARN", "")
 IMPORT_FINALIZE_LAMBDA_ARN = os.environ.get("IMPORT_FINALIZE_LAMBDA_ARN", "")
 IMPORT_EXPLAIN_LOG_GROUP_NAME = os.environ.get("IMPORT_EXPLAIN_LOG_GROUP_NAME", "")
+REVIEW_AGENT_LOG_GROUP_NAME = os.environ.get("REVIEW_AGENT_LOG_GROUP_NAME", "")
+# Phase 2 run options chosen by the user (Settings, "AI import review").
+# Model ids are validated by shape only: IAM decides which models work.
+REVIEW_MODEL_ID_RE = re.compile(r"^[A-Za-z0-9.:_-]{3,128}$")
+REVIEW_TIMEOUT_DEFAULT, REVIEW_TIMEOUT_MIN, REVIEW_TIMEOUT_MAX = 300, 60, 840
+REVIEW_CONCURRENCY_DEFAULT, REVIEW_CONCURRENCY_MIN, REVIEW_CONCURRENCY_MAX = 4, 1, 10
 # Mirrors lambda/import_extract/app.py's own VALID_IMAGE_TARGETS — a manual
 # draft edit must accept only the same classifications extraction itself
 # can produce, see ImportDraftImage on the frontend.
@@ -83,7 +90,7 @@ _models_cache = {"ts": 0.0, "data": None}
 # server-side (converse/app.py's MODEL_ID, review_agent's BEDROCK_MODEL_ID,
 # import_extract's BEDROCK_EXTRACTION_MODEL_ID, this file's TITLE_MODEL_ID,
 # review_agent's RELATED_SERVICES_MODEL_ID — all Amazon Nova). Bedrock
-# doesn't expose per-call pricing via any API, and this account's live model
+# doesn't expose per-call pricing via any API, and an account's live model
 # catalog (GET /data/models, below) can include preview/internal models
 # with no published on-demand price at all — a model missing here shows
 # its real token counts with a null cost rather than a guessed number.
@@ -273,14 +280,25 @@ def get_all():
 
     items = _query_all_items(table, pk)
 
-    result = {"packs": [], "questions": [], "scripts": [], "chats": [], "settings": None}
+    result = {
+        "packs": [], "banks": [], "authors": [], "questions": [], "scripts": [], "chats": [], "notes": [],
+        "settings": None, "profile": None,
+    }
     for item in items:
         sk = item["sk"]
         data = json.loads(item["data"]) if isinstance(item.get("data"), str) else item.get("data", {})
         if sk == "SETTINGS":
             result["settings"] = data
+        elif sk == "PROFILE":
+            result["profile"] = data
         elif sk.startswith("PACK#"):
             result["packs"].append(data)
+        elif sk.startswith("BANK#"):
+            result["banks"].append(data)
+        elif sk.startswith("AUTHOR#"):
+            result["authors"].append(data)
+        elif sk.startswith("NOTE#"):
+            result["notes"].append(data)
         elif sk.startswith("SCRIPT#"):
             result["scripts"].append(data)
         elif sk.startswith("CHAT#"):
@@ -309,6 +327,14 @@ def put_all():
         for pack in body.get("packs", []):
             if pack.get("id"):
                 batch.put_item(Item={"pk": pk, "sk": f"PACK#{pack['id']}", "data": json.dumps(pack)})
+
+        for b in body.get("banks", []):
+            if b.get("id"):
+                batch.put_item(Item={"pk": pk, "sk": f"BANK#{b['id']}", "data": json.dumps(b)})
+
+        for a in body.get("authors", []):
+            if a.get("id"):
+                batch.put_item(Item={"pk": pk, "sk": f"AUTHOR#{a['id']}", "data": json.dumps(a)})
 
         for s in body.get("scripts", []):
             if s.get("id"):
@@ -345,6 +371,237 @@ def put_pack(item_id):
     data["id"] = item_id
     table.put_item(Item={"pk": pk, "sk": f"PACK#{item_id}", "data": json.dumps(data)})
     return _json({"ok": True})
+
+
+@app.route("/data/banks/<item_id>", methods=["PUT"])
+def put_bank(item_id):
+    """A question bank is one source of questions (one practice exam, one
+    instructor's set) inside a certification (`PACK#`). The pack is not
+    checked here on purpose: the frontend debounces a new pack and its first
+    bank as two independent PUTs, so the bank can legitimately arrive first.
+    The import path (create_import) is where pack/bank ownership is enforced."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    data = request.get_json(force=True) or {}
+    data["id"] = item_id
+    if not data.get("packId"):
+        return _error("packId is required", 400)
+    table.put_item(Item={"pk": pk, "sk": f"BANK#{item_id}", "data": json.dumps(data)})
+    return _json({"ok": True})
+
+
+@app.route("/data/authors/<item_id>", methods=["PUT"])
+def put_author(item_id):
+    """Who wrote a question bank (instructor, publisher, "Me"), shared by every
+    certification. Banks keep the author's name as text, so a rename is
+    pushed to them by the frontend as ordinary bank PUTs."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    data = request.get_json(force=True) or {}
+    data["id"] = item_id
+    if not str(data.get("name", "")).strip():
+        return _error("name is required", 400)
+    table.put_item(Item={"pk": pk, "sk": f"AUTHOR#{item_id}", "data": json.dumps(data)})
+    return _json({"ok": True})
+
+
+@app.route("/data/authors/<item_id>", methods=["DELETE"])
+def delete_author(item_id):
+    """Removes only the author record; its banks were already reassigned by the frontend."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    table.delete_item(Key={"pk": pk, "sk": f"AUTHOR#{item_id}"})
+    return _json({"ok": True})
+
+
+@app.route("/data/profile", methods=["PUT"])
+def put_profile():
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    data = request.get_json(force=True) or {}
+    table.put_item(Item={"pk": pk, "sk": "PROFILE", "data": json.dumps(data)})
+    return _json({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Study notes — metadata as NOTE#{id} in the general table, Markdown body and
+# images in the assets bucket under notes/{sub}/{noteId}/. The body is kept
+# out of DynamoDB so a long note never hits the 400 KB item limit and is not
+# re-sent by every GET /data.
+# ---------------------------------------------------------------------------
+
+NOTE_MAX_BYTES = 1024 * 1024
+# The assets bucket has S3 versioning on (see aws_s3_assets.tf), so every save
+# of document.md keeps the previous body as a noncurrent version. A lifecycle
+# rule can retain at most 100 noncurrent versions, so the 250 cap is enforced
+# here instead, right after each save.
+NOTE_MAX_VERSIONS = 250
+NOTE_VERSION_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,1024}$")
+
+
+def _note_key(pk, note_id):
+    return f"notes/{pk.removeprefix('USER#')}/{note_id}/document.md"
+
+
+def _note_versions(key):
+    """Every stored version of one note body, newest first (delete markers excluded)."""
+    versions = []
+    for page in s3.get_paginator("list_object_versions").paginate(Bucket=ASSETS_BUCKET_NAME, Prefix=key):
+        versions.extend(v for v in page.get("Versions", []) if v["Key"] == key)
+    versions.sort(key=lambda v: v["LastModified"], reverse=True)
+    return versions
+
+
+def _prune_note_versions(key):
+    extra = _note_versions(key)[NOTE_MAX_VERSIONS:]
+    for start in range(0, len(extra), 1000):
+        batch = extra[start:start + 1000]
+        s3.delete_objects(
+            Bucket=ASSETS_BUCKET_NAME,
+            Delete={"Objects": [{"Key": v["Key"], "VersionId": v["VersionId"]} for v in batch], "Quiet": True},
+        )
+
+
+def _note_exists(pk, note_id):
+    return bool(SAFE_KEY_SEGMENT_RE.fullmatch(note_id or "")) and bool(
+        table.get_item(Key={"pk": pk, "sk": f"NOTE#{note_id}"}).get("Item")
+    )
+
+
+@app.route("/data/notes/<item_id>", methods=["PUT"])
+def put_note(item_id):
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    if not SAFE_KEY_SEGMENT_RE.fullmatch(item_id):
+        return _error("Invalid note id", 400)
+    data = request.get_json(force=True) or {}
+    data["id"] = item_id
+    if not data.get("packId"):
+        return _error("packId is required", 400)
+    table.put_item(Item={"pk": pk, "sk": f"NOTE#{item_id}", "data": json.dumps(data)})
+    return _json({"ok": True})
+
+
+@app.route("/data/notes/<item_id>", methods=["DELETE"])
+def delete_note(item_id):
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    if not SAFE_KEY_SEGMENT_RE.fullmatch(item_id):
+        return _error("Invalid note id", 400)
+    sub = pk.removeprefix("USER#")
+    _delete_s3_prefix(f"notes/{sub}/{item_id}/")
+    table.delete_item(Key={"pk": pk, "sk": f"NOTE#{item_id}"})
+    return _json({"ok": True})
+
+
+@app.route("/data/notes/<item_id>/content", methods=["GET"])
+def get_note_content(item_id):
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    if not _note_exists(pk, item_id):
+        return _error("Note not found", 404)
+    sub = pk.removeprefix("USER#")
+    try:
+        obj = s3.get_object(Bucket=ASSETS_BUCKET_NAME, Key=f"notes/{sub}/{item_id}/document.md")
+    except ClientError as err:
+        if err.response.get("Error", {}).get("Code") in ("NoSuchKey", "404"):
+            return _error("No content yet", 404)
+        raise
+    return _json({"markdown": obj["Body"].read().decode("utf-8")})
+
+
+@app.route("/data/notes/<item_id>/content", methods=["PUT"])
+def put_note_content(item_id):
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    if not _note_exists(pk, item_id):
+        return _error("Note not found", 404)
+    body = request.get_json(force=True) or {}
+    markdown = body.get("markdown")
+    if not isinstance(markdown, str):
+        return _error("markdown must be a string", 400)
+    encoded = markdown.encode("utf-8")
+    if len(encoded) > NOTE_MAX_BYTES:
+        return _error("Note is too large (1 MB max)", 413)
+    key = _note_key(pk, item_id)
+    resp = s3.put_object(
+        Bucket=ASSETS_BUCKET_NAME,
+        Key=key,
+        Body=encoded,
+        ContentType="text/markdown; charset=utf-8",
+    )
+    _prune_note_versions(key)
+    return _json({"ok": True, "versionId": resp.get("VersionId")})
+
+
+@app.route("/data/notes/<item_id>/versions", methods=["GET"])
+def list_note_versions(item_id):
+    """Saved versions of a note body, newest first, for the history panel."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    if not _note_exists(pk, item_id):
+        return _error("Note not found", 404)
+    versions = [
+        {
+            "versionId": v["VersionId"],
+            "savedAt": int(v["LastModified"].timestamp() * 1000),
+            "size": v["Size"],
+            "isLatest": bool(v.get("IsLatest")),
+        }
+        for v in _note_versions(_note_key(pk, item_id))
+    ]
+    return _json({"versions": versions, "max": NOTE_MAX_VERSIONS})
+
+
+@app.route("/data/notes/<item_id>/versions/<version_id>", methods=["GET"])
+def get_note_version(item_id, version_id):
+    """One past body. Restoring is a normal content save of this text, so the
+    body being replaced stays in the history too."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    if not _note_exists(pk, item_id) or not NOTE_VERSION_ID_RE.fullmatch(version_id):
+        return _error("Note not found", 404)
+    try:
+        obj = s3.get_object(Bucket=ASSETS_BUCKET_NAME, Key=_note_key(pk, item_id), VersionId=version_id)
+    except ClientError as err:
+        if err.response.get("Error", {}).get("Code") in ("NoSuchKey", "NoSuchVersion", "InvalidArgument", "404"):
+            return _error("Version not found", 404)
+        raise
+    return _json({"markdown": obj["Body"].read().decode("utf-8")})
+
+
+@app.route("/data/notes/<item_id>/images", methods=["POST"])
+def upload_note_image(item_id):
+    """Presigned PUT for one image attached to a note. The returned `ref`
+    (`note/{noteId}/{filename}`) is what the editor embeds as `![alt](ref)`
+    and what GET /data/assets/presign resolves back to this object."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    if not _note_exists(pk, item_id):
+        return _error("Note not found", 404)
+    body = request.get_json(force=True) or {}
+    filename = _safe_image_filename(body.get("filename"))
+    if not filename:
+        return _error("filename must be a .png, .jpg, .jpeg, .gif, or .webp image", 400)
+    filename = f"{uuid.uuid4().hex[:8]}-{filename}"
+    sub = pk.removeprefix("USER#")
+    upload_url = s3.generate_presigned_url(
+        "put_object",
+        Params={"Bucket": ASSETS_BUCKET_NAME, "Key": f"notes/{sub}/{item_id}/images/{filename}"},
+        ExpiresIn=900,
+    )
+    return _json({"ref": f"note/{item_id}/{filename}", "uploadUrl": upload_url})
 
 
 @app.route("/data/questions/<item_id>", methods=["PUT"])
@@ -431,6 +688,24 @@ def delete_pack(item_id):
             ExclusiveStartKey=resp["LastEvaluatedKey"],
         )
 
+    # Banks, notes, transcripts and chats scoped to this pack. Notes also own
+    # an S3 prefix (document + images).
+    resp = table.query(KeyConditionExpression=Key("pk").eq(pk))
+    while True:
+        for item in resp.get("Items", []):
+            sk = item["sk"]
+            if not sk.startswith(("BANK#", "NOTE#", "SCRIPT#", "CHAT#")):
+                continue
+            data = json.loads(item["data"]) if isinstance(item.get("data"), str) else item.get("data", {})
+            if data.get("packId") != item_id:
+                continue
+            if sk.startswith("NOTE#"):
+                _delete_s3_prefix(f"notes/{sub}/{sk.removeprefix('NOTE#')}/")
+            table.delete_item(Key={"pk": pk, "sk": sk})
+        if "LastEvaluatedKey" not in resp:
+            break
+        resp = table.query(KeyConditionExpression=Key("pk").eq(pk), ExclusiveStartKey=resp["LastEvaluatedKey"])
+
     # Quiz attempt history for this pack — no longer actionable once the
     # pack (and its questions) are gone.
     resp = quiz_attempts_table.query(KeyConditionExpression=Key("pk").eq(pk))
@@ -479,6 +754,25 @@ def _delete_question_images(sub, data):
             s3.delete_object(Bucket=ASSETS_BUCKET_NAME, Key=f"images/{sub}/{key}")
         except Exception:
             pass
+
+
+@app.route("/data/banks/<item_id>", methods=["DELETE"])
+def delete_bank(item_id):
+    """Cascades to the bank's own questions (and their images). Import jobs
+    and attempts are left alone: a job is history of an upload, and an
+    attempt can mix several banks, so neither belongs to just this bank."""
+    pk = _user_pk()
+    if not pk:
+        return _error("Unauthorized", 401)
+    sub = pk.removeprefix("USER#")
+    for q_item in _query_all_items(questions_table, pk):
+        data = json.loads(q_item["data"]) if isinstance(q_item.get("data"), str) else q_item.get("data", {})
+        if data.get("bankId") != item_id:
+            continue
+        _delete_question_images(sub, data)
+        questions_table.delete_item(Key={"pk": pk, "sk": q_item["sk"]})
+    table.delete_item(Key={"pk": pk, "sk": f"BANK#{item_id}"})
+    return _json({"ok": True})
 
 
 @app.route("/data/questions/<item_id>", methods=["DELETE"])
@@ -750,6 +1044,12 @@ def create_import():
         return _error("packId is required", 400)
     if not table.get_item(Key={"pk": pk, "sk": f"PACK#{pack_id}"}).get("Item"):
         return _error("Pack not found", 400)
+    # Every promoted question lands in one bank, so the bank is fixed at
+    # job creation and must belong to the same pack.
+    bank_id = body.get("bankId")
+    bank_item = table.get_item(Key={"pk": pk, "sk": f"BANK#{bank_id}"}).get("Item") if bank_id else None
+    if not bank_item or json.loads(bank_item["data"]).get("packId") != pack_id:
+        return _error("Bank not found in this pack", 400)
 
     filename = _safe_import_filename(body.get("filename"))
     if not filename:
@@ -765,6 +1065,7 @@ def create_import():
     job = {
         "id": job_id,
         "packId": pack_id,
+        "bankId": bank_id,
         "filename": filename,
         "status": "AWAITING_UPLOAD",
         "totalQuestions": None,
@@ -974,20 +1275,15 @@ def get_original_upload_url(item_id):
 
 
 def _delete_s3_prefix(prefix):
-    """Deletes every object under an S3 prefix, paginating both the list
-    and the delete (delete_objects caps at 1000 keys per call)."""
-    continuation = None
-    while True:
-        kwargs = {"Bucket": ASSETS_BUCKET_NAME, "Prefix": prefix}
-        if continuation:
-            kwargs["ContinuationToken"] = continuation
-        resp = s3.list_objects_v2(**kwargs)
-        keys = [{"Key": obj["Key"]} for obj in resp.get("Contents", [])]
-        if keys:
-            s3.delete_objects(Bucket=ASSETS_BUCKET_NAME, Delete={"Objects": keys})
-        if not resp.get("IsTruncated"):
-            return
-        continuation = resp.get("NextContinuationToken")
+    """Permanently deletes everything under an S3 prefix. The bucket is
+    versioned, so a plain delete would only add a delete marker and keep the
+    data; this removes every version and marker instead (delete_objects caps
+    at 1000 keys per call, the paginator pages at 1000 too)."""
+    for page in s3.get_paginator("list_object_versions").paginate(Bucket=ASSETS_BUCKET_NAME, Prefix=prefix):
+        entries = page.get("Versions", []) + page.get("DeleteMarkers", [])
+        objects = [{"Key": e["Key"], "VersionId": e["VersionId"]} for e in entries]
+        if objects:
+            s3.delete_objects(Bucket=ASSETS_BUCKET_NAME, Delete={"Objects": objects, "Quiet": True})
 
 
 def _delete_job_drafts(pk, job_id):
@@ -1093,6 +1389,9 @@ def update_draft(item_id, index):
         "sourceGeneralComment": (body.get("sourceGeneralComment") or "").strip() or None,
         "images": images,
         "error": None,
+        # The reviewer has now looked at (and saved) the alternatives, so
+        # the "letters were renumbered, double-check" flag is resolved.
+        "lettersRelabeled": False,
         "updatedAt": int(time.time() * 1000),
     })
     import_drafts_table.put_item(Item={
@@ -1323,40 +1622,104 @@ def re_extract_draft(item_id, index):
 
 @app.route("/data/imports/<item_id>/drafts/<int:index>/logs", methods=["GET"])
 def get_draft_logs(item_id, index):
-    """Real CloudWatch logs for the specific import-explain invocation that
-    failed on this draft — surfaced next to a failed "Refine extraction
-    with AI" result so a bad run can be diagnosed without leaving the app.
-    `requestId` isn't on the draft itself — a failed explain call never
-    updates its draft (see lambda/import_explain/app.py, which only writes
-    the draft on success) — it's recorded on the JOB's `failures` list by
-    lambda/import_finalize/app.py's _normalize_failure. A draft with no
-    matching failure entry (never ran Phase 2, or succeeded) returns an
-    empty result rather than an error."""
+    """CloudWatch lines for this draft's Phase 2 calls, newest call first.
+
+    Each import-explain invocation records {callId, requestId, at,
+    timeoutSeconds} on the draft (`explainCalls`, one entry per attempt,
+    retries included) and logs JSON lines carrying that callId; the review
+    agent logs the same callId on every line. So each call's lines come from
+    two log groups: the Lambda's (matched by its request id) and the
+    agent's (matched by callId). Queries are bounded to the call's own time
+    window and paginated: an unbounded FilterLogEvents often returns an
+    empty first page with a nextToken, which is what made this view show
+    "No log lines found" before.
+    """
     pk = _user_pk()
     if not pk:
         return _error("Unauthorized", 401)
     if not IMPORT_EXPLAIN_LOG_GROUP_NAME:
         return _error("Logs are not configured", 500)
 
-    job_item = table.get_item(Key={"pk": pk, "sk": f"IMPORTJOB#{item_id}"}).get("Item")
-    if not job_item:
-        return _error("Job not found", 404)
-    job_data = json.loads(job_item["data"]) if isinstance(job_item.get("data"), str) else job_item.get("data", {})
-    failure = next((f for f in (job_data.get("failures") or []) if f.get("index") == index), None)
-    request_id = failure.get("requestId") if failure else None
-    if not request_id:
-        return _json({"requestId": None, "events": []})
+    draft_item = import_drafts_table.get_item(Key={"pk": pk, "sk": f"DRAFT#{item_id}#{index:04d}"}).get("Item") or {}
+    calls = [dict(c) for c in (draft_item.get("explainCalls") or [])][-5:]
+    if not calls:
+        # Drafts that failed before callIds existed: fall back to the
+        # request id the job's failures list kept.
+        job_item = table.get_item(Key={"pk": pk, "sk": f"IMPORTJOB#{item_id}"}).get("Item") or {}
+        job_data = json.loads(job_item["data"]) if isinstance(job_item.get("data"), str) else job_item.get("data", {})
+        failure = next((f for f in (job_data.get("failures") or []) if f.get("index") == index), None)
+        if failure and failure.get("requestId"):
+            calls = [{"callId": None, "requestId": failure["requestId"],
+                      "at": int(job_data.get("createdAt") or 0), "timeoutSeconds": REVIEW_TIMEOUT_MAX}]
+    if not calls:
+        return _json({"requestId": None, "calls": [], "events": []})
 
-    resp = logs_client.filter_log_events(
-        logGroupName=IMPORT_EXPLAIN_LOG_GROUP_NAME,
-        filterPattern=f'"{request_id}"',
-        limit=200,
-    )
-    events = [
-        {"timestamp": e["timestamp"], "message": e["message"]}
-        for e in resp.get("events", [])
-    ]
-    return _json({"requestId": request_id, "events": events})
+    now_ms = int(time.time() * 1000)
+    out = []
+    for call in reversed(calls):
+        at = int(call.get("at") or 0)
+        window = (max(0, at - 60_000), min(now_ms, at + (int(call.get("timeoutSeconds") or REVIEW_TIMEOUT_MAX) + 300) * 1000))
+        events = []
+        if call.get("requestId"):
+            events += _filter_logs(IMPORT_EXPLAIN_LOG_GROUP_NAME, call["requestId"], window, "lambda")
+        if call.get("callId") and REVIEW_AGENT_LOG_GROUP_NAME:
+            events += _filter_logs(REVIEW_AGENT_LOG_GROUP_NAME, call["callId"], window, "agent")
+        events.sort(key=lambda e: e["timestamp"])
+        out.append({"callId": call.get("callId"), "requestId": call.get("requestId"), "at": at, "events": events})
+    flat = [e for c in out for e in c["events"]]
+    return _json({"requestId": out[0]["requestId"], "calls": out, "events": flat})
+
+
+LOG_PAGE_LIMIT = 10
+LOG_EVENT_LIMIT = 300
+LOG_MESSAGE_MAX = 4000
+
+
+def _filter_logs(group, term, window, source):
+    """All events in `group` containing `term` within `window`, paginated.
+    Agent lines arrive twice (plain stdout and the OTEL-wrapped copy whose
+    `body` holds the same text), so the OTEL wrapper is unwrapped and
+    duplicates are dropped."""
+    events, seen, token = [], set(), None
+    for _ in range(LOG_PAGE_LIMIT):
+        kwargs = {"logGroupName": group, "filterPattern": f'"{term}"',
+                  "startTime": window[0], "endTime": window[1], "limit": 100}
+        if token:
+            kwargs["nextToken"] = token
+        try:
+            resp = logs_client.filter_log_events(**kwargs)
+        except ClientError as e:
+            events.append({"timestamp": window[0], "source": source,
+                           "message": f"(could not read {source} logs: {e.response.get('Error', {}).get('Code')})"})
+            break
+        for e in resp.get("events", []):
+            message = e["message"]
+            try:
+                parsed = json.loads(message)
+                if isinstance(parsed, dict) and "body" in parsed:
+                    message = parsed["body"] if isinstance(parsed["body"], str) else json.dumps(parsed["body"])
+            except ValueError:
+                pass
+            message = message.strip()
+            key = message[-300:]
+            if key in seen:
+                continue
+            seen.add(key)
+            events.append({"timestamp": e["timestamp"], "source": source, "message": message[:LOG_MESSAGE_MAX]})
+            if len(events) >= LOG_EVENT_LIMIT:
+                return events
+        token = resp.get("nextToken")
+        if not token:
+            break
+    return events
+
+
+def _clamp_int(value, default, low, high):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(low, min(high, number))
 
 
 @app.route("/data/imports/<item_id>/generate-explanations", methods=["POST"])
@@ -1407,6 +1770,13 @@ def generate_explanations(item_id):
         return _error("No approved questions to process", 400)
     indices.sort()
 
+    model_id = str(body.get("modelId") or "")
+    if model_id and not REVIEW_MODEL_ID_RE.fullmatch(model_id):
+        return _error("Invalid modelId", 400)
+    timeout_seconds = _clamp_int(body.get("timeoutSeconds"), REVIEW_TIMEOUT_DEFAULT, REVIEW_TIMEOUT_MIN, REVIEW_TIMEOUT_MAX)
+    max_concurrency = _clamp_int(body.get("maxConcurrency"), REVIEW_CONCURRENCY_DEFAULT, REVIEW_CONCURRENCY_MIN, REVIEW_CONCURRENCY_MAX)
+    job_data["reviewOptions"] = {"modelId": model_id or None, "timeoutSeconds": timeout_seconds, "maxConcurrency": max_concurrency}
+
     job_data["status"] = "GENERATING"
     job_data["explainTotal"] = len(indices)
     job_data["completedAt"] = None
@@ -1425,7 +1795,15 @@ def generate_explanations(item_id):
             "jobId": item_id,
             "sub": sub,
             "packId": job_data.get("packId"),
+            "bankId": job_data.get("bankId"),
             "draftIndices": indices,
+            # Empty modelId = the agent's own default (BEDROCK_MODEL_ID).
+            "modelId": model_id,
+            "timeoutSeconds": timeout_seconds,
+            # Step Functions' own task timeout: the agent wait plus room for
+            # DynamoDB work, so a stuck invocation is cut off and retried.
+            "taskTimeoutSeconds": timeout_seconds + 60,
+            "maxConcurrency": max_concurrency,
         }),
     )
     return _json({"ok": True, "queued": len(indices)})
@@ -1502,6 +1880,7 @@ def save_drafts_as_is(item_id):
         question = {
             "id": question_id,
             "packId": pack_id,
+            "bankId": job_data.get("bankId"),
             "title": draft.get("title") or "Imported question",
             "domain": draft.get("domain") or "General",
             "language": draft.get("language") or "en",
@@ -1555,9 +1934,13 @@ def presign_asset():
     if not relative_key:
         return _error("Invalid key", 400)
 
+    # `note/{noteId}/{filename}` is a study-note image (see upload_note_image);
+    # every other 3-segment key is a question image.
+    head, mid, tail = relative_key.split("/")
+    s3_key = f"notes/{sub}/{mid}/images/{tail}" if head == "note" else f"images/{sub}/{relative_key}"
     url = s3.generate_presigned_url(
         "get_object",
-        Params={"Bucket": ASSETS_BUCKET_NAME, "Key": f"images/{sub}/{relative_key}"},
+        Params={"Bucket": ASSETS_BUCKET_NAME, "Key": s3_key},
         ExpiresIn=300,
     )
     return _json({"url": url})
@@ -1569,8 +1952,12 @@ MANUAL_IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 def _safe_image_filename(raw_filename):
     """Basename-only, restricted charset, must end in a supported image
     extension — mirrors `_safe_import_filename` but for a single hand-picked
-    image rather than a whole exam file."""
+    image rather than a whole exam file. Accents are folded and any other
+    character becomes "-" instead of rejecting the upload: screenshots are
+    routinely named with spaces and accents (the frontend sanitizes too)."""
     name = os.path.basename(str(raw_filename or "")).strip()
+    name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
+    name = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-")
     if not name or not SAFE_FILENAME_RE.fullmatch(name):
         return None
     if os.path.splitext(name)[1].lower() not in MANUAL_IMAGE_EXTENSIONS:

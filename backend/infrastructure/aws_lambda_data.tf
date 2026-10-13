@@ -70,6 +70,7 @@ resource "aws_lambda_function" "data" {
       IMPORT_EXTRACT_LAMBDA_ARN        = aws_lambda_function.import_extract.arn
       IMPORT_FINALIZE_LAMBDA_ARN       = aws_lambda_function.import_finalize.arn
       IMPORT_EXPLAIN_LOG_GROUP_NAME    = aws_cloudwatch_log_group.lambda_import_explain.name
+      REVIEW_AGENT_LOG_GROUP_NAME      = aws_cloudwatch_log_group.agentcore_runtime.name
     }
   }
 
@@ -177,12 +178,26 @@ resource "aws_iam_role_policy" "lambda_data_s3_assets" {
         Resource = "${aws_s3_bucket.assets.arn}/images/*"
       },
       {
+        # Study notes: notes/{sub}/{noteId}/document.md plus images/ under it
+        # (lambda/data/app.py's note routes). The *Version actions read a past
+        # body for the history panel and drop versions beyond the newest 250.
+        # Listing is covered by the ListBucket statements below.
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject", "s3:PutObject", "s3:DeleteObject",
+          "s3:GetObjectVersion", "s3:DeleteObjectVersion",
+        ]
+        Resource = "${aws_s3_bucket.assets.arn}/notes/*"
+      },
+      {
         # Immediate cleanup of a deleted job's temporary storage (see
         # lambda/data/app.py's delete_import/_delete_s3_prefix) — without
         # this, uploads/scratch only disappear after the bucket's 14-day
         # lifecycle rule, not when the user actually deletes the job.
+        # The bucket is versioned, so _delete_s3_prefix removes every version
+        # (DeleteObjectVersion) rather than leaving the data behind a marker.
         Effect   = "Allow"
-        Action   = "s3:DeleteObject"
+        Action   = ["s3:DeleteObject", "s3:DeleteObjectVersion"]
         Resource = [
           "${aws_s3_bucket.assets.arn}/uploads/*",
           "${aws_s3_bucket.assets.arn}/scratch/*",
@@ -194,11 +209,11 @@ resource "aws_iam_role_policy" "lambda_data_s3_assets" {
         # under uploads/ or scratch/, never the whole bucket (e.g. images/
         # or another user's keys, though pk already isolates that logically).
         Effect   = "Allow"
-        Action   = "s3:ListBucket"
+        Action   = ["s3:ListBucket", "s3:ListBucketVersions"]
         Resource = aws_s3_bucket.assets.arn
         Condition = {
           StringLike = {
-            "s3:prefix" = ["uploads/*", "scratch/*"]
+            "s3:prefix" = ["uploads/*", "scratch/*", "notes/*"]
           }
         }
       },
@@ -260,8 +275,13 @@ resource "aws_iam_role_policy" "lambda_data_read_import_explain_logs" {
     Version = "2012-10-17"
     Statement = [{
       Effect   = "Allow"
-      Action   = "logs:FilterLogEvents"
-      Resource = "${aws_cloudwatch_log_group.lambda_import_explain.arn}:*"
+      Action = "logs:FilterLogEvents"
+      # The import-explain Lambda's own lines and the review agent's lines
+      # (same callId) for the review screen's "Show logs".
+      Resource = [
+        "${aws_cloudwatch_log_group.lambda_import_explain.arn}:*",
+        "${aws_cloudwatch_log_group.agentcore_runtime.arn}:*",
+      ]
     }]
   })
 }

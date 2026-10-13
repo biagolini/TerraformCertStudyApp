@@ -10,7 +10,7 @@ import {
 
 describe('resolveQuizToolOrder', () => {
   it('returns every tool in the given order', () => {
-    const order = ['note', 'highlight', 'strikethrough', 'clearMarks', 'translate', 'checkAnswer', 'nextQuestion'];
+    const order = ['note', 'highlight', 'strikethrough', 'clearMarks', 'translate', 'checkAnswer', 'nextQuestion', 'pauseExam'];
     expect(resolveQuizToolOrder(order).map((t) => t.id)).toEqual(order);
   });
 

@@ -1,5 +1,5 @@
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
-import { Question } from '../models/question.model';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Question, withValidLetters } from '../models/question.model';
 import { DEFAULT_DOMAIN } from '../models/settings.model';
 import { searchQuestions } from '../utils/search.util';
 import { PacksService } from './packs.service';
@@ -24,7 +24,19 @@ export class QuestionsService {
     return this.allQuestions().filter((q) => q.packId === activeId);
   });
 
-  readonly count = computed(() => this.questions().length);
+  /** Bank shown by the question browser ('all' = every bank of the certification). */
+  readonly bankFilter = signal<string>('all');
+  /** Domain filter of the question browser ('' = every domain). */
+  readonly domainFilter = signal<string>('');
+
+  /** What the question browser lists: the active certification narrowed by bank and domain. */
+  readonly visible = computed(() => {
+    const bank = this.bankFilter();
+    const domain = this.domainFilter();
+    return this.questions().filter((q) => (bank === 'all' || q.bankId === bank) && (!domain || q.domain === domain));
+  });
+
+  readonly count = computed(() => this.visible().length);
 
   readonly selectedIds = this.selectedIdsState.asReadonly();
   readonly selectedCount = computed(() => this.selectedIdsState().size);
@@ -48,7 +60,7 @@ export class QuestionsService {
   readonly searchResults = computed(() => {
     const query = this.searchQueryState();
     if (!query.trim()) return [];
-    const pool = this.searchAllPacksState() ? this.allQuestions() : this.questions();
+    const pool = this.searchAllPacksState() ? this.allQuestions() : this.visible();
     return searchQuestions(pool, query);
   });
 
@@ -58,7 +70,11 @@ export class QuestionsService {
     // Load from storage when ready
     effect(() => {
       if (this.storage.ready()) {
-        this.state.set(this.storage.getQuestions());
+        const stored = this.storage.getQuestions();
+        const fixed = stored.map(withValidLetters);
+        // Repair once: only the questions whose letters changed are re-saved.
+        if (fixed.some((q, i) => q !== stored[i])) untracked(() => this.persist(fixed));
+        else this.state.set(stored);
       }
     });
 
@@ -83,6 +99,13 @@ export class QuestionsService {
       q.id === id ? { ...q, domain: domain || DEFAULT_DOMAIN } : q,
     );
     this.persist(next);
+  }
+
+  /** Moves questions to another bank of the same certification. */
+  moveToBank(ids: readonly string[], bankId: string): void {
+    const set = new Set(ids);
+    const now = Date.now();
+    this.persist(this.state().map((q) => (set.has(q.id) ? { ...q, bankId, updatedAt: now } : q)));
   }
 
   updatePartial(
@@ -116,11 +139,12 @@ export class QuestionsService {
    * slow) backend delete "disappear" locally only to reappear on the next
    * sync, since nothing was actually removed on the server.
    *
-   * Deletes are sent in small sequential batches, not all at once — this
-   * AWS account's Lambda concurrency limit is a mere 10 (shared across
-   * every function), so firing e.g. 178 DELETEs in parallel via a single
-   * Promise.all throttles almost all of them at the Lambda level, which
-   * API Gateway surfaces as a flood of HTTP 500s rather than 429s. */
+   * Deletes are sent in small sequential batches, not all at once. Pay
+   * attention to the Lambda "Concurrent executions" quota of the account
+   * the app runs in (shared by every function in the Region; new accounts
+   * can start as low as 10): firing e.g. 178 DELETEs in parallel via one
+   * Promise.all can exceed it, and API Gateway surfaces Lambda throttling
+   * as a flood of HTTP 500s rather than 429s. */
   async removeByPackId(packId: string): Promise<{ deleted: number; failed: number }> {
     const toDelete = this.state().filter((q) => q.packId === packId);
     if (toDelete.length === 0) return { deleted: 0, failed: 0 };
@@ -150,7 +174,7 @@ export class QuestionsService {
   }
 
   selectAll(): void {
-    this.selectedIdsState.set(new Set(this.questions().map((q) => q.id)));
+    this.selectedIdsState.set(new Set(this.visible().map((q) => q.id)));
   }
 
   deselectAll(): void {

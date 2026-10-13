@@ -3,14 +3,22 @@
 # ============================================================================
 # Never public and never fronted by CloudFront — every read goes through a
 # presigned URL minted by the `data` Lambda, which always prepends the
-# caller's own Cognito `sub` server-side (see lambda/data/app.py). Three
+# caller's own Cognito `sub` server-side (see lambda/data/app.py). Four
 # top-level prefixes share this one bucket:
 #   uploads/{sub}/{jobId}/{filename}              raw uploaded exam file
 #   scratch/{jobId}/...                           preprocessing artifacts
 #   images/{sub}/{jobId}/{questionId}/{filename}  final question images
+#   notes/{sub}/{noteId}/document.md              study note body (+ images/)
 # `uploads/` and `scratch/` are intermediate — never needed once the import
 # job finishes — so they're expired by the lifecycle rule below; `images/`
-# is permanent, since it's embedded in saved questions.
+# and `notes/` are permanent user content.
+#
+# Versioning is on so every save of a note body keeps the previous one, and
+# the note editor can list and restore past versions. S3 versioning is
+# bucket-wide; the lifecycle rules below drop noncurrent versions of
+# everything except notes/ after a day, so the other prefixes cost no more
+# than before. Notes keep their newest 250 versions: a lifecycle rule can
+# retain at most 100, so the data Lambda prunes the rest after each save.
 
 resource "aws_s3_bucket" "assets" {
   bucket        = "${var.project_prefix}-assets-${data.aws_caller_identity.current.account_id}"
@@ -58,8 +66,19 @@ resource "aws_s3_bucket_notification" "assets" {
   eventbridge = true
 }
 
+resource "aws_s3_bucket_versioning" "assets" {
+  bucket = aws_s3_bucket.assets.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
 resource "aws_s3_bucket_lifecycle_configuration" "assets" {
   bucket = aws_s3_bucket.assets.id
+
+  # Rules that act on noncurrent versions need versioning in place first.
+  depends_on = [aws_s3_bucket_versioning.assets]
 
   rule {
     id     = "expire-uploads"
@@ -69,6 +88,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "assets" {
     }
     expiration {
       days = 2
+    }
+    noncurrent_version_expiration {
+      noncurrent_days = 1
     }
   }
 
@@ -86,6 +108,39 @@ resource "aws_s3_bucket_lifecycle_configuration" "assets" {
     }
     expiration {
       days = 14
+    }
+    noncurrent_version_expiration {
+      noncurrent_days = 1
+    }
+  }
+
+  rule {
+    # Replaced or deleted question images: nothing restores them, so their
+    # old versions go after a day, along with leftover delete markers.
+    id     = "expire-old-image-versions"
+    status = "Enabled"
+    filter {
+      prefix = "images/"
+    }
+    expiration {
+      expired_object_delete_marker = true
+    }
+    noncurrent_version_expiration {
+      noncurrent_days = 1
+    }
+  }
+
+  rule {
+    # Note bodies keep their history (capped at 250 by the data Lambda);
+    # this only clears delete markers left once a deleted object has no
+    # versions left. Deleting a note removes every version right away.
+    id     = "clean-note-delete-markers"
+    status = "Enabled"
+    filter {
+      prefix = "notes/"
+    }
+    expiration {
+      expired_object_delete_marker = true
     }
   }
 }

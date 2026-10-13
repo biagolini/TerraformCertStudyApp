@@ -1,5 +1,7 @@
 export interface Script {
   id: string;
+  /** The certification this transcript summary belongs to. */
+  packId: string;
   title: string;
   content: string;
   sources: string[];

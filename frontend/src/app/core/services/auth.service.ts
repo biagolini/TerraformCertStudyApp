@@ -208,6 +208,28 @@ export class AuthService {
     });
   }
 
+  /** Changes the signed-in user's password (Cognito ChangePassword, needs the current one). */
+  changePassword(oldPassword: string, newPassword: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const user = this.userPool?.getCurrentUser();
+      if (!user) {
+        reject(new Error('Not signed in.'));
+        return;
+      }
+      // getSession attaches the tokens ChangePassword needs to this user object.
+      user.getSession((err: Error | null) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        user.changePassword(oldPassword, newPassword, (changeErr) => {
+          if (changeErr) reject(changeErr);
+          else resolve();
+        });
+      });
+    });
+  }
+
   logout(): void {
     const user = this.userPool?.getCurrentUser();
     if (user) user.signOut();

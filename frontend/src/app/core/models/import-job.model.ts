@@ -22,6 +22,8 @@ export interface ImportJobFailure {
 export interface ImportJob {
   id: string;
   packId: string;
+  /** Bank every promoted question of this job lands in. */
+  bankId: string;
   filename: string;
   status: ImportJobStatus;
   totalQuestions: number | null;
@@ -49,4 +51,15 @@ export function isImportJobRunning(job: Pick<ImportJob, 'status'>): boolean {
 
 export function isImportJobTerminal(job: Pick<ImportJob, 'status'>): boolean {
   return job.status === 'SUCCEEDED' || job.status === 'PARTIAL' || job.status === 'FAILED';
+}
+
+/** Progress denominator: Phase 2 counts against the drafts sent for
+ * explanation (explainTotal), Phase 1 against the detected questions. */
+export function importJobProgressTotal(job: Pick<ImportJob, 'status' | 'totalQuestions' | 'explainTotal'>): number | null {
+  return job.status === 'GENERATING' ? (job.explainTotal ?? null) : job.totalQuestions;
+}
+
+export function importJobProgressPct(job: Pick<ImportJob, 'status' | 'processedCount' | 'totalQuestions' | 'explainTotal'>): number {
+  const total = importJobProgressTotal(job);
+  return total ? Math.min(100, (job.processedCount / total) * 100) : 0;
 }

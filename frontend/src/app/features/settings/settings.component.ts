@@ -1,12 +1,14 @@
+import { IconComponent } from '../../shared/components/icon.component';
+import { RouterLink } from '@angular/router';
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NAV_ITEMS, NavTabId } from '../../core/models/nav-item.model';
 import { MAX_QUIZ_TOOLBAR_ROWS, QuizToolId } from '../../core/models/quiz-tool.model';
-import { OUTPUT_LANGUAGES } from '../../core/models/settings.model';
+import { HEADER_ACTIONS, HeaderActionId } from '../../core/models/header-action.model';
+import { OUTPUT_LANGUAGES, IMPORT_REVIEW_TIMEOUT_OPTIONS, IMPORT_REVIEW_CONCURRENCY_MAX } from '../../core/models/settings.model';
 import { INTERFACE_LANGUAGES, InterfaceLanguage } from '../../core/models/i18n.model';
 import { AuthService } from '../../core/services/auth.service';
 import { ModelsService } from '../../core/services/models.service';
-import { QuestionsService } from '../../core/services/questions.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { StorageService } from '../../core/services/storage.service';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -14,28 +16,13 @@ import { I18nService } from '../../core/i18n/i18n.service';
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [FormsModule],
+  imports: [IconComponent, FormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="drawer">
       <header class="drawer-header">
         <h2>{{ i18n.t('settings.title') }}</h2>
-        <button
-          type="button"
-          class="close-btn"
-          (click)="closed.emit()"
-          [attr.aria-label]="i18n.t('settings.closeSettings')"
-        >
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <path
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              d="M5 5l14 14M19 5L5 19"
-            />
-          </svg>
-        </button>
+        <button type="button" class="ui-btn ui-btn-sm" (click)="closed.emit()"><app-icon name="arrow-left" /> {{ i18n.t('common.back') }}</button>
       </header>
 
       <div class="drawer-body">
@@ -45,6 +32,49 @@ import { I18nService } from '../../core/i18n/i18n.service';
             <p class="helper">{{ i18n.t('settings.accountHelp') }}</p>
           </header>
           <p class="account-email">{{ currentUserEmail() ?? i18n.t('settings.accountUnknown') }}</p>
+          <details class="password">
+            <summary>{{ i18n.t('settings.changePassword') }}</summary>
+            <form class="password-form" (ngSubmit)="onChangePassword()">
+              <label class="ui-field"><span>{{ i18n.t('settings.currentPassword') }}</span>
+                <input class="ui-input" type="password" name="old" autocomplete="current-password" [(ngModel)]="oldPassword" required />
+              </label>
+              <label class="ui-field"><span>{{ i18n.t('settings.newPassword') }}</span>
+                <input class="ui-input" type="password" name="new" autocomplete="new-password" [(ngModel)]="newPassword" required minlength="8" />
+              </label>
+              <label class="ui-field"><span>{{ i18n.t('settings.confirmPassword') }}</span>
+                <input class="ui-input" type="password" name="confirm" autocomplete="new-password" [(ngModel)]="confirmPassword" required />
+              </label>
+              <p class="helper">{{ i18n.t('settings.passwordRules') }}</p>
+              @if (passwordMessage(); as m) {
+                <p class="helper" [class.clear-success]="m.ok" [class.sync-error]="!m.ok" role="status">{{ m.text }}</p>
+              }
+              <button type="submit" class="ui-btn ui-btn-primary" [disabled]="changingPassword() || !oldPassword || !newPassword">{{ i18n.t('settings.updatePassword') }}</button>
+            </form>
+          </details>
+          <div class="ui-actions">
+            <a routerLink="/profile" class="ui-btn ui-btn-sm">{{ i18n.t('app.profile') }}</a>
+            <a routerLink="/costs" class="ui-btn ui-btn-sm">{{ i18n.t('settings.costsAndBudget') }}</a>
+            <button type="button" class="ui-btn ui-btn-sm ui-btn-danger" (click)="auth.logout()">{{ i18n.t('app.signOut') }}</button>
+          </div>
+        </section>
+
+        <section class="block">
+          <header class="section-header">
+            <h3>{{ i18n.t('settings.theme') }}</h3>
+          </header>
+          <div class="ui-chip-row" role="radiogroup" [attr.aria-label]="i18n.t('settings.theme')">
+            <button type="button" role="radio" class="ui-chip" [class.active]="theme() === 'light'" [attr.aria-checked]="theme() === 'light'" (click)="setTheme('light')"><app-icon name="sun" /> {{ i18n.t('settings.themeLight') }}</button>
+            <button type="button" role="radio" class="ui-chip" [class.active]="theme() === 'dark'" [attr.aria-checked]="theme() === 'dark'" (click)="setTheme('dark')"><app-icon name="moon" /> {{ i18n.t('settings.themeDark') }}</button>
+          </div>
+        </section>
+
+        <section class="block">
+          <header class="section-header">
+            <h3>{{ i18n.t('settings.dataBackup') }}</h3>
+            <p class="helper">{{ i18n.t('settings.dataBackupHelp') }}</p>
+          </header>
+          <a class="ui-btn" routerLink="/backup"><app-icon name="download" /> {{ i18n.t('settings.openBackup') }}</a>
+          <p class="helper">{{ i18n.t('settings.privacyNote') }}</p>
         </section>
 
         <section class="block">
@@ -63,7 +93,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
           @if (syncStatus() === 'error') {
             <p class="sync-error">{{ syncError() }}</p>
           }
-          <button type="button" class="btn btn-ghost" (click)="onSyncNow()" [disabled]="syncStatus() === 'syncing'">
+          <button type="button" class="ui-btn" (click)="onSyncNow()" [disabled]="syncStatus() === 'syncing'">
             {{ syncStatus() === 'syncing' ? i18n.t('sync.syncing') : i18n.t('settings.syncNow') }}
           </button>
         </section>
@@ -74,7 +104,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             <p class="helper">{{ i18n.t('settings.defaultModelHelp') }}</p>
           </header>
           <select
-            class="text-input"
+            class="ui-input"
             [ngModel]="defaultModel()"
             (ngModelChange)="onDefaultModelChange($event)"
             [attr.aria-label]="i18n.t('settings.defaultModel')"
@@ -94,7 +124,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             <p class="helper">{{ i18n.t('settings.examImportModelHelp') }}</p>
           </header>
           <select
-            class="text-input"
+            class="ui-input"
             [ngModel]="importExtractionModel()"
             (ngModelChange)="onImportExtractionModelChange($event)"
             [attr.aria-label]="i18n.t('settings.examImportModel')"
@@ -110,11 +140,48 @@ import { I18nService } from '../../core/i18n/i18n.service';
 
         <section class="block">
           <header class="section-header">
+            <h3>{{ i18n.t('settings.importReview') }}</h3>
+            <p class="helper">{{ i18n.t('settings.importReviewHelp') }}</p>
+          </header>
+          <label class="ui-field">
+            <span>{{ i18n.t('settings.importReviewModel') }}</span>
+            <select class="ui-input" [ngModel]="importReviewModel()" (ngModelChange)="settingsService.setImportReviewModel($event)" [attr.aria-label]="i18n.t('settings.importReviewModel')">
+              @for (model of availableModels(); track model.id) {
+                <option [value]="model.id">{{ model.displayName }}{{ model.reasoning ? ' (' + i18n.t('settings.reasoning') + ')' : '' }} — {{ model.tier }}</option>
+              }
+              @if (!availableHas(importReviewModel())) {
+                <option [value]="importReviewModel()">{{ importReviewModel() }} ({{ i18n.t('settings.notInCurrentList') }})</option>
+              }
+            </select>
+          </label>
+          <div class="review-row">
+            <label class="ui-field">
+              <span>{{ i18n.t('settings.importReviewTimeout') }}</span>
+              <select class="ui-input" [ngModel]="importReviewTimeoutSeconds()" (ngModelChange)="settingsService.setImportReviewTimeoutSeconds($event)" [attr.aria-label]="i18n.t('settings.importReviewTimeout')">
+                @for (s of timeoutOptions; track s) {
+                  <option [ngValue]="s">{{ formatWait(s) }}</option>
+                }
+              </select>
+            </label>
+            <label class="ui-field">
+              <span>{{ i18n.t('settings.importReviewConcurrency') }}</span>
+              <select class="ui-input" [ngModel]="importReviewConcurrency()" (ngModelChange)="settingsService.setImportReviewConcurrency($event)" [attr.aria-label]="i18n.t('settings.importReviewConcurrency')">
+                @for (n of concurrencyOptions; track n) {
+                  <option [ngValue]="n">{{ n }}</option>
+                }
+              </select>
+            </label>
+          </div>
+          <p class="helper">{{ i18n.t('settings.importReviewCostHint') }}</p>
+        </section>
+
+        <section class="block">
+          <header class="section-header">
             <h3>{{ i18n.t('settings.interfaceLanguage') }}</h3>
             <p class="helper">{{ i18n.t('settings.interfaceLanguageHelp') }}</p>
           </header>
           <select
-            class="text-input"
+            class="ui-input"
             [ngModel]="interfaceLanguage()"
             (ngModelChange)="onInterfaceLanguageChange($event)"
             [attr.aria-label]="i18n.t('settings.interfaceLanguage')"
@@ -131,7 +198,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             <p class="helper">{{ i18n.t('settings.outputLanguageHelp') }}</p>
           </header>
           <select
-            class="text-input"
+            class="ui-input"
             [ngModel]="outputLanguage()"
             (ngModelChange)="onOutputLanguageChange($event)"
             [attr.aria-label]="i18n.t('settings.outputLanguage')"
@@ -148,7 +215,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             <p class="helper">{{ i18n.t('settings.translationTargetLanguageHelp') }}</p>
           </header>
           <select
-            class="text-input"
+            class="ui-input"
             [ngModel]="translationTargetLanguage()"
             (ngModelChange)="onTranslationTargetLanguageChange($event)"
             [attr.aria-label]="i18n.t('settings.translationTargetLanguage')"
@@ -166,7 +233,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             <p class="helper">{{ i18n.t('settings.defaultReviewModeHelp') }}</p>
           </header>
           <select
-            class="text-input"
+            class="ui-input"
             [ngModel]="defaultReviewMode()"
             (ngModelChange)="onDefaultReviewModeChange($event)"
             [attr.aria-label]="i18n.t('settings.defaultReviewMode')"
@@ -184,7 +251,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
           <label class="switch-row">
             <button
               type="button"
-              class="switch"
+              class="ui-switch"
               [class.on]="showCorrectInReview()"
               (click)="onToggleShowCorrectInReview()"
               role="switch"
@@ -203,7 +270,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
           <label class="switch-row">
             <button
               type="button"
-              class="switch"
+              class="ui-switch"
               [class.on]="defaultTrackTime()"
               (click)="onToggleDefaultTrackTime()"
               role="switch"
@@ -215,7 +282,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
           <label class="switch-row">
             <button
               type="button"
-              class="switch"
+              class="ui-switch"
               [class.on]="defaultUseAccommodation()"
               (click)="onToggleDefaultUseAccommodation()"
               role="switch"
@@ -224,6 +291,62 @@ import { I18nService } from '../../core/i18n/i18n.service';
             ><span class="thumb"></span></button>
             <span>{{ i18n.t('settings.useAccommodationByDefault') }}</span>
           </label>
+        </section>
+
+        <section class="block">
+          <header class="section-header">
+            <h3>{{ i18n.t('settings.headerActions') }}</h3>
+            <p class="helper">{{ i18n.t('settings.headerActionsHelp') }}</p>
+          </header>
+          @for (id of headerActions(); track id; let i = $index, count = $count) {
+            <div class="nav-order-row">
+              <div class="reorder-buttons">
+                <button
+                  type="button"
+                  class="reorder-btn"
+                  [disabled]="i === 0"
+                  (click)="settingsService.moveHeaderAction(id, 'up')"
+                  [attr.aria-label]="i18n.t('settings.moveUp', { name: headerActionLabel(id) })"
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                    <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 15l6-6 6 6" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="reorder-btn"
+                  [disabled]="i === count - 1"
+                  (click)="settingsService.moveHeaderAction(id, 'down')"
+                  [attr.aria-label]="i18n.t('settings.moveDown', { name: headerActionLabel(id) })"
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                    <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+              </div>
+              <span class="header-action-name">{{ headerActionLabel(id) }}</span>
+              <button
+                type="button"
+                class="ui-btn ui-btn-sm ui-btn-ghost"
+                (click)="settingsService.removeHeaderAction(id)"
+                [attr.aria-label]="i18n.t('settings.headerActionRemove', { name: headerActionLabel(id) })"
+              ><app-icon name="x" size="14" /> {{ i18n.t('settings.headerActionRemoveShort') }}</button>
+            </div>
+          }
+          <div class="nav-order-row fixed-action">
+            <span class="header-action-name">{{ i18n.t('headerActions.settings') }}</span>
+            <span class="ui-faint">{{ i18n.t('settings.headerActionAlwaysShown') }}</span>
+          </div>
+          @if (availableHeaderActions().length > 0) {
+            <span class="ui-label">{{ i18n.t('settings.headerActionsAvailable') }}</span>
+            <div class="ui-chip-row">
+              @for (action of availableHeaderActions(); track action.id) {
+                <button type="button" class="ui-chip" (click)="settingsService.addHeaderAction(action.id)">
+                  <app-icon name="plus" size="14" /> {{ i18n.t(action.labelKey) }}
+                </button>
+              }
+            </div>
+          }
         </section>
 
         <section class="block">
@@ -260,7 +383,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
               <label class="switch-row">
                 <button
                   type="button"
-                  class="switch"
+                  class="ui-switch"
                   [class.on]="!hiddenNavTabs().includes(item.id)"
                   [disabled]="isLastVisibleNavTab(item.id)"
                   (click)="onToggleNavTab(item.id)"
@@ -308,19 +431,14 @@ import { I18nService } from '../../core/i18n/i18n.service';
               <label class="switch-row">
                 <button
                   type="button"
-                  class="switch"
+                  class="ui-switch"
                   [class.on]="!hiddenQuizTools().includes(tool.id)"
                   (click)="onToggleQuizTool(tool.id)"
                   role="switch"
                   [attr.aria-checked]="!hiddenQuizTools().includes(tool.id)"
                   [attr.aria-label]="i18n.t('settings.showInQuizToolbar', { name: i18n.t(tool.labelKey) })"
                 ><span class="thumb"></span></button>
-                <span>
-                  {{ i18n.t(tool.labelKey) }}
-                  @if (tool.compactOnly) {
-                    <span class="tool-tag">{{ i18n.t('settings.quizToolbarPhoneOnly') }}</span>
-                  }
-                </span>
+                <span>{{ i18n.t(tool.labelKey) }}</span>
               </label>
             </div>
           }
@@ -351,59 +469,34 @@ import { I18nService } from '../../core/i18n/i18n.service';
           <p class="helper">{{ i18n.t('settings.quizToolbarRowsHelp') }}</p>
         </section>
 
-        <section class="block danger">
-          <header class="section-header">
-            <h3>{{ i18n.t('settings.dangerZone') }}</h3>
-            <p class="helper">{{ i18n.t('settings.dangerZoneHelp') }}</p>
-          </header>
-          <button
-            type="button"
-            class="btn btn-danger"
-            (click)="onClearRequested()"
-            [disabled]="questionCount() === 0"
-          >
-            {{ i18n.t('settings.clearQuestionsInPack') }}
-          </button>
-          <p class="helper">{{ i18n.t('settings.questionCountInPack', { count: questionCount() }) }}</p>
-          @if (clearResult(); as result) {
-            <p class="helper" [class.clear-success]="result.failed === 0" [class.clear-warn]="result.failed > 0">
-              @if (result.failed === 0) {
-                {{ i18n.t('settings.deletedSuccessfully', { count: result.deleted }) }}
-              } @else {
-                {{ i18n.t('settings.deletedWithFailures', { deleted: result.deleted, failed: result.failed }) }}
-              }
-            </p>
-          }
-        </section>
       </div>
 
-      @if (confirmingClear()) {
-        <div class="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
-          <div class="confirm">
-            <h3 id="confirm-title">{{ i18n.t('settings.clearQuestionsConfirmTitle') }}</h3>
-            <p>{{ i18n.t('settings.clearQuestionsConfirmBody', { count: questionCount() }) }}</p>
-            <div class="confirm-actions">
-              <button type="button" class="btn btn-ghost" (click)="onCancelClear()" [disabled]="clearing()">{{ i18n.t('common.cancel') }}</button>
-              <button type="button" class="btn btn-danger" (click)="onConfirmClear()" [disabled]="clearing()">
-                {{ clearing() ? i18n.t('settings.deleting') : i18n.t('common.delete') }}
-              </button>
-            </div>
-          </div>
-        </div>
-      }
     </div>
   `,
   styles: [
     `
       :host {
-        display: contents;
+        display: block;
       }
       .drawer {
         display: flex;
         flex-direction: column;
-        height: 100%;
         background: var(--bg-surface);
         color: var(--text-primary);
+        border: 1px solid var(--bg-border);
+        border-radius: var(--radius-lg);
+      }
+      .password summary {
+        cursor: pointer;
+        font-weight: 600;
+        color: var(--color-blue);
+      }
+      .password-form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-sm);
+        max-width: 360px;
+        margin-top: var(--space-sm);
       }
       .drawer-header {
         display: flex;
@@ -419,19 +512,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .drawer-header h2 {
         font-size: var(--font-size-xl);
       }
-      .close-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: var(--touch-min);
-        height: var(--touch-min);
-        border-radius: var(--radius-md);
-        color: var(--text-muted);
-      }
-      .close-btn:hover {
-        background: var(--bg-subtle);
-        color: var(--text-primary);
-      }
       .drawer-body {
         flex: 1;
         overflow-y: auto;
@@ -446,6 +526,9 @@ import { I18nService } from '../../core/i18n/i18n.service';
         flex-direction: column;
         gap: var(--space-sm);
       }
+      .block > .ui-btn {
+        align-self: flex-start;
+      }
       .section-header h3 {
         font-size: var(--font-size-lg);
         color: var(--text-primary);
@@ -459,8 +542,10 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .helper.clear-success {
         color: var(--color-green);
       }
-      .helper.clear-warn {
-        color: var(--color-amber);
+      .review-row {
+        display: grid;
+        gap: var(--space-sm);
+        grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
       }
       .account-email {
         font-size: var(--font-size-base);
@@ -471,54 +556,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
         font-size: var(--font-size-sm);
         color: var(--color-red);
         line-height: 1.45;
-      }
-      .text-input {
-        height: var(--touch-min);
-        padding: 0 var(--space-md);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: var(--bg-input);
-        color: var(--text-primary);
-        font-size: var(--font-size-base);
-        width: 100%;
-        transition: border-color var(--transition-fast);
-      }
-      .text-input:focus-visible {
-        outline: none;
-        border-color: var(--color-purple);
-      }
-      .btn {
-        min-height: var(--touch-min);
-        padding: 0 var(--space-md);
-        border-radius: var(--radius-md);
-        font-weight: 600;
-        font-size: var(--font-size-base);
-        white-space: nowrap;
-      }
-      .btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
-      .btn-ghost {
-        background: transparent;
-        color: var(--text-secondary);
-        border: 1px solid var(--bg-border);
-      }
-      .btn-ghost:hover:not(:disabled) {
-        background: var(--bg-subtle);
-      }
-      .btn-danger {
-        background: transparent;
-        color: var(--color-red);
-        border: 1px solid var(--color-red);
-      }
-      .btn-danger:hover:not(:disabled) {
-        background: var(--color-red);
-        color: #ffffff;
-      }
-      .danger {
-        border-top: 1px solid var(--bg-border);
-        padding-top: var(--space-lg);
       }
       .switch-row {
         display: flex;
@@ -562,15 +599,13 @@ import { I18nService } from '../../core/i18n/i18n.service';
         width: 28px;
         height: 24px;
       }
-      .tool-tag {
-        margin-left: var(--space-xs);
-        padding: 1px 6px;
-        border-radius: var(--radius-pill);
-        background: var(--bg-elevated);
-        color: var(--text-faint);
-        font-size: var(--font-size-xs);
-        font-weight: 600;
-        white-space: nowrap;
+      .header-action-name {
+        flex: 1;
+        font-size: var(--font-size-sm);
+        color: var(--text-secondary);
+      }
+      .fixed-action {
+        padding-left: calc(24px + var(--space-sm));
       }
       .rows-row {
         display: flex;
@@ -596,81 +631,24 @@ import { I18nService } from '../../core/i18n/i18n.service';
         color: var(--text-primary);
         font-variant-numeric: tabular-nums;
       }
-      .switch {
-        width: 38px;
-        height: 22px;
-        border-radius: 999px;
-        background: var(--bg-border);
-        position: relative;
-        border: none;
-        cursor: pointer;
-        flex-shrink: 0;
-        padding: 0;
-      }
-      .switch.on {
-        background: var(--color-purple);
-      }
-      .switch .thumb {
-        position: absolute;
-        top: 2px;
-        left: 2px;
-        width: 18px;
-        height: 18px;
-        border-radius: 50%;
-        background: #fff;
-        transition: left var(--transition-fast);
-      }
-      .switch.on .thumb {
-        left: 18px;
-      }
-      .confirm-overlay {
-        position: absolute;
-        inset: 0;
-        background: var(--overlay-bg);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: var(--space-lg);
-      }
-      .confirm {
-        background: var(--bg-surface);
-        border-radius: var(--radius-lg);
-        padding: var(--space-lg);
-        box-shadow: var(--shadow-lg);
-        max-width: 360px;
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-md);
-      }
-      .confirm h3 {
-        font-size: var(--font-size-lg);
-      }
-      .confirm p {
-        font-size: var(--font-size-base);
-        color: var(--text-secondary);
-        line-height: 1.5;
-      }
-      .confirm-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: var(--space-sm);
-      }
     `,
   ],
 })
 export class SettingsComponent {
   private readonly settings = inject(SettingsService);
-  private readonly questionsService = inject(QuestionsService);
   private readonly modelsService = inject(ModelsService);
   private readonly storage = inject(StorageService);
-  private readonly auth = inject(AuthService);
+  protected readonly auth = inject(AuthService);
   protected readonly i18n = inject(I18nService);
 
   protected readonly currentUserEmail = this.auth.currentUserEmail;
 
-  protected readonly confirmingClear = signal(false);
-  protected readonly clearing = signal(false);
-  protected readonly clearResult = signal<{ deleted: number; failed: number } | null>(null);
+  protected readonly theme = this.settings.theme;
+  protected oldPassword = '';
+  protected newPassword = '';
+  protected confirmPassword = '';
+  protected readonly changingPassword = signal(false);
+  protected readonly passwordMessage = signal<{ ok: boolean; text: string } | null>(null);
   protected readonly outputLanguages = OUTPUT_LANGUAGES;
   // Excludes OUTPUT_LANGUAGES' own "Same as input (default)" entry — this
   // dropdown already has its own "Automatic" option (empty-string value,
@@ -693,10 +671,30 @@ export class SettingsComponent {
 
   readonly closed = output<void>();
 
-  readonly questionCount = this.questionsService.count;
+  protected readonly headerActions = this.settings.headerActions;
+  protected readonly availableHeaderActions = computed(() => {
+    const visible = this.headerActions();
+    return HEADER_ACTIONS.filter((a) => !visible.includes(a.id));
+  });
+
+  protected headerActionLabel(id: HeaderActionId): string {
+    const def = HEADER_ACTIONS.find((a) => a.id === id);
+    return def ? this.i18n.t(def.labelKey) : id;
+  }
+
   readonly availableModels = this.modelsService.models;
   readonly defaultModel = this.settings.defaultModel;
   readonly importExtractionModel = this.settings.importExtractionModel;
+  protected readonly settingsService = this.settings;
+  readonly importReviewModel = this.settings.importReviewModel;
+  readonly importReviewTimeoutSeconds = this.settings.importReviewTimeoutSeconds;
+  readonly importReviewConcurrency = this.settings.importReviewConcurrency;
+  protected readonly timeoutOptions = IMPORT_REVIEW_TIMEOUT_OPTIONS;
+  protected readonly concurrencyOptions = Array.from({ length: IMPORT_REVIEW_CONCURRENCY_MAX }, (_, i) => i + 1);
+
+  formatWait(seconds: number): string {
+    return seconds % 60 === 0 ? this.i18n.t('settings.minutesN', { n: seconds / 60 }) : `${seconds}s`;
+  }
   readonly interfaceLanguage = this.settings.interfaceLanguage;
   readonly outputLanguage = this.settings.outputLanguage;
   readonly translationTargetLanguage = this.settings.translationTargetLanguage;
@@ -721,25 +719,28 @@ export class SettingsComponent {
     void this.storage.refresh();
   }
 
-  onClearRequested(): void {
-    this.clearResult.set(null);
-    this.confirmingClear.set(true);
+  setTheme(theme: 'light' | 'dark'): void {
+    this.settings.setTheme(theme);
   }
 
-  onCancelClear(): void {
-    this.confirmingClear.set(false);
-  }
-
-  async onConfirmClear(): Promise<void> {
-    this.clearing.set(true);
+  async onChangePassword(): Promise<void> {
+    this.passwordMessage.set(null);
+    if (this.newPassword !== this.confirmPassword) {
+      this.passwordMessage.set({ ok: false, text: this.i18n.t('settings.passwordMismatch') });
+      return;
+    }
+    this.changingPassword.set(true);
     try {
-      const result = await this.questionsService.clearActivePack();
-      this.clearResult.set(result);
+      await this.auth.changePassword(this.oldPassword, this.newPassword);
+      this.oldPassword = this.newPassword = this.confirmPassword = '';
+      this.passwordMessage.set({ ok: true, text: this.i18n.t('settings.passwordChanged') });
+    } catch (err) {
+      this.passwordMessage.set({ ok: false, text: err instanceof Error ? err.message : String(err) });
     } finally {
-      this.clearing.set(false);
-      this.confirmingClear.set(false);
+      this.changingPassword.set(false);
     }
   }
+
 
   onDefaultModelChange(value: string): void {
     this.settings.setDefaultModel(value);

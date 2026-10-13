@@ -65,6 +65,10 @@ export interface ImportDraftQuestion {
    * options) — same "reference material for Phase 2" role as
    * alternatives[].sourceComment, not the final `generalComment`. */
   sourceGeneralComment?: string | null;
+  /** True when extraction had to renumber the alternatives A, B, C… because
+   * the source gave none (bullets) or irregular ones — flagged on the review
+   * screen until the reviewer saves an edit. See import_extract/app.py. */
+  lettersRelabeled?: boolean;
   error: string | null;
   preview: string | null;
   promoted: boolean;

@@ -1,3 +1,4 @@
+import { PacksService } from '../../core/services/packs.service';
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { Router } from '@angular/router';
 import { ChatSession } from '../../core/models/chat.model';
@@ -42,6 +43,7 @@ import { ChatListComponent } from './chat-list.component';
 })
 export class ChatPageComponent {
   private readonly router = inject(Router);
+  private readonly packs = inject(PacksService);
   private readonly chatService = inject(ChatService);
   private readonly viewport = inject(ViewportService);
 
@@ -58,16 +60,16 @@ export class ChatPageComponent {
   readonly showChatConversation = computed(() => !this.isMobile() || !!this.chatId());
 
   onOpenChat(session: ChatSession): void {
-    this.router.navigate(['/chat', session.id]);
+    this.router.navigate(['/exam', this.packs.activePack().id, 'chat', session.id]);
   }
 
   onCloseChat(): void {
-    this.router.navigate(['/chat']);
+    this.router.navigate(['/exam', this.packs.activePack().id, 'chat']);
   }
 
   onChatDeleted(id: string): void {
     if (this.chatId() === id) {
-      this.router.navigate(['/chat']);
+      this.router.navigate(['/exam', this.packs.activePack().id, 'chat']);
     }
   }
 }

@@ -1,6 +1,7 @@
 import { Injectable, Signal, WritableSignal, inject, signal } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import { AuthService } from './auth.service';
+import { safeUploadFilename } from '../utils/upload-filename.util';
 
 /** A resolved image is either still pending, permanently failed (bad key,
  * 404, network error — anything that isn't going to fix itself on its own),
@@ -43,6 +44,21 @@ export class ImageAssetService {
     void this.fetchPresignedUrl(relativeKey, this.getOrCreateSignal(relativeKey));
   }
 
+  /** Downloads an image by its relative key (question or note image), for
+   * exports that bundle the files themselves. Throws when it cannot. */
+  async download(relativeKey: string): Promise<Blob> {
+    const token = await this.auth.getValidToken();
+    const presign = await fetch(`${environment.apiUrl}/data/assets/presign?key=${encodeURIComponent(relativeKey)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!presign.ok) throw new Error(`Image not found: ${relativeKey}`);
+    const { url } = (await presign.json()) as { url?: string };
+    if (!url) throw new Error(`Image not found: ${relativeKey}`);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Image download failed: ${relativeKey}`);
+    return res.blob();
+  }
+
   private getOrCreateSignal(relativeKey: string): WritableSignal<string | ImageLoadState> {
     let urlSignal = this.cache.get(relativeKey);
     if (!urlSignal) {
@@ -82,7 +98,7 @@ export class ImageAssetService {
       const createRes = await fetch(`${environment.apiUrl}/data/assets/upload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ filename: file.name }),
+        body: JSON.stringify({ filename: safeUploadFilename(file.name, file.type) }),
       });
       if (!createRes.ok) {
         const body = await createRes.json().catch(() => ({}) as { error?: string });

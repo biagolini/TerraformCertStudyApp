@@ -6,21 +6,30 @@ AI-powered study app for IT certification exams (AWS, Anthropic CCAF, and others
 
 ## Features
 
-- **Question Reviews** — paste a multiple-choice question, get a structured Markdown review (concepts, correct answer reasoning, incorrect alternatives analysis)
-- **Transcript Summaries** — paste lesson transcripts, get a layered technical summary
-- **Open Chat** — free-form tutor conversation focused on the active certification, with persisted sessions and regenerable NotebookLM-style summary
+The app is organized around the certification: **Certification → Question banks → Questions**, with everything else (mock exams, notes, transcripts, chat, performance) inside that certification's workspace.
+
+- **Home** — your certifications with question/bank/note/attempt counts, a catalog of suggested certifications filtered by ecosystem (AWS, Azure, Google Cloud, Kubernetes, Terraform, Linux, MongoDB, Anthropic, others) and ranked by your profile, an add/edit certification editor prefilled from the catalog, and a one-click starter kit with sample data
+- **Question banks** — one bank per practice exam of the certification, identified by author/vendor and version (plus source link and notes), grouped by author, with a per-domain breakdown that doubles as a filter and a unified "all questions" view
+- **Question reviews** — paste a multiple-choice question, get a structured review (concepts, correct answer reasoning, incorrect alternatives analysis), or paste a ready-made one
+- **Bulk import** — upload an exam file into a bank; AI extracts every question for human review (see below)
+- **Mock exams** — draw from selected banks and domains, instant feedback or strict final review, exam clock and per-question budget with overtime, item navigator with filters and status badges, pause and resume up to five sessions, early finish with a blank/answered summary, pass/fail verdict against the certification's pass mark, per-domain results, an AI tutor per question
+- **Performance** — attempt history with filters, score evolution chart, domain mastery and weak-domain suggestions
+- **Notes** — Markdown notes stored privately in S3: reading mode with a sticky heading index and a text theme of your choice, an editor with toolbar and images (upload, paste or drop), version history with restore (last 250 saves), export to Markdown (a .zip with an img folder when there are images) or Word, and an AI copilot that reads the note (polish, exam summary, flashcards, practice questions)
+- **Transcript summaries and tutor chat** — scoped to the certification, savable as notes
+- **Student profile** — identity, ecosystems of interest, per-certification status (want to do, studying, earned) and accommodation default
+- **Settings** — languages, theme, models, workspace tabs, quiz toolbar, password change, AI costs and budget
+- **Backups** — download your data as JSON (one file per table, all certifications or one) from the Backup page; on the AWS side, AWS Backup keeps a daily recovery point of the DynamoDB tables and the assets bucket for 15 days (configurable in Terraform)
 - **Streaming** — responses arrive token-by-token via NDJSON
-- **Pack System** — organize study by certification exam (domains, colors, version tracking)
-- **Export** — download Markdown files grouped by domain
+- **Multilingual** — English, Portuguese, Spanish and Italian
 - **Auth** — Cognito email/password login (no API keys needed)
 
 ## Adding Questions
 
-Three ways to get a question into a pack, from the "New Question" panel:
+Three ways to get a question into a bank (Question banks tab, "Add question" or "Import from .zip"):
 
 - **Generate with AI** — paste one exam question, AI produces a structured review (concepts, correct answer reasoning, incorrect alternatives analysis).
 - **Add ready-made** — paste an already-written Markdown review (e.g. copied from Claude App) and save it directly, no AI call.
-- **Import exam file** — upload a whole exam file (PDF, Markdown, HTML, or a ZIP bundling one of those with an image folder) and AI extracts every question in it automatically via Bedrock (Converse API, vision + forced tool-use). Runs as an async Step Functions job so a large file (dozens of questions) doesn't block the UI; check progress from the header pill. If your source export doesn't match any supported format, see [docs/question-markdown-format.md](docs/question-markdown-format.md) for the target Markdown shape and a copy-paste AI-assistant prompt that converts a one-off/rare format to it.
+- **Import from .zip** — upload a whole exam file (a ZIP bundling Markdown or HTML with an image folder, or a plain PDF, Markdown or HTML file) and every question in it is extracted via Bedrock (Converse API, vision + forced tool-use) into a review screen. From there, "Save as is" keeps the source explanations with no further AI call; refining them with AI is optional. Runs as an async Step Functions job so a large file (dozens of questions) doesn't block the UI; check progress from the header pill. If your source export doesn't match any supported format, see [docs/question-markdown-format.md](docs/question-markdown-format.md) for the target Markdown shape and a copy-paste AI-assistant prompt that converts a one-off/rare format to it.
 
 **Known limitation — images in imported exams:** the extraction model frequently fails to reference an image even when one exists and is clearly relevant to the question (a model instruction-following gap, not a bug — confirmed by inspecting the exact source chunk and image bytes sent to it). If a question comes in missing an image it should have, add it by hand: open the question in edit mode (or the "Add ready-made" screen), use "Attach an image" to upload it, then paste the generated `![alt](key)` snippet into the stem, an alternative, or a comment.
 
@@ -55,7 +64,8 @@ graph LR
 │   ├── src/app/
 │   │   ├── core/services/    # bedrock.service, auth.service, etc.
 │   │   └── features/         # login, question-input, review-viewer, etc.
-│   └── public/examples/      # Pack JSONs served by the app
+│   ├── public/examples/      # Certification templates + index.json (catalog)
+│   └── scripts/              # build_catalog_index.py, check-i18n-keys.mjs
 ├── docs/                     # Documentation
 │   ├── architecture.md       # System architecture + diagrams
 │   ├── backend.md            # Backend (Terraform, Lambdas, API, DynamoDB)
@@ -108,6 +118,14 @@ terraform apply
 
 The first apply typically takes several minutes, mostly waiting on CloudFront to deploy and on the ACM certificate's DNS validation. If anything fails partway through, read the error and check the Troubleshooting section in [backend/README.md](backend/README.md); the common cases (Docker not running, state lock left behind, the AgentCore log group already existing after a destroy and recreate) each have a one-line fix there. Re-running `terraform apply` after fixing the cause resumes from where it stopped.
 
+## Backups
+
+The stack ships with AWS Backup already configured (`backend/infrastructure/aws_backup.tf`): one recovery point a day of the DynamoDB tables that hold your data and of the assets bucket (note bodies and images, question images), kept for 15 days. Schedule and retention are Terraform variables (`backup_schedule`, `backup_retention_days`), and `backup_enabled = false` turns it off.
+
+Because the backup vault is part of the same Terraform project as the data it protects, it is not fully independent of it. The vault is created with `backup_vault_force_destroy = false`, so `terraform destroy` stops at a vault that still holds recovery points instead of deleting them; but once that flag is set to true (or the vault is removed by hand), the backups go away together with the application.
+
+A suggestion, if your data matters to you: also keep a backup plan that lives outside this Terraform project, for example one created in the AWS Backup console (its own vault, plan and IAM role) selecting the same tables and bucket, even with a short retention such as a couple of days. Nothing in this project depends on it, and whether to do it is up to you.
+
 ## Local Frontend Development
 
 To run the Angular SPA locally you need Node.js (which ships with `npm`). Install the LTS release from [nodejs.org](https://nodejs.org/) or via a version manager such as `nvm`. Confirm it is available with `node -v` and `npm -v`.
@@ -153,9 +171,9 @@ Models that support reasoning are marked with **(reasoning)** in the model selec
 - During the reasoning phase, the user sees a brief pause before text starts streaming (the model is "thinking" internally). This is expected behavior, not an error.
 - Reasoning tokens are **charged** even though the reasoning content appears as `[REDACTED]` in the API response.
 
-## Pack Examples
+## Certification Catalog
 
-Pre-built study packs for all current AWS certifications are in [`frontend/public/examples/`](frontend/public/examples/). Import them in the app via Pack Editor → Import file or Templates.
+Certification templates (AWS, Anthropic, HashiCorp, MongoDB, Kubernetes, Google Cloud, Azure, CompTIA, LPI) are in [`frontend/public/examples/`](frontend/public/examples/). Home reads `index.json`, which `frontend/scripts/build_catalog_index.py` builds from the templates plus the catalog metadata kept in that script (code, ecosystem, level, duration, question count, pass mark, official link). Run it after adding or editing a template.
 
 ## Tech Stack
 

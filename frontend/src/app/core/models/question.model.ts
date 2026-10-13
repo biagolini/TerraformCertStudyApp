@@ -3,6 +3,9 @@ export interface QuestionAlternative {
   text: string;
   isCorrect: boolean;
   comment: string;
+  /** Only on a mock exam's shuffled copy: the letter this alternative has in
+   * the bank (see alternative-shuffle.util.ts). Never stored on a question. */
+  sourceLetter?: string;
 }
 
 export interface QuestionMetadata {
@@ -13,6 +16,8 @@ export interface QuestionMetadata {
 export interface Question {
   id: string;
   packId: string;
+  /** The question bank (source) inside the certification — see bank.model.ts. */
+  bankId: string;
   title: string;
   domain: string;
   stem: string;
@@ -37,6 +42,18 @@ export interface Question {
    * with AI" button's default target language (see
    * translate-prompt.util.ts's resolveTranslationTarget). */
   language?: string;
+}
+
+/**
+ * The app identifies an alternative by its letter, so letters must be unique
+ * capitals in order. Questions imported with bullets ("-") or lowercase
+ * letters get relabeled A, B, C… by position; valid ones come back unchanged.
+ */
+export function withValidLetters(question: Question): Question {
+  const letters = question.alternatives.map((a) => a.letter);
+  const valid = letters.every((l) => /^[A-Z]$/.test(l)) && new Set(letters).size === letters.length;
+  if (valid) return question;
+  return { ...question, alternatives: question.alternatives.map((a, i) => ({ ...a, letter: String.fromCharCode(65 + i) })) };
 }
 
 export function correctLetters(question: Pick<Question, 'alternatives'>): string[] {

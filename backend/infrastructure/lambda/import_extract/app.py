@@ -56,10 +56,10 @@ RETRYABLE_BEDROCK_ERRORS = {
     "ModelTimeoutException",
     "ServiceUnavailableException",
 }
-# Some models have a much tighter requests-per-minute ceiling than others —
-# e.g. this account's cross-region "Nova Pro" quota is 25 req/min, vs. 200
-# req/min for "Nova Lite" — and the Map's 4-way concurrency alone is enough
-# to exceed the smaller budget. A short, fixed backoff (previously 1.5s,
+# Some models have a much tighter Bedrock requests-per-minute quota than
+# others (check the account's Bedrock quotas: a cross-region Nova Pro quota
+# can be as low as 25 req/min while Nova Lite allows far more), and the
+# Map's 4-way concurrency alone is enough to exceed the smaller budget. A short, fixed backoff (previously 1.5s,
 # 3s) isn't nearly enough runway for that; this uses a longer exponential
 # backoff with jitter (jitter spreads out the 4 concurrent workers so they
 # don't all retry in lockstep and collide again) while staying well within
@@ -114,7 +114,7 @@ VALID_IMAGE_TARGETS = {"stem", "alternativeText", "alternativeComment", "general
 #     further"/"Explain better" are tolerated as near-variants so a minor
 #     platform-copy change doesn't silently reopen the leak.
 #   Some Markdown exports prefix each question with a "Category: <domain>"
-#     line (e.g. "Category: DOP – SDLC Automation") between the repeated
+#     line (e.g. "Category: Domain 2 – Security and Compliance") between the repeated
 #     "N. Question" headings and the real stem.
 # Other Markdown exports start each stem clean (just a "#### N. Question"
 # heading then the scenario), so they need no prefix stripping here.
@@ -131,7 +131,7 @@ _CHROME_PREFIX_RE = re.compile(
 )
 
 # Some Markdown exports prefix each question with "Category: <domain>" (e.g.
-# "Category: DOP – SDLC Automation") between the repeated "N. Question"
+# "Category: Domain 2 – Security and Compliance") between the repeated "N. Question"
 # headings and the real stem. Unlike the fixed chrome words above, the
 # domain text is free-form and multi-word, so a regex can't reliably tell
 # where the domain name ends and the scenario begins in the model's
@@ -243,6 +243,7 @@ def handler(event, context):
             "alternatives": extracted["alternatives"],
             "sourceGeneralComment": extracted["sourceGeneralComment"],
             "images": extracted["images"],
+            "lettersRelabeled": extracted["lettersRelabeled"],
             "error": validation_error,
             "preview": preview,
         })
@@ -264,6 +265,7 @@ def handler(event, context):
             "alternatives": [],
             "sourceGeneralComment": None,
             "images": [],
+            "lettersRelabeled": False,
             "error": str(e),
             "preview": preview,
         })
@@ -432,6 +434,31 @@ def _pack_domain_names(pack):
     return names
 
 
+def _normalize_letters(alternatives):
+    """Relabels alternatives A, B, C... by position, in place. Returns the
+    map from each original letter to its new one (case-insensitive), used to
+    re-anchor image classifications; a letter the source repeated (e.g. "-"
+    on every bullet) is ambiguous and maps to nothing, so its images end up
+    "unplaced" for the reviewer instead of on the wrong alternative. Also
+    returns whether any letter changed, which the review screen flags so a
+    reviewer double-checks a question whose source had no proper letters."""
+    originals = [str(a.get("letter") or "").strip() for a in alternatives]
+    counts = {}
+    for letter in originals:
+        counts[letter.upper()] = counts.get(letter.upper(), 0) + 1
+    letter_map = {}
+    relabeled = False
+    for i, (alt, original) in enumerate(zip(alternatives, originals)):
+        new = chr(ord("A") + i)
+        alt["letter"] = new
+        relabeled = relabeled or original != new
+        if original and counts[original.upper()] == 1:
+            letter_map[original] = new
+            letter_map[original.upper()] = new
+            letter_map[original.lower()] = new
+    return letter_map, relabeled
+
+
 def _resolve_domain(raw_domain, domain_names):
     """Bedrock tool-use `enum` constraints are a hint, not a hard guarantee
     — Nova Lite in particular still sometimes invents a domain outside the
@@ -564,6 +591,10 @@ def _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id, hi
         print(f"[validation-failure] question_id={question_id} reason={validation_error} raw={json.dumps(question_input)[:2000]}")
 
     kind = chunk["kind"]
+    # The app identifies an alternative by its letter, so letters must be
+    # A, B, C... in order. Sources (and the model copying them) sometimes
+    # give bullets ("-") or lowercase letters instead; relabel by position.
+    letter_map, letters_relabeled = _normalize_letters(alternatives)
     valid_letters = {a["letter"] for a in alternatives}
     # Text fields are plain prose per the prompt — but the model isn't
     # strictly bound to that instruction (same looseness as `enum` fields),
@@ -594,7 +625,7 @@ def _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id, hi
         target = classification.get("target")
         if target not in VALID_IMAGE_TARGETS:
             target = "unplaced"
-        alt_letter = classification.get("alternativeLetter")
+        alt_letter = letter_map.get(classification.get("alternativeLetter"))
         if target in ("alternativeText", "alternativeComment") and alt_letter not in valid_letters:
             # Can't anchor to a nonexistent alternative — surface it instead
             # of silently dropping it.
@@ -631,6 +662,7 @@ def _extract_question(chunk, pk, sub, job_id, question_id, pack_id, model_id, hi
         ],
         "sourceGeneralComment": source_general_comment,
         "images": images,
+        "lettersRelabeled": letters_relabeled,
         "validationError": validation_error,
         "usage": usage,
         "modelId": model_id,

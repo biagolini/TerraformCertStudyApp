@@ -49,7 +49,7 @@ function toCommaList(value: string): string[] {
       @if (current(); as question) {
         <header class="viewer-header">
           @if (showBackButton()) {
-            <button type="button" class="back-btn" (click)="back.emit()" [attr.aria-label]="i18n.t('reviewViewer.backToList')">
+            <button type="button" class="ui-btn ui-btn-ghost" (click)="back.emit()" [attr.aria-label]="i18n.t('reviewViewer.backToList')">
               <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                 <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M15 6l-6 6 6 6"/>
               </svg>
@@ -63,7 +63,7 @@ function toCommaList(value: string): string[] {
           <div class="header-actions">
             <button
               type="button"
-              class="icon-btn star-btn"
+              class="ui-btn ui-btn-ghost ui-btn-icon star-btn"
               (click)="onToggleStar(question)"
               [class.active]="question.starred"
               [attr.aria-label]="question.starred ? i18n.t('questionItem.unstar') : i18n.t('questionItem.star')"
@@ -75,7 +75,7 @@ function toCommaList(value: string): string[] {
             </button>
             <button
               type="button"
-              class="icon-btn"
+              class="ui-btn ui-btn-ghost ui-btn-icon"
               (click)="onToggleTranslate(question)"
               [class.active]="showTranslated()"
               [attr.aria-label]="showTranslated() ? i18n.t('reviewViewer.showOriginal') : i18n.t('reviewViewer.translate')"
@@ -93,7 +93,7 @@ function toCommaList(value: string): string[] {
             </button>
             <button
               type="button"
-              class="icon-btn"
+              class="ui-btn ui-btn-ghost ui-btn-icon"
               (click)="onToggleEdit(question)"
               [class.active]="editing()"
               [attr.aria-label]="editing() ? i18n.t('reviewViewer.exitEditMode') : i18n.t('reviewViewer.editManually')"
@@ -106,7 +106,7 @@ function toCommaList(value: string): string[] {
             </button>
             <button
               type="button"
-              class="icon-btn delete-btn"
+              class="ui-btn ui-btn-ghost ui-btn-icon delete-btn"
               (click)="onDelete(question)"
               [attr.aria-label]="i18n.t('reviewViewer.deleteThisQuestion')"
               [disabled]="refining() || deleting()"
@@ -127,61 +127,61 @@ function toCommaList(value: string): string[] {
             <div class="edit-mode">
               <p class="edit-hint">{{ i18n.t('reviewViewer.editHint') }}</p>
 
-              <label class="edit-label">
+              <label class="ui-field">
                 <span>{{ i18n.t('packEditor.name') }}</span>
-                <input type="text" class="edit-input" [(ngModel)]="editTitleDraft" [attr.aria-label]="i18n.t('reviewViewer.editTitle')" />
+                <input type="text" class="ui-input" [(ngModel)]="editTitleDraft" [attr.aria-label]="i18n.t('reviewViewer.editTitle')" />
               </label>
 
-              <label class="edit-label">
+              <label class="ui-field">
                 <span>{{ i18n.t('questionInput.domain') }}</span>
-                <select class="edit-input" [(ngModel)]="editDomainDraft" [attr.aria-label]="i18n.t('reviewViewer.editDomain')">
+                <select class="ui-input" [(ngModel)]="editDomainDraft" [attr.aria-label]="i18n.t('reviewViewer.editDomain')">
                   @for (d of domainOptions(); track d) {
                     <option [value]="d">{{ d }}</option>
                   }
                 </select>
               </label>
 
-              <label class="edit-label">
+              <label class="ui-field">
                 <span>{{ i18n.t('reviewViewer.question') }}</span>
-                <textarea class="edit-textarea" rows="4" [(ngModel)]="editStemDraft" [attr.aria-label]="i18n.t('reviewViewer.editStem')"></textarea>
+                <textarea class="ui-input" rows="4" [(ngModel)]="editStemDraft" [attr.aria-label]="i18n.t('reviewViewer.editStem')"></textarea>
               </label>
 
               <div class="alt-edit-list">
-                <span class="field-label">{{ i18n.t('reviewViewer.alternatives') }}</span>
+                <span class="ui-label">{{ i18n.t('reviewViewer.alternatives') }}</span>
                 @for (alt of editAlternatives; track $index; let i = $index) {
                   <div class="alt-edit-row">
                     <span class="alt-letter">{{ alt.letter }}</span>
                     <div class="alt-edit-fields">
-                      <textarea class="edit-textarea" rows="2" [(ngModel)]="alt.text" [placeholder]="i18n.t('reviewViewer.alternativeText')"></textarea>
+                      <textarea class="ui-input" rows="2" [(ngModel)]="alt.text" [placeholder]="i18n.t('reviewViewer.alternativeText')"></textarea>
                       <label class="correct-toggle">
                         <input type="checkbox" [(ngModel)]="alt.isCorrect" />
                         <span>{{ i18n.t('reviewViewer.correct') }}</span>
                       </label>
-                      <textarea class="edit-textarea" rows="2" [(ngModel)]="alt.comment" [placeholder]="i18n.t('reviewViewer.commentPlaceholder')"></textarea>
+                      <textarea class="ui-input" rows="2" [(ngModel)]="alt.comment" [placeholder]="i18n.t('reviewViewer.commentPlaceholder')"></textarea>
                     </div>
-                    <button type="button" class="icon-btn-sm" (click)="onRemoveAlternative(i)" [attr.aria-label]="i18n.t('reviewViewer.removeAlternative')" [disabled]="editAlternatives.length <= 2">
+                    <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon tight" (click)="onRemoveAlternative(i)" [attr.aria-label]="i18n.t('reviewViewer.removeAlternative')" [disabled]="editAlternatives.length <= 2">
                       <svg viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M5 5l14 14M19 5L5 19"/></svg>
                     </button>
                   </div>
                 }
-                <button type="button" class="add-alt-btn" (click)="onAddAlternative()">
+                <button type="button" class="ui-btn ui-btn-sm ui-btn-soft self-start" (click)="onAddAlternative()">
                   <svg viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
                   <span>{{ i18n.t('reviewViewer.addAlternative') }}</span>
                 </button>
               </div>
 
-              <label class="edit-label">
+              <label class="ui-field">
                 <span>{{ i18n.t('reviewViewer.generalCommentOptional') }}</span>
-                <textarea class="edit-textarea" rows="3" [(ngModel)]="editGeneralCommentDraft" [placeholder]="i18n.t('reviewViewer.generalCommentPlaceholder')" [attr.aria-label]="i18n.t('reviewViewer.editGeneralComment')"></textarea>
+                <textarea class="ui-input" rows="3" [(ngModel)]="editGeneralCommentDraft" [placeholder]="i18n.t('reviewViewer.generalCommentPlaceholder')" [attr.aria-label]="i18n.t('reviewViewer.editGeneralComment')"></textarea>
               </label>
 
-              <label class="edit-label">
+              <label class="ui-field">
                 <span>{{ i18n.t('reviewViewer.topicsCommaSeparated') }}</span>
-                <input type="text" class="edit-input" [(ngModel)]="editTopicsDraft" [attr.aria-label]="i18n.t('reviewViewer.editTopics')" />
+                <input type="text" class="ui-input" [(ngModel)]="editTopicsDraft" [attr.aria-label]="i18n.t('reviewViewer.editTopics')" />
               </label>
-              <label class="edit-label">
+              <label class="ui-field">
                 <span>{{ i18n.t('reviewViewer.relatedServicesCommaSeparated') }}</span>
-                <input type="text" class="edit-input" [(ngModel)]="editRelatedServicesDraft" [attr.aria-label]="i18n.t('reviewViewer.editRelatedServices')" />
+                <input type="text" class="ui-input" [(ngModel)]="editRelatedServicesDraft" [attr.aria-label]="i18n.t('reviewViewer.editRelatedServices')" />
               </label>
 
               <app-image-upload-helper />
@@ -191,8 +191,8 @@ function toCommaList(value: string): string[] {
               }
 
               <div class="edit-actions">
-                <button type="button" class="btn btn-ghost" (click)="onCancelEdit()" [disabled]="saving()">{{ i18n.t('common.cancel') }}</button>
-                <button type="button" class="btn btn-primary" (click)="onSaveEdit(question)" [disabled]="saving()">
+                <button type="button" class="ui-btn" (click)="onCancelEdit()" [disabled]="saving()">{{ i18n.t('common.cancel') }}</button>
+                <button type="button" class="ui-btn ui-btn-primary" (click)="onSaveEdit(question)" [disabled]="saving()">
                   @if (saving()) { <mat-spinner diameter="18"></mat-spinner> } @else { {{ i18n.t('common.save') }} }
                 </button>
               </div>
@@ -208,7 +208,7 @@ function toCommaList(value: string): string[] {
 
             <div class="stem"><app-markdown-renderer [source]="displayStem(question)" /></div>
 
-            <button type="button" class="reveal-btn" (click)="onToggleReveal()">
+            <button type="button" class="ui-btn ui-btn-sm ui-btn-soft self-start" (click)="onToggleReveal()">
               @if (revealed()) {
                 <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.9 5.1A10.9 10.9 0 0112 5c7 0 11 7 11 7a13.2 13.2 0 01-3.1 3.6M6.2 6.2A13.3 13.3 0 001 12s4 7 11 7a10.6 10.6 0 004.7-1.1"/></svg>
                 <span>{{ i18n.t('reviewViewer.hideAnswerAndComments') }}</span>
@@ -276,7 +276,7 @@ function toCommaList(value: string): string[] {
                 <p class="refine-hint">{{ i18n.t('reviewViewer.refineHint') }}</p>
               </header>
               <textarea
-                class="refine-textarea"
+                class="ui-input"
                 [(ngModel)]="refineDraft"
                 rows="4"
                 [placeholder]="i18n.t('reviewViewer.refinePlaceholder')"
@@ -287,7 +287,7 @@ function toCommaList(value: string): string[] {
                 <label class="model-row">
                   <span class="model-label">{{ i18n.t('questionInput.model') }}</span>
                   <select
-                    class="model-select"
+                    class="ui-input grow"
                     [ngModel]="selectedRefineModel()"
                     (ngModelChange)="onSelectRefineModel($event)"
                     [disabled]="refining()"
@@ -302,7 +302,7 @@ function toCommaList(value: string): string[] {
               <div class="refine-actions">
                 <button
                   type="button"
-                  class="btn btn-primary"
+                  class="ui-btn ui-btn-primary"
                   (click)="onRefine(question)"
                   [disabled]="!refineDraft.trim() || refining()"
                 >
@@ -319,7 +319,7 @@ function toCommaList(value: string): string[] {
             </section>
 
             <div class="new-question-row">
-              <button type="button" class="new-question-btn" (click)="newQuestion.emit()">
+              <button type="button" class="ui-btn ui-btn-sm" (click)="newQuestion.emit()">
                 <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
                   <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/>
                 </svg>
@@ -341,15 +341,9 @@ function toCommaList(value: string): string[] {
       :host { display: block; height: 100%; }
       .viewer { display: flex; flex-direction: column; height: 100%; background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden; }
       .viewer-header { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--bg-border); background: var(--bg-surface); }
-      .back-btn { display: inline-flex; align-items: center; gap: var(--space-xs); min-height: var(--touch-min); padding: 0 var(--space-sm); border-radius: var(--radius-md); color: var(--text-secondary); font-size: var(--font-size-sm); }
-      .back-btn:hover { background: var(--bg-subtle); color: var(--text-primary); }
       .title-block { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-xs); }
       .title-block h2 { font-size: var(--font-size-lg); color: var(--text-primary); line-height: 1.3; overflow-wrap: anywhere; }
       .header-actions { display: inline-flex; align-items: center; gap: var(--space-xs); }
-      .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: var(--touch-min); height: var(--touch-min); border-radius: var(--radius-md); color: var(--text-muted); transition: color var(--transition-fast), background var(--transition-fast); }
-      .icon-btn:hover:not(:disabled) { background: var(--bg-subtle); color: var(--text-primary); }
-      .icon-btn.active { background: var(--bg-elevated); color: var(--color-purple); }
-      .icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
       .delete-btn:hover:not(:disabled) { color: var(--color-red); }
       .star-btn.active { color: var(--color-amber); }
       .star-btn:hover:not(:disabled) { color: var(--color-amber); }
@@ -376,11 +370,6 @@ function toCommaList(value: string): string[] {
 
       .edit-mode { display: flex; flex-direction: column; gap: var(--space-md); flex: 1; }
       .edit-hint { color: var(--text-muted); font-size: var(--font-size-sm); }
-      .field-label { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-secondary); }
-      .edit-label { display: flex; flex-direction: column; gap: 4px; font-size: var(--font-size-sm); color: var(--text-secondary); }
-      .edit-input, .edit-textarea { padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary); font-size: var(--font-size-base); font-family: var(--font-family); }
-      .edit-input:focus-visible, .edit-textarea:focus-visible { outline: none; border-color: var(--color-purple); }
-      .edit-textarea { resize: vertical; line-height: 1.5; }
       .edit-error { color: var(--color-red); font-size: var(--font-size-sm); }
       .edit-actions { display: flex; justify-content: flex-end; gap: var(--space-sm); }
 
@@ -390,44 +379,26 @@ function toCommaList(value: string): string[] {
       .alt-edit-fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-xs); }
       .correct-toggle { display: inline-flex; align-items: center; gap: var(--space-xs); font-size: var(--font-size-sm); color: var(--text-secondary); align-self: flex-start; }
       .correct-toggle input { accent-color: var(--color-green); }
-      .icon-btn-sm { width: 28px; height: 28px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); color: var(--text-muted); }
-      .icon-btn-sm:hover:not(:disabled) { background: var(--bg-subtle); color: var(--color-red); }
-      .icon-btn-sm:disabled { opacity: 0.4; cursor: not-allowed; }
-      .add-alt-btn { display: inline-flex; align-items: center; gap: var(--space-xs); align-self: flex-start; padding: var(--space-xs) var(--space-md); background: none; border: 1px dashed var(--bg-border); border-radius: var(--radius-pill); color: var(--text-muted); font-size: var(--font-size-sm); }
-      .add-alt-btn:hover { border-color: var(--color-purple); color: var(--color-purple); }
 
       .refine-panel { display: flex; flex-direction: column; gap: var(--space-sm); padding: var(--space-md); border-radius: var(--radius-md); background: var(--bg-elevated); border: 1px solid var(--bg-border); }
       .refine-header h3 { font-size: var(--font-size-base); color: var(--text-primary); margin-bottom: var(--space-xs); }
       .refine-hint { color: var(--text-muted); font-size: var(--font-size-sm); }
-      .refine-textarea { width: 100%; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary); font-family: var(--font-family); font-size: var(--font-size-base); line-height: 1.5; resize: vertical; }
-      .refine-textarea:focus-visible { outline: none; border-color: var(--color-purple); }
-      .refine-textarea:disabled { opacity: 0.6; }
       .refine-actions { display: flex; justify-content: flex-end; }
       .options-row { display: flex; flex-direction: column; gap: var(--space-xs); }
       .model-row { display: flex; align-items: center; gap: var(--space-sm); min-width: 0; }
       .model-label { font-size: var(--font-size-sm); color: var(--text-muted); }
-      .model-select { flex: 1; min-width: 0; max-width: 100%; min-height: 36px; padding: 0 var(--space-sm); border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-primary); font-size: var(--font-size-sm); }
-      .model-select:focus-visible { outline: none; border-color: var(--color-purple); }
-      .model-select:disabled { opacity: 0.55; cursor: not-allowed; }
       .refine-error { color: var(--color-red); font-size: var(--font-size-sm); }
-
-      .btn { min-height: var(--touch-min); padding: 0 var(--space-md); border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-base); display: inline-flex; align-items: center; gap: var(--space-sm); }
-      .btn-primary { background: var(--color-purple); color: #ffffff; }
-      .btn-primary:hover:not(:disabled) { background: var(--color-blue); }
-      .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--bg-border); }
-      .btn-ghost:hover:not(:disabled) { background: var(--bg-subtle); }
-      .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
       .viewer-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-xs); padding: var(--space-xl); color: var(--text-muted); text-align: center; }
       .empty-title { font-size: var(--font-size-lg); color: var(--text-secondary); }
       .empty-body { font-size: var(--font-size-sm); }
 
       .new-question-row { display: flex; justify-content: center; padding: var(--space-md) 0 var(--space-lg); }
-      .new-question-btn { display: inline-flex; align-items: center; gap: var(--space-xs); padding: var(--space-xs) var(--space-md); background: none; border: 1px solid var(--bg-border); border-radius: var(--radius-pill); color: var(--text-muted); font-size: var(--font-size-sm); }
-      .new-question-btn:hover { border-color: var(--color-purple); color: var(--text-primary); }
-
-      .reveal-btn { display: inline-flex; align-items: center; gap: var(--space-xs); align-self: flex-start; padding: var(--space-xs) var(--space-md); background: var(--bg-elevated); border: 1px solid var(--bg-border); border-radius: var(--radius-pill); color: var(--text-secondary); font-size: var(--font-size-sm); font-weight: 600; }
-      .reveal-btn:hover { border-color: var(--color-purple); color: var(--color-purple); }
+      .grow { flex: 1; min-width: 0; }
+      .tight { width: 28px; min-height: 28px; }
+      .tight:hover:not(:disabled) { color: var(--color-red); }
+      .self-start { align-self: flex-start; }
+      .ui-btn-icon.active { color: var(--color-purple); background: var(--bg-elevated); }
     `,
   ],
 })

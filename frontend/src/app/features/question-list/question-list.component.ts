@@ -11,7 +11,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
   imports: [QuestionItemComponent, FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="list-card">
+    <section class="ui-card list-card">
       <header class="card-header">
         <div class="title-row">
           <h2>{{ i18n.t('questionList.title') }}</h2>
@@ -19,9 +19,9 @@ import { I18nService } from '../../core/i18n/i18n.service';
         </div>
         @if (count() > 0) {
           <div class="actions">
-            <button type="button" class="link" (click)="onSelectAll()">{{ i18n.t('questionList.selectAll') }}</button>
+            <button type="button" class="ui-link" (click)="onSelectAll()">{{ i18n.t('questionList.selectAll') }}</button>
             <span class="dot" aria-hidden="true">·</span>
-            <button type="button" class="link" (click)="onDeselectAll()">{{ i18n.t('questionList.deselectAll') }}</button>
+            <button type="button" class="ui-link" (click)="onDeselectAll()">{{ i18n.t('questionList.deselectAll') }}</button>
           </div>
         }
       </header>
@@ -58,7 +58,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
       }
 
       @if (count() === 0 && !questionsService.isSearching()) {
-        <div class="empty">
+        <div class="ui-empty">
           <p class="empty-title">{{ i18n.t('questionList.noQuestionsYet') }}</p>
           <p class="empty-body">{{ i18n.t('questionList.noQuestionsHint') }}</p>
         </div>
@@ -93,9 +93,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
         flex-direction: column;
         gap: var(--space-md);
         padding: var(--space-lg);
-        background: var(--bg-surface);
-        border-radius: var(--radius-lg);
-        box-shadow: var(--shadow-sm);
       }
       .card-header {
         display: flex;
@@ -129,26 +126,8 @@ import { I18nService } from '../../core/i18n/i18n.service';
         gap: var(--space-sm);
         font-size: var(--font-size-sm);
       }
-      .link {
-        color: var(--color-blue);
-        background: none;
-        padding: 0;
-        min-height: auto;
-        font-weight: 500;
-      }
-      .link:hover {
-        text-decoration: underline;
-      }
       .dot {
         color: var(--text-faint);
-      }
-      .empty {
-        padding: var(--space-xl);
-        text-align: center;
-        color: var(--text-muted);
-        background: var(--bg-elevated);
-        border-radius: var(--radius-md);
-        border: 1px dashed var(--bg-border);
       }
       .empty-title {
         font-size: var(--font-size-base);
@@ -232,7 +211,7 @@ export class QuestionListComponent {
   readonly questionsService = inject(QuestionsService);
   protected readonly i18n = inject(I18nService);
 
-  readonly questions = this.questionsService.questions;
+  readonly questions = this.questionsService.visible;
   readonly count = this.questionsService.count;
   readonly selectedIds = this.questionsService.selectedIds;
 
@@ -240,7 +219,7 @@ export class QuestionListComponent {
     if (this.questionsService.isSearching()) {
       return this.questionsService.searchResults().map((r) => r.question);
     }
-    return this.questionsService.questions();
+    return this.questionsService.visible();
   });
 
   readonly activeId = input<string | null>(null);

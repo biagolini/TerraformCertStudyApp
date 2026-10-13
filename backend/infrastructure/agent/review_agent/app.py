@@ -28,6 +28,8 @@ Two callers, one agent:
 import json
 import logging
 import os
+import re
+import traceback
 import uuid
 
 import boto3
@@ -57,6 +59,12 @@ GATEWAY_URL = os.environ.get("GATEWAY_URL", "")
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "us.amazon.nova-2-lite-v1:0")
 SKILLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "skills")
 
+# Callers (import_explain) may pick the model per call (the user's "AI review
+# model" setting); BEDROCK_MODEL_ID stays the default. Validated by shape
+# only: the Runtime's IAM role is the real boundary on which models work.
+MODEL_ID_RE = re.compile(r"^[A-Za-z0-9.:_-]{3,128}$")
+CALL_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+
 # Model ids known to support the Converse reasoning capability
 # (additionalModelRequestFields.reasoningConfig) — kept in sync with the
 # same pattern in lambda/converse/app.py's REASONING_MODEL_PATTERNS.
@@ -83,7 +91,7 @@ def _normalize_usage(raw_usage) -> dict:
     return {"inputTokens": input_tokens, "outputTokens": output_tokens, "totalTokens": total_tokens}
 
 
-def _build_model():
+def _build_model(model_id: str = BEDROCK_MODEL_ID):
     # Explicit max_tokens, generous: reasoning content (when enabled) and
     # tool-use round-trips (Gateway doc lookups) both count against the same
     # per-call budget as the final answer text — observed directly: with
@@ -92,8 +100,8 @@ def _build_model():
     # the post-tool-result synthesis produced any text). Nova 2 models
     # support up to 65536 output tokens; 24576 leaves real headroom for
     # reasoning + one or two tool round-trips + the full review.
-    config = {"model_id": BEDROCK_MODEL_ID, "region_name": AWS_REGION, "max_tokens": 24576}
-    if _supports_reasoning(BEDROCK_MODEL_ID):
+    config = {"model_id": model_id, "region_name": AWS_REGION, "max_tokens": 24576}
+    if _supports_reasoning(model_id):
         # "medium" effort: this task now explicitly requires working out a
         # concrete "what would make this option correct" condition per
         # incorrect alternative, not just a one-line label — worth the
@@ -203,7 +211,7 @@ CERT_QUESTION_REVIEW_SKILL = _load_skill_body("cert-question-review")
 AWS_DOC_GROUNDING_SKILL = _load_skill_body("aws-doc-grounding")
 
 
-def _build_agent():
+def _build_agent(model_id: str = BEDROCK_MODEL_ID):
     """Returns (agent, mcp_client). mcp_client is None if the Gateway
     wasn't reachable — the caller (`invoke()`) is responsible for calling
     `mcp_client.stop(None, None, None)` once done with the agent (see
@@ -232,7 +240,7 @@ def _build_agent():
         else ""
     )
     agent = Agent(
-        model=_build_model(),
+        model=_build_model(model_id),
         tools=mcp_tools,
         plugins=[AgentSkills(skills=SKILLS_DIR)],
         callback_handler=None,
@@ -537,72 +545,239 @@ def _extract_related_services(stem: str, alternatives: list) -> dict:
         return {"services": [], "usage": {}, "modelId": RELATED_SERVICES_MODEL_ID}
 
 
-async def _explain_structured(agent, prompt: str, call_id: str, wants_related_services: bool, payload: dict) -> dict:
-    """Schema-validated structured output (Strands' structured_output_model
-    — forced tool-use under the hood, the same mechanism Nova models use for
-    "constrained decoding") instead of free-form Markdown for this path
-    specifically. Free text here was observed both skipping required
-    sections and, once, returning entirely empty after a tool-use
-    round-trip — a required Pydantic field can't be silently omitted the way
-    a Markdown heading can.
+class StructuredOutputError(Exception):
+    """The model never produced a ReviewExplanation that passes validation."""
 
-    Retries once, with an explicit nudge appended to the same conversation,
-    if `result.structured_output` comes back None despite the call itself
-    not raising — Strands' own forced-retry can still land on an
-    `end_turn` the model produced without ever calling the tool at all
-    (distinct from the concurrent-MCP-client corruption `_make_mcp_tools`
-    now avoids — that surfaced as this same symptom, but a single flaky
-    generation can too, independent of concurrency). Only one retry: this
-    already runs inside the per-question Step Functions Map's own retry
-    envelope, so a second local failure should surface, not loop silently.
+    error_code = "MALFORMED_OUTPUT"
+
+
+class ModelThrottledError(Exception):
+    """Bedrock throttled the call (quota). Retrying later is the fix."""
+
+    error_code = "THROTTLED"
+
+
+def _log(level, event: str, call_id: str, **fields):
+    """Every agent log line is one JSON object carrying `callId`, so the
+    app's log viewer (data Lambda, GET .../drafts/{i}/logs) can pull exactly
+    one call's lines out of this Runtime's log group."""
+    logger.log(level, json.dumps({"event": event, "callId": call_id, **fields}, default=str))
+
+
+def _is_throttle(exc: BaseException) -> bool:
+    text = f"{type(exc).__name__} {exc}"
+    return "Throttl" in text or "TooManyRequests" in text or "ServiceQuotaExceeded" in text
+
+
+def _inline_refs(schema: dict) -> dict:
+    """Pydantic emits nested models as $defs/$ref; the Converse tool schema is
+    plain JSON Schema, and models follow a fully inlined schema more reliably."""
+    defs = schema.get("$defs", {})
+
+    def walk(node):
+        if isinstance(node, dict):
+            if "$ref" in node:
+                return walk(defs[node["$ref"].split("/")[-1]])
+            return {k: walk(v) for k, v in node.items() if k != "$defs"}
+        if isinstance(node, list):
+            return [walk(v) for v in node]
+        return node
+
+    return walk(schema)
+
+
+REVIEW_TOOL_NAME = "ReviewExplanation"
+REVIEW_TOOL_SPEC = {
+    "toolSpec": {
+        "name": REVIEW_TOOL_NAME,
+        "description": "Record the structured explanation for the exam question.",
+        "inputSchema": {"json": _inline_refs(ReviewExplanation.model_json_schema())},
+    }
+}
+
+
+def _raw_output(result) -> str:
+    """Best-effort text of what the model actually returned (text blocks
+    and/or tool-call arguments), for the corrective retry and the logs."""
+    message = getattr(result, "message", None) or {}
+    parts = []
+    for block in message.get("content", []) if isinstance(message, dict) else []:
+        if "text" in block:
+            parts.append(block["text"])
+        elif "toolUse" in block:
+            parts.append(json.dumps(block["toolUse"].get("input"), default=str))
+    return "\n".join(parts)
+
+
+def _problems(explanation: "ReviewExplanation", payload: dict) -> list[str]:
+    """Deterministic checks the schema can't express: every input letter is
+    explained exactly once, on the side the answer key puts it."""
+    alternatives = payload.get("alternatives") or []
+    correct = {str(a.get("letter", "")).upper() for a in alternatives if a.get("isCorrect")}
+    incorrect = {str(a.get("letter", "")).upper() for a in alternatives if not a.get("isCorrect")}
+    got_correct = [c.letter.upper() for c in explanation.correct_answers]
+    got_incorrect = [i.letter.upper() for i in explanation.incorrect_answers]
+    problems = []
+    for letter in sorted(correct - set(got_correct)):
+        problems.append(f"correct_answers is missing an entry for option {letter} (marked [CORRECT]).")
+    for letter in sorted(incorrect - set(got_incorrect)):
+        problems.append(f"incorrect_answers is missing an entry for option {letter}.")
+    for letter in sorted(set(got_correct) - correct):
+        problems.append(f"option {letter} appears in correct_answers but is not marked [CORRECT].")
+    for letter in sorted(set(got_incorrect) - incorrect):
+        problems.append(f"option {letter} appears in incorrect_answers but is marked [CORRECT] or does not exist.")
+    for side, letters in (("correct_answers", got_correct), ("incorrect_answers", got_incorrect)):
+        for letter in sorted({x for x in letters if letters.count(x) > 1}):
+            problems.append(f"option {letter} appears more than once in {side}.")
+    if not explanation.topics:
+        problems.append("topics is empty; list 3-6 core concepts.")
+    return problems
+
+
+def _validation_problems(err) -> list[str]:
+    from pydantic import ValidationError
+
+    if isinstance(err, ValidationError):
+        return [
+            f"field `{'.'.join(str(x) for x in e['loc']) or '(root)'}`: {e['msg']}"
+            for e in err.errors()
+        ]
+    return [str(err)]
+
+
+def _forced_tool_call(system_prompt: str, prompt: str, feedback: str, model_id: str, call_id: str):
+    """Corrective attempt following the Amazon Nova guidance for structured
+    output ("Specify a tool to use"): the schema is the only tool, toolChoice
+    forces it, and decoding is greedy (temperature 0). No reasoning here: the
+    agent's first attempt already did the research; this call only has to
+    fill the schema correctly, using the feedback on what was wrong."""
+    bedrock = boto3.client("bedrock-runtime", region_name=AWS_REGION)
+    response = bedrock.converse(
+        modelId=model_id,
+        system=[{"text": system_prompt}],
+        messages=[{"role": "user", "content": [{"text": f"{prompt}\n\n{feedback}\n\nUse the {REVIEW_TOOL_NAME} tool."}]}],
+        toolConfig={"tools": [REVIEW_TOOL_SPEC], "toolChoice": {"tool": {"name": REVIEW_TOOL_NAME}}},
+        inferenceConfig={"maxTokens": 8192, "temperature": 0},
+    )
+    usage = _normalize_usage(response.get("usage"))
+    content = response.get("output", {}).get("message", {}).get("content", [])
+    tool_input = next((b["toolUse"].get("input") for b in content if "toolUse" in b), None)
+    raw = json.dumps(tool_input, default=str) if tool_input is not None else "\n".join(b.get("text", "") for b in content)
+    _log(logging.INFO, "forced_tool_response", call_id, stopReason=response.get("stopReason"), usage=usage, rawPreview=raw[:4000])
+    return tool_input, raw, usage
+
+
+def _feedback_block(problems: list[str], raw: str) -> str:
+    listed = "\n".join(f"- {p}" for p in problems) or "- no structured output was produced"
+    previous = raw.strip()[:6000] or "(empty)"
+    return (
+        "YOUR PREVIOUS ATTEMPT WAS REJECTED. Fix exactly these problems and keep everything "
+        f"that was correct:\n{listed}\n\nPREVIOUS OUTPUT (for reference, do not copy its mistakes):\n{previous}"
+    )
+
+
+def _add_usage(total: dict, more: dict) -> dict:
+    keys = set(total) | set(more or {})
+    return {k: (total.get(k) or 0) + ((more or {}).get(k) or 0) for k in keys}
+
+
+MAX_CORRECTIVE_ATTEMPTS = 2
+
+
+async def _explain_structured(agent, prompt: str, call_id: str, wants_related_services: bool, payload: dict, model_id: str) -> dict:
+    """Schema-validated structured output (Strands' structured_output_model,
+    forced tool-use under the hood) instead of free-form Markdown: a required
+    Pydantic field can't be silently omitted the way a Markdown heading can.
+
+    Nova 2 Lite sometimes ends a turn with stopReason `malformed_model_output`
+    (the tool-call arguments were not valid JSON for the schema), or fills
+    the schema but skips an alternative. Instead of re-asking blindly, the
+    corrective attempts send the previous output back together with the
+    exact list of problems (Pydantic validation errors plus the letter
+    checks in `_problems`), through a forced-tool Converse call. Never trust
+    the model: `_problems` re-checks the final answer even when the schema
+    accepted it.
     """
-    for attempt in range(2):
-        result = await agent.invoke_async(prompt, structured_output_model=ReviewExplanation)
-        explanation: ReviewExplanation | None = result.structured_output
-        if explanation is not None:
-            response = {
-                "topics": explanation.topics,
-                "generalComment": explanation.general_comment,
-                "comments": {
-                    item.letter.upper(): _render_answer_bullets(item)
-                    for item in [*explanation.correct_answers, *explanation.incorrect_answers]
-                },
-                "usage": _normalize_usage(result.metrics.accumulated_usage),
-                "modelId": BEDROCK_MODEL_ID,
-            }
-            if wants_related_services:
-                related = _extract_related_services(
-                    payload.get("stem", ""), payload.get("alternatives") or []
-                )
-                response["relatedServices"] = related["services"]
-                response["relatedServicesUsage"] = related["usage"]
-                response["relatedServicesModelId"] = related["modelId"]
-            logger.info(json.dumps({
-                "event": "review_call_end", "callId": call_id, "ok": True,
-                "stopReason": result.stop_reason, "attempt": attempt,
-                "structuredOutput": explanation.model_dump(),
-                "relatedServices": response.get("relatedServices"),
-            }))
-            return response
+    usage: dict = {}
+    raw = ""
+    problems: list[str] = []
+    explanation: ReviewExplanation | None = None
+    stop_reason = None
 
-        logger.warning(json.dumps({
-            "event": "structured_output_empty", "callId": call_id,
-            "attempt": attempt, "stopReason": result.stop_reason,
-        }))
-        prompt = (
-            "Your previous response did not produce a valid ReviewExplanation "
-            "structured output — no tool call was captured. You MUST call the "
-            "structured output tool now, with complete, valid arguments for "
-            "every required field (topics, correct_answers, incorrect_answers), "
-            "covering the SAME question as above. Do not respond in plain text."
+    try:
+        result = await agent.invoke_async(prompt, structured_output_model=ReviewExplanation)
+        usage = _add_usage(usage, _normalize_usage(result.metrics.accumulated_usage))
+        stop_reason = result.stop_reason
+        explanation = result.structured_output
+        raw = _raw_output(result)
+        if explanation is None:
+            problems = ["no valid ReviewExplanation tool call was captured"]
+    except Exception as e:  # noqa: BLE001
+        if _is_throttle(e):
+            raise ModelThrottledError(str(e)) from e
+        problems = _validation_problems(e)
+        raw = raw or str(e)
+    if explanation is not None:
+        problems = _problems(explanation, payload)
+    _log(logging.INFO if not problems else logging.WARNING, "structured_attempt", call_id,
+         attempt=0, mode="agent", ok=not problems, stopReason=stop_reason, problems=problems, rawPreview=raw[:4000])
+
+    attempt = 0
+    while problems and attempt < MAX_CORRECTIVE_ATTEMPTS:
+        attempt += 1
+        try:
+            tool_input, raw, more = _forced_tool_call(agent.system_prompt, prompt, _feedback_block(problems, raw), model_id, call_id)
+        except Exception as e:  # noqa: BLE001
+            if _is_throttle(e):
+                raise ModelThrottledError(str(e)) from e
+            raise
+        usage = _add_usage(usage, more)
+        try:
+            explanation = ReviewExplanation.model_validate(tool_input or {})
+            problems = _problems(explanation, payload)
+        except Exception as e:  # noqa: BLE001
+            explanation = None
+            problems = _validation_problems(e)
+        _log(logging.INFO if not problems else logging.WARNING, "structured_attempt", call_id,
+             attempt=attempt, mode="forced_tool", ok=not problems, problems=problems)
+
+    if problems or explanation is None:
+        summary = "; ".join(problems[:5]) or "no structured output"
+        raise StructuredOutputError(
+            f"Review agent failed to produce valid structured output after {attempt + 1} attempt(s): {summary}"
         )
 
-    raise ValueError("Review agent failed to produce structured output after retry")
+    response = {
+        "topics": explanation.topics,
+        "generalComment": explanation.general_comment,
+        "comments": {
+            item.letter.upper(): _render_answer_bullets(item)
+            for item in [*explanation.correct_answers, *explanation.incorrect_answers]
+        },
+        "usage": usage,
+        "modelId": model_id,
+        "attempts": attempt + 1,
+    }
+    if wants_related_services:
+        related = _extract_related_services(payload.get("stem", ""), payload.get("alternatives") or [])
+        response["relatedServices"] = related["services"]
+        response["relatedServicesUsage"] = related["usage"]
+        response["relatedServicesModelId"] = related["modelId"]
+    _log(logging.INFO, "review_call_end", call_id, ok=True, attempts=attempt + 1,
+         structuredOutput=explanation.model_dump(), relatedServices=response.get("relatedServices"))
+    return response
+
+
+def _error_payload(e: BaseException, call_id: str) -> dict:
+    code = getattr(e, "error_code", None) or ("THROTTLED" if _is_throttle(e) else "AGENT_ERROR")
+    return {"error": str(e), "errorCode": code, "callId": call_id}
 
 
 @app.entrypoint
 async def invoke(payload: dict):
-    agent, mcp_client = _build_agent()
+    requested_model = str(payload.get("modelId") or "")
+    model_id = requested_model if MODEL_ID_RE.fullmatch(requested_model) else BEDROCK_MODEL_ID
+    agent, mcp_client = _build_agent(model_id)
     prompt, wants_related_services = _build_prompt(payload)
     stream = bool(payload.get("stream", True))
 
@@ -611,10 +786,14 @@ async def invoke(payload: dict):
     # managed by Terraform (see aws_agentcore.tf). Lets the actual prompt a
     # given review was generated from be inspected after the fact, not just
     # guessed at by reading the skill file in isolation.
-    call_id = uuid.uuid4().hex
+    # The caller passes its own callId (import_explain logs the same id), so
+    # one id ties the Lambda's and this Runtime's log lines together.
+    requested_call_id = str(payload.get("callId") or "")
+    call_id = requested_call_id if CALL_ID_RE.fullmatch(requested_call_id) else uuid.uuid4().hex
     logger.info(json.dumps({
         "event": "review_call_start",
         "callId": call_id,
+        "modelId": model_id,
         "mode": payload.get("mode"),
         "stream": stream,
         "packName": (payload.get("pack") or {}).get("name"),
@@ -626,12 +805,13 @@ async def invoke(payload: dict):
     try:
         if not stream and payload.get("mode") == "explain_structured":
             try:
-                response = await _explain_structured(agent, prompt, call_id, wants_related_services, payload)
+                response = await _explain_structured(agent, prompt, call_id, wants_related_services, payload, model_id)
                 yield response
             except Exception as e:  # noqa: BLE001
-                logger.exception("Structured review generation failed")
-                logger.info(json.dumps({"event": "review_call_end", "callId": call_id, "ok": False, "error": str(e)}))
-                yield {"error": str(e)}
+                err = _error_payload(e, call_id)
+                _log(logging.ERROR, "review_call_end", call_id, ok=False, error=str(e),
+                     errorCode=err["errorCode"], traceback=traceback.format_exc()[-4000:])
+                yield err
             return
 
         if not stream:
@@ -641,7 +821,7 @@ async def invoke(payload: dict):
                 response = {
                     "reviewMarkdown": markdown,
                     "usage": _normalize_usage(result.metrics.accumulated_usage),
-                    "modelId": BEDROCK_MODEL_ID,
+                    "modelId": model_id,
                 }
                 if wants_related_services:
                     related = _extract_related_services(
@@ -657,9 +837,10 @@ async def invoke(payload: dict):
                 }))
                 yield response
             except Exception as e:  # noqa: BLE001
-                logger.exception("Non-streaming review generation failed")
-                logger.info(json.dumps({"event": "review_call_end", "callId": call_id, "ok": False, "error": str(e)}))
-                yield {"error": str(e)}
+                err = _error_payload(e, call_id)
+                _log(logging.ERROR, "review_call_end", call_id, ok=False, error=str(e),
+                     errorCode=err["errorCode"], traceback=traceback.format_exc()[-4000:])
+                yield err
             return
 
         accumulated = ""
@@ -678,18 +859,18 @@ async def invoke(payload: dict):
             # per-user Costs page (a raw span in CloudWatch isn't scoped per
             # end-user or visible inside the app itself).
             usage = _normalize_usage(agent.event_loop_metrics.accumulated_usage)
-            yield {"type": "METADATA", "usage": usage, "modelId": BEDROCK_MODEL_ID}
+            yield {"type": "METADATA", "usage": usage, "modelId": model_id}
             yield {"type": "END"}
         except Exception as e:  # noqa: BLE001
-            logger.exception("Streaming review generation failed")
-            logger.info(json.dumps({"event": "review_call_end", "callId": call_id, "ok": False, "error": str(e)}))
+            _log(logging.ERROR, "review_call_end", call_id, ok=False, error=str(e),
+                 traceback=traceback.format_exc()[-4000:])
             yield {"type": "ERROR", "message": str(e)}
     finally:
         if mcp_client:
             try:
                 mcp_client.stop(None, None, None)
             except Exception:  # noqa: BLE001 — best-effort cleanup, never mask the real result
-                logger.exception("Failed to stop MCP client")
+                _log(logging.WARNING, "mcp_client_stop_failed", call_id, traceback=traceback.format_exc()[-2000:])
 
 
 if __name__ == "__main__":

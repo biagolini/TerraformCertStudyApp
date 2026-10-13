@@ -22,6 +22,11 @@ export class ExportService {
     this.triggerDownload(blob, zipName);
   }
 
+  /** Saves a ready-made file (zip, docx, …) through the browser's download. */
+  downloadBlob(blob: Blob, filename: string): void {
+    this.triggerDownload(blob, filename);
+  }
+
   private triggerDownload(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -42,6 +47,8 @@ export class ExportService {
     partNum: number,
     totalParts: number,
     pack: Pack,
+    /** Extra Markdown appended to a question, keyed by question id (e.g. the user's own answer). */
+    appendix?: ReadonlyMap<string, string>,
   ): string {
     const title = pack.name ? `${pack.name} Study Notes` : 'IT Certification Study Notes';
     const partLine = totalParts > 1 ? ` — Part ${partNum} of ${totalParts}` : '';
@@ -63,6 +70,8 @@ export class ExportService {
       }
       questions.forEach((q, i) => {
         md += `\n\n---\n\n### Question ${i + 1}: ${q.title}\n\n${renderQuestionMarkdown(q)}`;
+        const extra = appendix?.get(q.id);
+        if (extra) md += `\n\n${extra}`;
       });
     }
 
@@ -76,11 +85,12 @@ export class ExportService {
     return `${base}-${suffix}.md`;
   }
 
-  buildDomainFilename(domain: PackDomain, packVersion: string): string {
+  /** `domain-<order>-<slug>[-<version>].md` — the app's standard per-domain name. */
+  buildDomainFilename(domain: PackDomain, packVersion: string, partSuffix = ''): string {
     const prefix = typeof domain.order === 'number' ? `domain-${domain.order}-` : '';
     const slug = slugify(domain.name) || 'domain';
     const versionSuffix = packVersion.trim() ? `-${slugify(packVersion.trim())}` : '';
-    return `${prefix}${slug}${versionSuffix}.md`;
+    return `${prefix}${slug}${versionSuffix}${partSuffix}.md`;
   }
 
   private groupByDomain(questions: Question[]): Map<string, Question[]> {

@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Script, fullScriptTitle } from '../../core/models/script.model';
 import { BedrockService } from '../../core/services/bedrock.service';
 import { ModelsService } from '../../core/services/models.service';
+import { PacksService } from '../../core/services/packs.service';
 import { ScriptsService } from '../../core/services/scripts.service';
 import { SettingsService } from '../../core/services/settings.service';
 import {
@@ -28,11 +29,11 @@ import { I18nService } from '../../core/i18n/i18n.service';
         @for (transcript of transcripts(); track $index; let i = $index) {
           <div class="transcript-block">
             <div class="transcript-head">
-              <label class="transcript-label">{{ i18n.t('transcriptInput.sourceLabel', { number: i + 1 }) }}</label>
+              <label class="ui-label">{{ i18n.t('transcriptInput.sourceLabel', { number: i + 1 }) }}</label>
               @if (transcripts().length > 1) {
                 <button
                   type="button"
-                  class="remove-btn"
+                  class="ui-btn ui-btn-ghost ui-btn-icon tight"
                   (click)="onRemove(i)"
                   [attr.aria-label]="i18n.t('transcriptInput.removeTranscript', { number: i + 1 })"
                   [disabled]="streaming()"
@@ -44,7 +45,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
               }
             </div>
             <textarea
-              class="textarea"
+              class="ui-input tall"
               rows="6"
               [ngModel]="transcript"
               (ngModelChange)="onChange(i, $event)"
@@ -58,7 +59,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 
       <button
         type="button"
-        class="add-btn"
+        class="ui-btn ui-btn-soft"
         (click)="onAddTranscript()"
         [disabled]="streaming()"
       >
@@ -72,7 +73,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
         <label class="model-row">
           <span class="model-label">{{ i18n.t('questionInput.model') }}</span>
           <select
-            class="model-select"
+            class="ui-input grow"
             [ngModel]="selectedModel()"
             (ngModelChange)="onSelectModel($event)"
             [disabled]="streaming()"
@@ -86,14 +87,14 @@ import { I18nService } from '../../core/i18n/i18n.service';
       </div>
 
       @if (streaming()) {
-        <button type="button" class="stop-btn" (click)="onStop()">
+        <button type="button" class="ui-btn ui-btn-danger wide" (click)="onStop()">
           <span class="stop-icon" aria-hidden="true"></span>
           <span>{{ i18n.t('questionInput.stop') }}</span>
         </button>
       } @else {
         <button
           type="button"
-          class="generate-btn"
+          class="ui-btn ui-btn-primary wide"
           (click)="onGenerate()"
           [disabled]="!canGenerate()"
         >
@@ -122,95 +123,19 @@ import { I18nService } from '../../core/i18n/i18n.service';
       }
       .card-header h2 { font-size: var(--font-size-xl); margin-bottom: var(--space-xs); }
       .subtitle { color: var(--text-muted); font-size: var(--font-size-sm); line-height: 1.5; }
-      .warning {
-        background: var(--bg-elevated);
-        color: var(--color-amber);
-        padding: var(--space-sm) var(--space-md);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--color-amber);
-        font-size: var(--font-size-sm);
-      }
       .transcripts { display: flex; flex-direction: column; gap: var(--space-md); }
       .transcript-block { display: flex; flex-direction: column; gap: var(--space-xs); }
       .transcript-head { display: flex; align-items: center; justify-content: space-between; }
-      .transcript-label { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-secondary); }
-      .remove-btn {
-        display: inline-flex; align-items: center; justify-content: center;
-        width: 28px; height: 28px;
-        border-radius: var(--radius-md);
-        color: var(--text-muted);
-      }
-      .remove-btn:hover:not(:disabled) { background: var(--bg-subtle); color: var(--color-red); }
-      .remove-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-      .textarea {
-        width: 100%; min-height: 140px;
-        padding: var(--space-md);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: var(--bg-input);
-        color: var(--text-primary);
-        font-family: var(--font-family);
-        font-size: var(--font-size-base);
-        line-height: 1.55;
-        resize: vertical;
-      }
-      .textarea:focus-visible { outline: none; border-color: var(--color-purple); }
-      .textarea:disabled { opacity: 0.6; cursor: not-allowed; }
-      .add-btn {
-        display: inline-flex; align-items: center; justify-content: center;
-        gap: var(--space-xs);
-        min-height: var(--touch-min);
-        border-radius: var(--radius-md);
-        border: 1px dashed var(--bg-border);
-        color: var(--text-secondary);
-        background: transparent;
-      }
-      .add-btn:hover:not(:disabled) {
-        border-color: var(--color-purple);
-        color: var(--color-purple);
-        background: var(--bg-subtle);
-      }
-      .add-btn:disabled { opacity: 0.5; cursor: not-allowed; }
       .options-row { display: flex; flex-direction: column; gap: var(--space-sm); }
       .model-row { display: flex; align-items: center; gap: var(--space-sm); }
       .model-label { font-size: var(--font-size-sm); color: var(--text-muted); }
-      .model-select {
-        flex: 1; min-height: 36px;
-        padding: 0 var(--space-sm);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: var(--bg-input);
-        color: var(--text-primary);
-        font-size: var(--font-size-sm);
-      }
-      .model-select:focus-visible { outline: none; border-color: var(--color-purple); }
-      .search-toggle {
-        display: inline-flex; align-items: center; gap: var(--space-xs);
-        font-size: var(--font-size-sm); color: var(--text-secondary); cursor: pointer;
-      }
-      .search-toggle input[type='checkbox'] { accent-color: var(--color-purple); }
-      .generate-btn {
-        display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm);
-        width: 100%; min-height: 48px;
-        padding: 0 var(--space-lg);
-        border-radius: var(--radius-md);
-        background: linear-gradient(135deg, var(--color-purple), var(--color-blue));
-        color: #ffffff; font-weight: 600; font-size: var(--font-size-lg);
-        transition: filter var(--transition-fast);
-      }
-      .generate-btn:hover:not(:disabled) { filter: brightness(1.08); }
-      .generate-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-      .stop-btn {
-        display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm);
-        width: 100%; min-height: 48px;
-        padding: 0 var(--space-lg);
-        border-radius: var(--radius-md);
-        background: var(--color-red);
-        color: #ffffff; font-weight: 600; font-size: var(--font-size-lg);
-      }
-      .stop-btn:hover { filter: brightness(1.1); }
-      .stop-icon { width: 14px; height: 14px; background: #ffffff; border-radius: 3px; }
+      .stop-icon { width: 14px; height: 14px; background: currentColor; border-radius: 3px; }
       .error { color: var(--color-red); font-size: var(--font-size-sm); }
+      .wide { width: 100%; min-height: 48px; font-size: var(--font-size-lg); }
+      .tall { min-height: 140px; }
+      .grow { flex: 1; min-width: 0; }
+      .tight { width: 28px; min-height: 28px; }
+      .tight:hover:not(:disabled) { color: var(--color-red); }
     `,
   ],
 })
@@ -219,6 +144,7 @@ export class TranscriptInputComponent {
   private readonly settings = inject(SettingsService);
   private readonly modelsService = inject(ModelsService);
   private readonly scripts = inject(ScriptsService);
+  private readonly packs = inject(PacksService);
   protected readonly i18n = inject(I18nService);
 
   protected readonly transcripts = signal<string[]>(['']);
@@ -291,6 +217,7 @@ export class TranscriptInputComponent {
         if (!script) {
           script = {
             id: crypto.randomUUID(),
+            packId: this.packs.activePack().id,
             title: this.i18n.t('transcriptInput.initialTitle'),
             content: chunk,
             sources: [...sources],

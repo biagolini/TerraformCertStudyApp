@@ -79,8 +79,8 @@ resource "aws_iam_role_policy_attachment" "lambda_mcp_aws_docs_basic" {
 # No source_arn condition: the Gateway's ARN includes an AWS-generated
 # random suffix only known after the Gateway itself is created (see
 # aws_agentcore.tf's data.external.gateway), so this can't be pre-computed
-# without a circular dependency. Scoped to this account only — acceptable
-# for this prototype; tighten with source_arn once the gateway ID is known,
+# without a circular dependency. Scoped to the deploying account only (the
+# function's own account), which is acceptable for this project; tighten with source_arn once the gateway ID is known,
 # if this pattern is reused in a less disposable project.
 resource "aws_lambda_permission" "mcp_aws_docs_gateway_invoke" {
   statement_id   = "AllowAgentCoreGatewayInvoke"

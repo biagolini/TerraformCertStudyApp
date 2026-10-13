@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { PacksService } from '../../core/services/packs.service';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { QuizAttemptsService } from '../../core/services/quiz-attempts.service';
 import { QuizService } from '../../core/services/quiz.service';
 import { QuizAttempt } from '../../core/models/quiz-attempt.model';
@@ -15,7 +16,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
           <h2>{{ i18n.t('quizHistory.title') }}</h2>
           <p class="subtitle">{{ i18n.t('quizHistory.subtitle') }}</p>
         </div>
-        <button type="button" class="btn btn-ghost" (click)="quiz.reset()">{{ i18n.t('quizHistory.backToSetup') }}</button>
+        <button type="button" class="ui-btn" (click)="quiz.reset()">{{ i18n.t('quizHistory.backToSetup') }}</button>
       </header>
 
       @if (attemptsService.loading()) {
@@ -60,10 +61,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .attempt-meta { font-size: var(--font-size-xs); color: var(--text-muted); }
       .attempt-score { font-size: var(--font-size-base); font-weight: 700; color: var(--color-purple); white-space: nowrap; }
       .chevron { color: var(--text-muted); flex-shrink: 0; }
-
-      .btn { min-height: var(--touch-min); padding: 0 var(--space-md); border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-base); border: none; font-family: var(--font-family); cursor: pointer; white-space: nowrap; }
-      .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--bg-border); }
-      .btn-ghost:hover { background: var(--bg-subtle); }
     `,
   ],
 })
@@ -72,7 +69,12 @@ export class QuizHistoryComponent {
   protected readonly attemptsService = inject(QuizAttemptsService);
   protected readonly i18n = inject(I18nService);
 
-  protected readonly attempts = this.attemptsService.finishedAttempts;
+  private readonly packs = inject(PacksService);
+  /** Finished attempts of the open certification only. */
+  protected readonly attempts = computed(() => {
+    const packId = this.packs.activePack().id;
+    return this.attemptsService.finishedAttempts().filter((a) => a.packId === packId);
+  });
 
   constructor() {
     void this.attemptsService.load();

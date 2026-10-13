@@ -1,3 +1,4 @@
+import { SaveAsNoteComponent } from '../../shared/components/save-as-note.component';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -19,14 +20,14 @@ import { I18nService } from '../../core/i18n/i18n.service';
 @Component({
   selector: 'app-chat-conversation',
   standalone: true,
-  imports: [FormsModule, MatProgressSpinnerModule, DatePipe, AiDisclaimerComponent, MarkdownRendererComponent],
+  imports: [SaveAsNoteComponent, FormsModule, MatProgressSpinnerModule, DatePipe, AiDisclaimerComponent, MarkdownRendererComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="viewer">
       @if (session(); as s) {
         <header class="viewer-header">
           @if (showBackButton()) {
-            <button type="button" class="back-btn" (click)="back.emit()" [attr.aria-label]="i18n.t('chatConversation.backToList')">
+            <button type="button" class="ui-btn ui-btn-ghost" (click)="back.emit()" [attr.aria-label]="i18n.t('chatConversation.backToList')">
               <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                 <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M15 6l-6 6 6 6"/>
               </svg>
@@ -36,7 +37,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
           @if (editingTitle()) {
             <input
               type="text"
-              class="title-input"
+              class="ui-input grow"
               [(ngModel)]="titleDraft"
               (blur)="onSaveTitle(s)"
               (keydown.enter)="onSaveTitle(s)"
@@ -50,7 +51,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
           <div class="header-actions">
             <button
               type="button"
-              class="icon-btn delete-btn"
+              class="ui-btn ui-btn-ghost ui-btn-icon delete-btn"
               (click)="onDelete(s)"
               [attr.aria-label]="i18n.t('chatConversation.deleteThisConversation')"
               [disabled]="deleting()"
@@ -98,7 +99,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 
           <div class="composer">
             <textarea
-              class="composer-textarea"
+              class="ui-input"
               [(ngModel)]="draft"
               rows="3"
               [placeholder]="i18n.t('chatConversation.messagePlaceholder')"
@@ -110,7 +111,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
               <label class="model-row">
                 <span class="model-label">{{ i18n.t('questionInput.model') }}</span>
                 <select
-                  class="model-select"
+                  class="ui-input grow"
                   [ngModel]="selectedModel()"
                   (ngModelChange)="onSelectModel($event)"
                   [disabled]="sending()"
@@ -122,12 +123,12 @@ import { I18nService } from '../../core/i18n/i18n.service';
                 </select>
               </label>
               @if (sending()) {
-                <button type="button" class="btn btn-stop" (click)="onStopSend()">
+                <button type="button" class="ui-btn ui-btn-danger" (click)="onStopSend()">
                   <span class="stop-icon" aria-hidden="true"></span>
                   <span>{{ i18n.t('questionInput.stop') }}</span>
                 </button>
               } @else {
-                <button type="button" class="btn btn-primary" (click)="onSend(s)" [disabled]="!draft.trim()">
+                <button type="button" class="ui-btn ui-btn-primary" (click)="onSend(s)" [disabled]="!draft.trim()">
                   {{ i18n.t('chatConversation.send') }}
                 </button>
               }
@@ -141,7 +142,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
                 @if (s.summary && !summarizing()) {
                   <button
                     type="button"
-                    class="icon-btn"
+                    class="ui-btn ui-btn-ghost ui-btn-icon"
                     (click)="onToggleEditSummary(s)"
                     [class.active]="editingSummary()"
                     [attr.aria-label]="editingSummary() ? i18n.t('reviewViewer.exitEditMode') : i18n.t('chatConversation.editSummary')"
@@ -158,15 +159,15 @@ import { I18nService } from '../../core/i18n/i18n.service';
             @if (s.summary) {
               @if (editingSummary()) {
                 <textarea
-                  class="edit-summary-textarea"
+                  class="ui-input tall"
                   [(ngModel)]="summaryDraft"
                   [attr.aria-label]="i18n.t('chatConversation.editSummaryMarkdown')"
                 ></textarea>
                 <div class="summary-edit-actions">
-                  <button type="button" class="btn btn-ghost" (click)="onCancelEditSummary(s)">{{ i18n.t('common.cancel') }}</button>
+                  <button type="button" class="ui-btn" (click)="onCancelEditSummary(s)">{{ i18n.t('common.cancel') }}</button>
                   <button
                     type="button"
-                    class="btn btn-primary"
+                    class="ui-btn ui-btn-primary"
                     (click)="onSaveEditSummary(s)"
                     [disabled]="!summaryDraft.trim()"
                   >{{ i18n.t('common.save') }}</button>
@@ -189,14 +190,14 @@ import { I18nService } from '../../core/i18n/i18n.service';
 
             <div class="summary-actions">
               @if (summarizing()) {
-                <button type="button" class="btn btn-stop" (click)="onStopSummary()">
+                <button type="button" class="ui-btn ui-btn-danger" (click)="onStopSummary()">
                   <span class="stop-icon" aria-hidden="true"></span>
                   <span>{{ i18n.t('questionInput.stop') }}</span>
                 </button>
               } @else {
                 <button
                   type="button"
-                  class="btn btn-primary"
+                  class="ui-btn ui-btn-primary"
                   (click)="onGenerateSummary(s)"
                   [disabled]="s.messages.length === 0"
                 >
@@ -204,9 +205,10 @@ import { I18nService } from '../../core/i18n/i18n.service';
                 </button>
               }
               @if (s.summary && !summarizing()) {
-                <button type="button" class="btn btn-ghost" (click)="onDownloadSummary(s)">
+                <button type="button" class="ui-btn" (click)="onDownloadSummary(s)">
                   {{ i18n.t('chatConversation.download') }}
                 </button>
+                <app-save-as-note [title]="s.title" [content]="s.summary" [tags]="['chat']" />
               }
             </div>
           </section>
@@ -242,20 +244,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
         border-bottom: 1px solid var(--bg-border);
         background: var(--bg-surface);
       }
-      .back-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: var(--space-xs);
-        min-height: var(--touch-min);
-        padding: 0 var(--space-sm);
-        border-radius: var(--radius-md);
-        color: var(--text-secondary);
-        font-size: var(--font-size-sm);
-      }
-      .back-btn:hover {
-        background: var(--bg-subtle);
-        color: var(--text-primary);
-      }
       .title-btn {
         flex: 1;
         min-width: 0;
@@ -269,37 +257,10 @@ import { I18nService } from '../../core/i18n/i18n.service';
         line-height: 1.3;
         overflow-wrap: anywhere;
       }
-      .title-input {
-        flex: 1;
-        min-width: 0;
-        font-size: var(--font-size-lg);
-        padding: var(--space-xs) var(--space-sm);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--color-purple);
-        background: var(--bg-input);
-        color: var(--text-primary);
-      }
       .header-actions {
         display: inline-flex;
         align-items: center;
         gap: var(--space-xs);
-      }
-      .icon-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: var(--touch-min);
-        height: var(--touch-min);
-        border-radius: var(--radius-md);
-        color: var(--text-muted);
-      }
-      .icon-btn:hover:not(:disabled) {
-        background: var(--bg-subtle);
-        color: var(--text-primary);
-      }
-      .icon-btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
       }
       .delete-btn:hover:not(:disabled) {
         color: var(--color-red);
@@ -358,25 +319,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
         background: var(--bg-elevated);
         border: 1px solid var(--bg-border);
       }
-      .composer-textarea {
-        width: 100%;
-        padding: var(--space-sm) var(--space-md);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: var(--bg-input);
-        color: var(--text-primary);
-        font-family: var(--font-family);
-        font-size: var(--font-size-base);
-        line-height: 1.5;
-        resize: vertical;
-      }
-      .composer-textarea:focus-visible {
-        outline: none;
-        border-color: var(--color-purple);
-      }
-      .composer-textarea:disabled {
-        opacity: 0.6;
-      }
       .composer-row {
         display: flex;
         align-items: center;
@@ -393,26 +335,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
         font-size: var(--font-size-sm);
         color: var(--text-muted);
         flex-shrink: 0;
-      }
-      .model-select {
-        flex: 1;
-        min-width: 0;
-        max-width: 100%;
-        min-height: 36px;
-        padding: 0 var(--space-sm);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: var(--bg-input);
-        color: var(--text-primary);
-        font-size: var(--font-size-sm);
-      }
-      .model-select:focus-visible {
-        outline: none;
-        border-color: var(--color-purple);
-      }
-      .model-select:disabled {
-        opacity: 0.55;
-        cursor: not-allowed;
       }
       .summary-panel {
         display: flex;
@@ -441,23 +363,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
         color: var(--text-faint);
         font-size: var(--font-size-xs);
       }
-      .edit-summary-textarea {
-        width: 100%;
-        min-height: 240px;
-        padding: var(--space-md);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: var(--bg-input);
-        color: var(--text-primary);
-        font-family: var(--font-mono);
-        font-size: var(--font-size-sm);
-        line-height: 1.5;
-        resize: vertical;
-      }
-      .edit-summary-textarea:focus-visible {
-        outline: none;
-        border-color: var(--color-purple);
-      }
       .summary-edit-actions {
         display: flex;
         justify-content: flex-end;
@@ -468,47 +373,11 @@ import { I18nService } from '../../core/i18n/i18n.service';
         justify-content: flex-end;
         gap: var(--space-sm);
       }
-      .btn {
-        min-height: var(--touch-min);
-        padding: 0 var(--space-md);
-        border-radius: var(--radius-md);
-        font-weight: 600;
-        font-size: var(--font-size-base);
-        display: inline-flex;
-        align-items: center;
-        gap: var(--space-sm);
-      }
-      .btn-primary {
-        background: var(--color-purple);
-        color: #ffffff;
-      }
-      .btn-primary:hover:not(:disabled) {
-        background: var(--color-blue);
-      }
-      .btn-ghost {
-        background: transparent;
-        color: var(--text-secondary);
-        border: 1px solid var(--bg-border);
-      }
-      .btn-ghost:hover:not(:disabled) {
-        background: var(--bg-subtle);
-      }
-      .btn-stop {
-        background: var(--color-red);
-        color: #ffffff;
-      }
-      .btn-stop:hover {
-        filter: brightness(1.1);
-      }
       .stop-icon {
         width: 12px;
         height: 12px;
-        background: #ffffff;
+        background: currentColor;
         border-radius: 2px;
-      }
-      .btn:disabled {
-        opacity: 0.55;
-        cursor: not-allowed;
       }
       .viewer-empty {
         flex: 1;
@@ -528,6 +397,9 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .empty-body {
         font-size: var(--font-size-sm);
       }
+      .tall { min-height: 240px; }
+      .grow { flex: 1; min-width: 0; }
+      .ui-btn-icon.active { color: var(--color-purple); background: var(--bg-elevated); }
     `,
   ],
 })

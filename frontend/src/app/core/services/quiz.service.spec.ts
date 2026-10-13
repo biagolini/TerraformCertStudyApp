@@ -74,7 +74,7 @@ describe('synthesizeQuestionFromAnswer', () => {
 function makePack(overrides: Partial<Pack> = {}): Pack {
   return {
     id: 'pack-1',
-    name: 'AWS Certified DevOps Engineer',
+    name: 'Example Certification',
     description: '',
     version: '',
     domains: [],
@@ -86,7 +86,7 @@ function makePack(overrides: Partial<Pack> = {}): Pack {
 }
 
 describe('resolveResumePack', () => {
-  const attempt = { packId: 'pack-1', examSlug: 'aws-certified-devops-engineer', examName: 'AWS Certified DevOps Engineer', partialCredit: true };
+  const attempt = { packId: 'pack-1', examSlug: 'example-certification', examName: 'Example Certification', partialCredit: true };
 
   it('resolves by exact pack id first', () => {
     const target = makePack({ id: 'pack-1' });
@@ -95,7 +95,7 @@ describe('resolveResumePack', () => {
   });
 
   it('falls back to matching by exam slug when the pack id is gone', () => {
-    const target = makePack({ id: 'renamed-id', name: 'AWS Certified DevOps Engineer' });
+    const target = makePack({ id: 'renamed-id', name: 'Example Certification' });
     const result = resolveResumePack([makePack({ id: 'unrelated', name: 'Something else' }), target], attempt);
     expect(result).toBe(target);
   });
@@ -103,7 +103,7 @@ describe('resolveResumePack', () => {
   it('falls back to a minimal partial-credit-only stand-in when both lookups miss, never the wrong active pack', () => {
     const result = resolveResumePack([makePack({ id: 'unrelated', name: 'Unrelated exam' })], attempt);
     expect(result.id).toBe('pack-1');
-    expect(result.name).toBe('AWS Certified DevOps Engineer');
+    expect(result.name).toBe('Example Certification');
     expect(result.allowPartialCredit).toBe(true);
     expect(result.examDurationMinutes).toBeUndefined();
     expect(result.examTotalQuestions).toBeUndefined();

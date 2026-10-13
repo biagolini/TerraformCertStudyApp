@@ -1,3 +1,5 @@
+import { buildNoteContext, buildNoteCopilotSystemPrompt, buildTutorContext, buildTutorSystemPrompt } from '../utils/assistant-prompt.util';
+import { Question } from '../models/question.model';
 import { Injectable, inject } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import { DEFAULT_MODEL, outputLanguageLabel } from '../models/settings.model';
@@ -115,6 +117,49 @@ export class BedrockService {
     yield* this.streamConverse(system, messages, model, signal, 'chat');
   }
 
+  /** Mock-exam tutor: the question (with key, stored explanations and the
+   * student's answer) is prepended to the first user turn so every follow-up
+   * stays grounded in it. */
+  async *streamTutor(
+    question: Question,
+    selected: readonly string[],
+    history: { role: 'user' | 'assistant'; content: string }[],
+    pack: PackContext,
+    model: string | undefined,
+    signal: AbortSignal,
+    outputLanguage?: string,
+  ): AsyncGenerator<string, void, void> {
+    if (history.length === 0) throw new Error('Ask the tutor something first.');
+    const context = buildTutorContext(question, selected);
+    const messages: BedrockMessage[] = history.map((m, i) => ({
+      role: m.role,
+      content: [{ text: i === 0 ? `${context}\n\n=== STUDENT ===\n${m.content}` : m.content }],
+    }));
+    yield* this.streamConverse(buildTutorSystemPrompt(pack, outputLanguage), messages, model, signal, 'tutor');
+  }
+
+  /** Note copilot: the current note is re-sent with the latest user turn, so
+   * the copilot always reasons over the text as it is now, not as it was
+   * when the conversation started. */
+  async *streamNoteCopilot(
+    title: string,
+    markdown: string,
+    history: { role: 'user' | 'assistant'; content: string }[],
+    pack: PackContext,
+    model: string | undefined,
+    signal: AbortSignal,
+    outputLanguage?: string,
+  ): AsyncGenerator<string, void, void> {
+    if (history.length === 0) throw new Error('Ask the copilot something first.');
+    const context = buildNoteContext(title, markdown);
+    const last = history.length - 1;
+    const messages: BedrockMessage[] = history.map((m, i) => ({
+      role: m.role,
+      content: [{ text: i === last ? `${context}\n\n=== REQUEST ===\n${m.content}` : m.content }],
+    }));
+    yield* this.streamConverse(buildNoteCopilotSystemPrompt(pack, outputLanguage), messages, model, signal, 'noteCopilot');
+  }
+
   async *streamChatSummary(
     history: { role: 'user' | 'assistant'; content: string }[],
     existingSummary: string,
@@ -205,6 +250,12 @@ export class BedrockService {
     targetLanguageLabel: string,
     signal: AbortSignal,
   ): Promise<TranslatedReviewContent> {
+    // Session cache keyed by target language + exact content, so the same
+    // question translated in the review viewer is instant in the mock-exam
+    // runner (and vice versa), and an edited question is translated afresh.
+    const cacheKey = `${targetLanguageLabel}\u0000${JSON.stringify(content)}`;
+    const cached = this.translationCache.get(cacheKey);
+    if (cached) return cached;
     const system = buildTranslateReviewPrompt(targetLanguageLabel);
     let accumulated = '';
     for await (const chunk of this.streamConverse(
@@ -221,8 +272,11 @@ export class BedrockService {
     if (!parsed || typeof parsed.stem !== 'string' || !Array.isArray(parsed.alternatives)) {
       throw new Error('Translation returned an unexpected shape.');
     }
+    this.translationCache.set(cacheKey, parsed as TranslatedReviewContent);
     return parsed as TranslatedReviewContent;
   }
+
+  private readonly translationCache = new Map<string, TranslatedReviewContent>();
 
   private async *streamConverse(
     system: string,

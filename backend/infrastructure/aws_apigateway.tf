@@ -107,6 +107,12 @@ resource "aws_api_gateway_gateway_response" "default_4xx" {
   rest_api_id   = aws_api_gateway_rest_api.main.id
   response_type = "DEFAULT_4XX"
 
+  # Keep the API Gateway default body explicit so the frontend always gets
+  # {"message": ...} on gateway-level errors (auth, throttling, timeouts).
+  response_templates = {
+    "application/json" = "{\"message\":$context.error.messageString}"
+  }
+
   response_parameters = {
     "gatewayresponse.header.Access-Control-Allow-Origin"  = "'*'"
     "gatewayresponse.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
@@ -117,6 +123,12 @@ resource "aws_api_gateway_gateway_response" "default_4xx" {
 resource "aws_api_gateway_gateway_response" "default_5xx" {
   rest_api_id   = aws_api_gateway_rest_api.main.id
   response_type = "DEFAULT_5XX"
+
+  # Keep the API Gateway default body explicit so the frontend always gets
+  # {"message": ...} on gateway-level errors (auth, throttling, timeouts).
+  response_templates = {
+    "application/json" = "{\"message\":$context.error.messageString}"
+  }
 
   response_parameters = {
     "gatewayresponse.header.Access-Control-Allow-Origin"  = "'*'"
@@ -488,6 +500,8 @@ resource "aws_api_gateway_deployment" "main" {
       aws_api_gateway_integration.data_proxy_post.uri,
       aws_api_gateway_gateway_response.default_4xx.response_parameters,
       aws_api_gateway_gateway_response.default_5xx.response_parameters,
+      aws_api_gateway_gateway_response.default_4xx.response_templates,
+      aws_api_gateway_gateway_response.default_5xx.response_templates,
     ]))
   }
 

@@ -40,9 +40,11 @@ resource "aws_lambda_function" "import_explain" {
   handler       = "app.handler"
   runtime       = "python3.13"
   architectures = ["arm64"]
-  # Comfortably above the AgentCore call's own read_timeout (170s, see
-  # app.py) plus DynamoDB overhead.
-  timeout     = 200
+  # The agent wait is the user's "max wait" setting, capped at 840s in
+  # app.py (MAX_TIMEOUT_SECONDS); 900s (the Lambda maximum) leaves room for
+  # DynamoDB work. Billing is per actual duration, so the cap costs nothing
+  # when calls finish early.
+  timeout     = 900
   memory_size = 512
   filename    = "${local.lambda_build_dir}/import_explain.zip"
 

@@ -1,3 +1,5 @@
+import { IconComponent } from '../../shared/components/icon.component';
+import { TutorDialogComponent } from '../tutor/tutor-dialog.component';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DomainBadgeComponent } from '../../shared/components/domain-badge.component';
 import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.component';
@@ -9,12 +11,20 @@ import { I18nService } from '../../core/i18n/i18n.service';
 interface ReviewItem {
   question: Question;
   answer: QuizAnswer;
+  index: number;
+}
+
+type ResultFilter = 'all' | 'correct' | 'incorrect' | 'blank' | 'flagged';
+
+function itemStatus(answer: QuizAnswer): Exclude<ResultFilter, 'all' | 'flagged'> {
+  if (answer.correct) return 'correct';
+  return answer.selected.length === 0 ? 'blank' : 'incorrect';
 }
 
 @Component({
   selector: 'app-quiz-results',
   standalone: true,
-  imports: [DomainBadgeComponent, MarkdownRendererComponent],
+  imports: [IconComponent, DomainBadgeComponent, MarkdownRendererComponent, TutorDialogComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="results-card">
@@ -33,12 +43,28 @@ interface ReviewItem {
           @if (weakestDomain(); as w) {
             <p>{{ i18n.t('quizResults.weakestDomain') }} <strong>{{ w.domain }}</strong> ({{ formatScore(w.correct) }}/{{ w.total }})</p>
           }
+          <p>{{ i18n.t('quizResults.totalTime') }} <strong>{{ formatClockValue(totalTime()) }}</strong></p>
+        </div>
+        <div class="verdict" [class.pass]="passed()" [class.fail]="!passed()">
+          <strong>{{ passed() ? i18n.t('quizResults.pass') : i18n.t('quizResults.fail') }}</strong>
+          <span>{{ i18n.t('quizResults.passMark', { pct: quiz.passingScorePercent() }) }}</span>
         </div>
       </div>
 
+      <div class="counts">
+        <button type="button" class="ui-chip count-pill" [class.active]="filter() === 'all'" (click)="filter.set('all')">{{ i18n.t('quizResults.filterAll') }} <strong>{{ reviewItems().length }}</strong></button>
+        <button type="button" class="ui-chip count-pill good" [class.active]="filter() === 'correct'" (click)="filter.set('correct')">{{ i18n.t('quizResults.statusCorrect') }} <strong>{{ counts().correct }}</strong></button>
+        <button type="button" class="ui-chip count-pill bad" [class.active]="filter() === 'incorrect'" (click)="filter.set('incorrect')">{{ i18n.t('quizResults.statusIncorrect') }} <strong>{{ counts().incorrect }}</strong></button>
+        <button type="button" class="ui-chip count-pill blank" [class.active]="filter() === 'blank'" (click)="filter.set('blank')">{{ i18n.t('quizResults.statusUnanswered') }} <strong>{{ counts().blank }}</strong></button>
+        <button type="button" class="ui-chip count-pill flagged" [class.active]="filter() === 'flagged'" (click)="filter.set('flagged')"><app-icon name="flag" size="14" /> {{ i18n.t('quizRunner.markedForReview') }} <strong>{{ flaggedCount() }}</strong></button>
+      </div>
+      @if (counts().blank > 0) {
+        <p class="blank-warning" role="note">{{ i18n.t('quizResults.blankWarning', { n: counts().blank }) }}</p>
+      }
+
       @if (timeLimitScore(); as t) {
         <div class="time-limit-block">
-          <button type="button" class="btn-ghost-sm" (click)="showTimeLimitScore.set(!showTimeLimitScore())">
+          <button type="button" class="ui-btn ui-btn-sm" (click)="showTimeLimitScore.set(!showTimeLimitScore())">
             {{ showTimeLimitScore() ? i18n.t('quizResults.hideTimeLimitScore') : i18n.t('quizResults.seeTimeLimitScore') }}
           </button>
           @if (showTimeLimitScore()) {
@@ -47,25 +73,42 @@ interface ReviewItem {
         </div>
       }
 
-      @if (domainBreakdown().length > 1) {
-        <span class="field-label">{{ i18n.t('quizResults.byDomain') }}</span>
-        @for (d of domainBreakdown(); track d.domain) {
-          <div class="domain-row">
-            <span class="domain-name">{{ d.domain }}</span>
-            <div class="domain-track">
-              <div class="domain-fill" [class.warn]="d.total > 0 && d.correct / d.total < 0.7" [style.width.%]="d.total > 0 ? (d.correct / d.total) * 100 : 0"></div>
-            </div>
-            <span class="domain-fraction">{{ formatScore(d.correct) }}/{{ d.total }}</span>
-            @if (d.timeSeconds > 0) {
-              <span class="domain-time">{{ i18n.t('quizResults.avgTime', { time: formatClockValue(d.timeSeconds / d.total) }) }}</span>
-            }
-          </div>
-        }
+      @if (domainBreakdown().length > 0) {
+        <span class="ui-label">{{ i18n.t('quizResults.byDomain') }}</span>
+        <div class="domain-table-wrap">
+          <table class="domain-table">
+            <thead>
+              <tr>
+                <th scope="col">{{ i18n.t('quizResults.colDomain') }}</th>
+                <th scope="col">{{ i18n.t('quizResults.colAttempted') }}</th>
+                <th scope="col">{{ i18n.t('quizResults.colScore') }}</th>
+                <th scope="col">{{ i18n.t('quizResults.colTime') }}</th>
+                <th scope="col">{{ i18n.t('quizResults.colAvg') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (d of domainBreakdown(); track d.domain) {
+                <tr>
+                  <th scope="row">
+                    <span class="domain-name">{{ d.domain }}</span>
+                    <div class="domain-track">
+                      <div class="domain-fill" [class.warn]="d.total > 0 && (d.correct / d.total) * 100 < quiz.passingScorePercent()" [style.width.%]="d.total > 0 ? (d.correct / d.total) * 100 : 0"></div>
+                    </div>
+                  </th>
+                  <td>{{ d.attempted }}/{{ d.total }}</td>
+                  <td>{{ d.total > 0 ? ((d.correct / d.total) * 100).toFixed(0) : 0 }}%</td>
+                  <td>{{ formatClockValue(d.timeSeconds) }}</td>
+                  <td>{{ formatClockValue(d.total > 0 ? d.timeSeconds / d.total : 0) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       }
 
-      <span class="field-label">{{ i18n.t('quizResults.allQuestions') }}</span>
+      <span class="ui-label">{{ i18n.t('quizResults.allQuestions') }}</span>
       <div class="result-list">
-        @for (row of reviewItems(); track row.question.id; let i = $index) {
+        @for (row of filteredItems(); track row.question.id) {
           <div
             class="result-row"
             [class.correct]="row.answer.correct"
@@ -86,7 +129,10 @@ interface ReviewItem {
                   <svg viewBox="0 0 24 24" width="12" height="12"><path fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
                 }
               </span>
-              <span class="result-row-title">{{ i18n.t('quizResults.questionNumber', { number: i + 1, title: row.question.title }) }}</span>
+              <span class="result-row-title">{{ i18n.t('quizResults.questionNumber', { number: row.index + 1, title: row.question.title }) }}</span>
+              @if (isFlagged(row.question.id)) {
+                <span class="row-flag" [title]="i18n.t('quizRunner.markedForReview')" [attr.aria-label]="i18n.t('quizRunner.markedForReview')"><app-icon name="flag" size="14" /></span>
+              }
               <app-domain-badge [domain]="row.question.domain" />
               <svg class="chevron" viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></svg>
             </button>
@@ -109,17 +155,37 @@ interface ReviewItem {
                     </div>
                   </div>
                 }
+                @if (row.question.generalComment) {
+                  <div class="general-comment">
+                    <span class="ui-label">{{ i18n.t('quizResults.generalComment') }}</span>
+                    <app-markdown-renderer [source]="row.question.generalComment" />
+                  </div>
+                }
+                <div class="row-actions">
+                  <span class="ui-faint"><app-icon name="clock" size="14" /> {{ formatClockValue(timeFor(row.question.id)) }}</span>
+                  <span class="row-actions-right">
+                  <button type="button" class="ui-btn ui-btn-sm flag-toggle" [class.active]="isFlagged(row.question.id)" [attr.aria-pressed]="isFlagged(row.question.id)" (click)="quiz.toggleFinishedReviewFlag(row.question.id)">
+                    <app-icon name="flag" size="14" /> {{ isFlagged(row.question.id) ? i18n.t('quizResults.unmarkForReview') : i18n.t('quizResults.markForReview') }}
+                  </button>
+                  <button type="button" class="ui-btn ui-btn-sm" (click)="tutorFor.set(row.question)"><app-icon name="sparkles" /> {{ i18n.t('tutor.ask') }}{{ tutorCount(row.question.id) ? ' (' + tutorCount(row.question.id) + ')' : '' }}</button>
+                  </span>
+                </div>
               </div>
             }
           </div>
+        } @empty {
+          <p class="ui-muted">{{ i18n.t('quizResults.filterEmpty') }}</p>
         }
       </div>
+      @if (tutorFor(); as tq) {
+        <app-tutor-dialog [question]="tq" [selected]="answerFor(tq.id)" (closed)="tutorFor.set(null)" />
+      }
 
       <div class="results-actions">
         @if (quiz.cameFromHistory()) {
-          <button type="button" class="btn btn-primary" (click)="quiz.viewHistory()">{{ i18n.t('quizResults.backToHistory') }}</button>
+          <button type="button" class="ui-btn ui-btn-primary" (click)="quiz.viewHistory()">{{ i18n.t('quizResults.backToHistory') }}</button>
         } @else {
-          <button type="button" class="btn btn-primary" (click)="quiz.reset()">{{ i18n.t('quizResults.newQuiz') }}</button>
+          <button type="button" class="ui-btn ui-btn-primary" (click)="quiz.reset()">{{ i18n.t('quizResults.newQuiz') }}</button>
         }
       </div>
     </section>
@@ -127,10 +193,32 @@ interface ReviewItem {
   styles: [
     `
       :host { display: block; }
+      .verdict { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); min-width: 120px; text-align: center; }
+      .verdict strong { font-size: 18px; letter-spacing: 0.04em; text-transform: uppercase; }
+      .verdict span { font-size: var(--font-size-xs); }
+      .verdict.pass { background: rgba(0, 184, 148, 0.12); color: var(--color-green); }
+      .verdict.fail { background: rgba(214, 48, 49, 0.1); color: var(--color-red); }
+      .counts { display: flex; flex-wrap: wrap; gap: 6px; }
+      .count-pill.good strong { color: var(--color-green); }
+      .count-pill.bad strong { color: var(--color-red); }
+      .count-pill.blank strong { color: var(--text-faint); }
+      .count-pill.flagged strong, .count-pill.flagged app-icon { color: var(--color-amber); }
+      .row-flag { display: inline-flex; color: var(--color-amber); flex-shrink: 0; }
+      .row-actions-right { display: inline-flex; flex-wrap: wrap; gap: var(--space-sm); justify-content: flex-end; }
+      .flag-toggle { display: inline-flex; align-items: center; gap: 6px; }
+      .flag-toggle.active { border-color: var(--color-amber); color: var(--color-amber); background: rgba(225, 112, 85, 0.08); }
+      .blank-warning { padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); background: rgba(225, 112, 85, 0.1); color: var(--color-amber); font-size: var(--font-size-sm); }
+      .domain-table-wrap { overflow-x: auto; }
+      .domain-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
+      .domain-table th, .domain-table td { padding: 6px 8px; border-bottom: 1px solid var(--bg-border); text-align: left; vertical-align: middle; }
+      .domain-table thead th { font-size: var(--font-size-xs); color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; }
+      .domain-table td { font-family: var(--font-mono); white-space: nowrap; }
+      .domain-table th[scope='row'] { font-weight: 500; min-width: 160px; }
+      .general-comment { margin-top: var(--space-sm); padding: var(--space-sm); border-radius: var(--radius-md); background: var(--bg-elevated); }
+      .row-actions { display: flex; align-items: center; justify-content: space-between; margin-top: var(--space-sm); }
       .results-card { display: flex; flex-direction: column; gap: var(--space-md); padding: var(--space-lg); background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); max-width: 680px; margin: 0 auto; }
       .card-header h2 { font-size: var(--font-size-xl); margin-bottom: var(--space-xs); }
       .subtitle { color: var(--text-muted); font-size: var(--font-size-sm); }
-      .field-label { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-secondary); }
 
       .score-hero { display: flex; align-items: center; gap: var(--space-lg); }
       .score-ring { --pct: 0; width: 96px; height: 96px; border-radius: 50%; background: conic-gradient(var(--color-purple) calc(var(--pct) * 1%), var(--bg-border) 0); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -139,14 +227,10 @@ interface ReviewItem {
       .score-ring-inner span { font-size: var(--font-size-xs); color: var(--text-muted); }
       .score-meta p { margin: 0 0 4px; font-size: var(--font-size-sm); color: var(--text-muted); }
       .score-meta strong { color: var(--text-primary); }
-
-      .domain-row { display: flex; align-items: center; gap: var(--space-sm); }
       .domain-name { width: 150px; font-size: var(--font-size-sm); color: var(--text-secondary); flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .domain-track { flex: 1; height: 8px; border-radius: 999px; background: var(--bg-border); overflow: hidden; }
       .domain-fill { height: 100%; border-radius: 999px; background: var(--color-green); }
       .domain-fill.warn { background: var(--color-amber); }
-      .domain-fraction { font-size: var(--font-size-xs); color: var(--text-muted); width: 36px; text-align: right; flex-shrink: 0; }
-      .domain-time { font-size: var(--font-size-xs); color: var(--text-faint); width: 56px; text-align: right; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 
       .result-list { display: flex; flex-direction: column; gap: var(--space-sm); }
       .result-row { border-radius: var(--radius-md); border: 1px solid var(--bg-border); overflow: hidden; }
@@ -173,14 +257,9 @@ interface ReviewItem {
       .alt-comment-label { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; color: var(--text-faint); font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
 
       .time-limit-block { padding: var(--space-md); border-radius: var(--radius-md); background: var(--bg-elevated); border: 1px solid var(--bg-border); }
-      .btn-ghost-sm { padding: 0 var(--space-md); min-height: 36px; border-radius: var(--radius-md); border: 1px solid var(--bg-border); background: transparent; color: var(--text-secondary); font-size: var(--font-size-sm); font-weight: 600; font-family: var(--font-family); cursor: pointer; }
-      .btn-ghost-sm:hover { border-color: var(--color-purple); color: var(--color-purple); }
       .time-limit-value { margin: var(--space-sm) 0 0; font-size: var(--font-size-sm); color: var(--text-secondary); line-height: 1.5; }
 
       .results-actions { display: flex; justify-content: flex-end; margin-top: var(--space-sm); }
-      .btn { min-height: var(--touch-min); padding: 0 var(--space-lg); border-radius: var(--radius-md); font-weight: 600; font-size: var(--font-size-base); border: none; font-family: var(--font-family); cursor: pointer; }
-      .btn-primary { background: linear-gradient(135deg, var(--color-purple), var(--color-blue)); color: #ffffff; }
-      .btn-primary:hover { filter: brightness(1.08); }
     `,
   ],
 })
@@ -222,11 +301,56 @@ export class QuizResultsComponent {
 
   protected readonly reviewItems = computed<ReviewItem[]>(() => {
     const answers = this.quiz.answerByQuestionId();
-    return this.quiz.questions().map((question) => ({
+    return this.quiz.questions().map((question, index) => ({
       question,
+      index,
       answer: answers[question.id] ?? { selected: [], checked: true, correct: false, score: 0 },
     }));
   });
+
+  protected readonly filter = signal<ResultFilter>('all');
+  protected readonly tutorFor = signal<Question | null>(null);
+
+  protected readonly filteredItems = computed(() => {
+    const f = this.filter();
+    if (f === 'all') return this.reviewItems();
+    if (f === 'flagged') return this.reviewItems().filter((r) => this.isFlagged(r.question.id));
+    return this.reviewItems().filter((r) => itemStatus(r.answer) === f);
+  });
+
+  protected readonly counts = computed(() => {
+    const c = { correct: 0, incorrect: 0, blank: 0 };
+    for (const r of this.reviewItems()) c[itemStatus(r.answer)] += 1;
+    return c;
+  });
+
+  /** Review flags come from the attempt itself (finished or reopened from
+   * History), which is also what Export reads. */
+  private readonly flaggedIds = computed(
+    () => new Set((this.quiz.lastAttempt()?.answers ?? []).filter((a) => a.markedForReview).map((a) => a.questionId)),
+  );
+  protected readonly flaggedCount = computed(() => this.flaggedIds().size);
+
+  isFlagged(id: string): boolean {
+    return this.flaggedIds().has(id);
+  }
+
+  protected readonly passed = computed(() => this.scorePercent() >= this.quiz.passingScorePercent());
+  protected readonly totalTime = computed(() =>
+    Object.values(this.quiz.timeSpentById()).reduce((sum, t) => sum + t, 0),
+  );
+
+  timeFor(id: string): number {
+    return this.quiz.timeSpentById()[id] ?? 0;
+  }
+
+  answerFor(id: string): string[] {
+    return this.quiz.answerByQuestionId()[id]?.selected ?? [];
+  }
+
+  tutorCount(id: string): number {
+    return Math.floor((this.quiz.tutorById()[id]?.length ?? 0) / 2);
+  }
 
   protected readonly summary = computed(() => {
     const settings = this.quiz.settings();

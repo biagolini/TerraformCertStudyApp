@@ -5,34 +5,34 @@ export type QuizToolId =
   | 'note'
   | 'translate'
   | 'checkAnswer'
-  | 'nextQuestion';
+  | 'nextQuestion'
+  | 'pauseExam';
 
 export interface QuizToolDef {
   id: QuizToolId;
   /** i18n key for the button label, reused by the Settings list so both stay in sync. */
   labelKey: string;
-  /** Rendered only while the toolbar is pinned to the top of a phone-width
-   * viewport (see QuizRunnerComponent.compactToolbar). These duplicate actions
-   * that already exist at the bottom of the question, and only earn their space
-   * when the user is scrolled into the middle of a long question on a phone and
-   * those bottom buttons are off-screen. */
-  compactOnly?: boolean;
-  /** Only meaningful in instant-feedback mode — there is nothing to reveal while
+  /** Only meaningful in instant-feedback mode: there is nothing to reveal while
    * running in exam mode, where grading happens at the end. */
   instantOnly?: boolean;
 }
 
-/** Single source of truth for the quiz annotation toolbar, rendered by
- * QuizRunnerComponent and toggled/reordered per-item in SettingsComponent —
- * see AppSettings.hiddenQuizTools / quizToolOrder / quizToolbarRows. */
+/** Single source of truth for the quiz toolbar, rendered by QuizRunnerComponent
+ * and toggled/reordered per-item in SettingsComponent (see
+ * AppSettings.hiddenQuizTools / quizToolOrder / quizToolbarRows).
+ *
+ * Check answer and Next used to appear only once the toolbar was pinned on a
+ * phone. That left the top of an unscrolled question with no way forward, so
+ * they are now always present; the bottom action row still carries them too. */
 export const QUIZ_TOOLS: QuizToolDef[] = [
   { id: 'highlight', labelKey: 'quizRunner.highlight' },
   { id: 'strikethrough', labelKey: 'quizRunner.strikethrough' },
   { id: 'clearMarks', labelKey: 'quizRunner.clearMarks' },
   { id: 'note', labelKey: 'quizRunner.note' },
   { id: 'translate', labelKey: 'reviewViewer.translate' },
-  { id: 'checkAnswer', labelKey: 'quizRunner.checkAnswer', compactOnly: true, instantOnly: true },
-  { id: 'nextQuestion', labelKey: 'importReview.next', compactOnly: true },
+  { id: 'checkAnswer', labelKey: 'quizRunner.checkAnswer', instantOnly: true },
+  { id: 'nextQuestion', labelKey: 'importReview.next' },
+  { id: 'pauseExam', labelKey: 'quizRunner.pauseExam' },
 ];
 
 export const DEFAULT_QUIZ_TOOL_ORDER: QuizToolId[] = QUIZ_TOOLS.map((tool) => tool.id);

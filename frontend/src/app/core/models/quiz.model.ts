@@ -8,8 +8,13 @@ export interface QuizSettings {
   domains: string[];
   count: number;
   shuffle: boolean;
+  /** Shuffle each question's alternatives (relabeled A, B, C… by position).
+   * Missing on attempts saved before this option: those kept the bank order. */
+  shuffleAlternatives?: boolean;
   trackTime: boolean;
   useAccommodation: boolean;
+  /** Banks the questions are drawn from; empty or missing = every bank of the certification. */
+  bankIds?: string[];
 }
 
 export interface QuizAnswer {
@@ -28,6 +33,7 @@ export const DEFAULT_QUIZ_SETTINGS: Omit<QuizSettings, 'domains'> = {
   mode: 'instant',
   count: 20,
   shuffle: true,
+  shuffleAlternatives: true,
   trackTime: false,
   useAccommodation: false,
 };

@@ -1,0 +1,36 @@
+{
+  "name": "Certified Kubernetes Administrator (CKA)",
+  "version": "1.30",
+  "color": "#3b82f6",
+  "description": "Performance-based hands-on certification demonstrating competence in Kubernetes cluster architecture, installation, configuration, and troubleshooting. 120 minutes.",
+  "exportIntroQuestions": "",
+  "exportIntroTranscripts": "",
+  "exportIntroChat": "",
+  "domains": [
+    {
+      "name": "Cluster Architecture, Installation & Configuration",
+      "description": "Domain 1 (25%): Manage RBAC, use Kubeadm to install a basic cluster, manage highly available Kubernetes cluster, implement etcd backup and restore.",
+      "order": 1
+    },
+    {
+      "name": "Workloads & Scheduling",
+      "description": "Domain 2 (15%): Understand deployments and how to perform rolling updates, use ConfigMaps and Secrets, manage pod resource limits and scheduling.",
+      "order": 2
+    },
+    {
+      "name": "Services & Networking",
+      "description": "Domain 3 (20%): Understand host networking configuration, know how to use Ingress controllers and Ingress resources, configure and use CoreDNS.",
+      "order": 3
+    },
+    {
+      "name": "Storage",
+      "description": "Domain 4 (10%): Understand storage classes and persistent volume claims, configure volume access modes and reclaim policies.",
+      "order": 4
+    },
+    {
+      "name": "Troubleshooting",
+      "description": "Domain 5 (30%): Troubleshoot cluster components, cluster worker nodes, networking, and application failure scenarios.",
+      "order": 5
+    }
+  ]
+}

@@ -1,6 +1,12 @@
+import { ImportJobProgressComponent } from '../../shared/components/import-job-progress.component';
+import { isImportJobRunning } from '../../core/models/import-job.model';
+import { importPath } from '../../core/utils/routes.util';
+import { ModelsService } from '../../core/services/models.service';
+import { SettingsService } from '../../core/services/settings.service';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
+import { draftWarnings } from '../../core/utils/draft-checks.util';
 import { ImportDraftQuestion } from '../../core/models/import-draft.model';
 import { ImportReviewService } from '../../core/services/import-review.service';
 import { ImportExamService } from '../../core/services/import-exam.service';
@@ -11,7 +17,7 @@ import { DiscardChangesDialogComponent } from '../../shared/components/discard-c
 import { ImportDraftItemComponent } from './import-draft-item.component';
 import { I18nService } from '../../core/i18n/i18n.service';
 
-/** Routed at /questions/:packId/import/:jobId — reached from
+/** Routed at /exam/:packId/import/:bankId/:jobId — reached from
  * import-exam.component.ts's "Review N questions" link, never directly
  * part of the upload tab itself. One job's structure-only drafts (Phase 1
  * output), shown one at a time with an "Item Navigator" side panel to jump
@@ -20,7 +26,8 @@ import { I18nService } from '../../core/i18n/i18n.service';
  * numbered palette dots) rather than a long scrolling list, since this
  * screen serves the exact same purpose as the quiz runner from the user's
  * perspective: go through N items one at a time. A palette dot's state:
- * a warning overlay = failed extraction ("needs attention"), a blue ring
+ * a red dot = failed extraction, an amber dot = coherence warnings (see
+ * draft-checks.util.ts), a blue ring
  * = current.
  *
  * No per-question selection any more — extraction is reliable enough now
@@ -31,27 +38,34 @@ import { I18nService } from '../../core/i18n/i18n.service';
 @Component({
   selector: 'app-import-review-page',
   standalone: true,
-  imports: [ImportDraftItemComponent, AiDisclaimerComponent, RouterLink],
+  imports: [ImportDraftItemComponent, AiDisclaimerComponent, RouterLink, ImportJobProgressComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    @if (job(); as j) {
+      @if (isRunning(j)) {
+        <section class="running-banner" role="status">
+          <app-import-job-progress [job]="j" />
+        </section>
+      }
+    }
     @if (loading()) {
       <p class="status-line">{{ i18n.t('common.loading') }}</p>
     } @else if (allDrafts().length === 0) {
       <section class="runner empty-runner">
         <div class="empty">
           <p class="empty-title">{{ i18n.t('importReview.nothingLeftToReview') }}</p>
-          <button type="button" class="btn-ghost-sm" (click)="onBack()">{{ i18n.t('importReview.backToQuestions') }}</button>
+          <button type="button" class="ui-btn ui-btn-sm" (click)="onBack()">{{ i18n.t('importReview.backToQuestions') }}</button>
         </div>
       </section>
     } @else if (currentDraft(); as draft) {
       <section class="runner">
         <header class="runner-header">
-          <button type="button" class="back-btn" (click)="onBack()" [attr.aria-label]="i18n.t('importReview.backToQuestions')">
+          <button type="button" class="ui-btn ui-btn-ghost ui-btn-icon" (click)="onBack()" [attr.aria-label]="i18n.t('importReview.backToQuestions')">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
               <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6" />
             </svg>
           </button>
-          <div class="progress-track"><div class="progress-fill" [style.width.%]="progressPct()"></div></div>
+          <div class="ui-progress review-progress"><span [style.width.%]="progressPct()"></span></div>
           <span class="progress-text">{{ i18n.t('importReview.questionOf', { current: cursor() + 1, total: allDrafts().length }) }}</span>
         </header>
 
@@ -65,7 +79,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
               <div class="promoted-card">
                 <p class="promoted-title">{{ draft.title || i18n.t('importReview.questionNumber', { number: draft.index + 1 }) }}</p>
                 <p class="status-line">{{ i18n.t('importReview.promotedHint') }}</p>
-                <a class="btn-ghost-sm" [routerLink]="['/questions', packId(), jobId() + '-' + padIndex(draft.index)]">{{ i18n.t('importReview.viewQuestion') }}</a>
+                <a class="ui-btn ui-btn-sm" [routerLink]="['/exam', packId(), 'banks', 'all', jobId() + '-' + padIndex(draft.index)]">{{ i18n.t('importReview.viewQuestion') }}</a>
               </div>
             } @else {
               <app-import-draft-item
@@ -81,8 +95,8 @@ import { I18nService } from '../../core/i18n/i18n.service';
             }
 
             <div class="nav-buttons">
-              <button type="button" class="btn-ghost-sm" [disabled]="cursor() === 0" (click)="prev()">{{ i18n.t('importReview.previous') }}</button>
-              <button type="button" class="btn-ghost-sm" [disabled]="isLast()" (click)="next()">{{ i18n.t('importReview.next') }}</button>
+              <button type="button" class="ui-btn ui-btn-sm" [disabled]="cursor() === 0" (click)="prev()">{{ i18n.t('importReview.previous') }}</button>
+              <button type="button" class="ui-btn ui-btn-sm" [disabled]="isLast()" (click)="next()">{{ i18n.t('importReview.next') }}</button>
             </div>
 
             @if (promotedCount() > 0) {
@@ -97,17 +111,21 @@ import { I18nService } from '../../core/i18n/i18n.service';
               <div class="actions">
                 <button
                   type="button"
-                  class="generate-btn secondary"
+                  class="ui-btn"
                   [disabled]="submitting()"
                   (click)="onSaveAsIs()"
                 >{{ submitting() ? i18n.t('importReview.saving') : i18n.t('importReview.saveAsIs', { count: approvableCount() }) }}</button>
                 <button
                   type="button"
-                  class="generate-btn"
+                  class="ui-btn ui-btn-primary"
                   [disabled]="submitting()"
                   (click)="onRefineWithAI()"
                 >{{ submitting() ? i18n.t('importReview.starting') : i18n.t('importReview.refineWithAiCount', { count: approvableCount() }) }}</button>
               </div>
+              <p class="status-line">
+                {{ i18n.t('importReview.reviewOptions', { model: reviewModelLabel(), wait: appSettings.importReviewTimeoutSeconds() / 60, n: appSettings.importReviewConcurrency() }) }}
+                <a routerLink="/settings">{{ i18n.t('importReview.changeInSettings') }}</a>
+              </p>
               <p class="status-line">{{ i18n.t('importReview.saveAsIsExplain') }}</p>
             }
           </div>
@@ -124,17 +142,22 @@ import { I18nService } from '../../core/i18n/i18n.service';
                   (click)="goTo(i)"
                 >
                   {{ d.index + 1 }}
-                  @if (isDraftFailed(d)) { <span class="flag-dot" aria-hidden="true"></span> }
+                  @if (isDraftFailed(d)) {
+                    <span class="flag-dot" aria-hidden="true"></span>
+                  } @else if (needsAttention(d)) {
+                    <span class="flag-dot warn" aria-hidden="true"></span>
+                  }
                 </button>
               }
             </div>
-            <button type="button" class="add-question-btn" [disabled]="addingQuestion()" (click)="onAddQuestion()">
+            <button type="button" class="ui-btn ui-btn-sm ui-btn-soft" [disabled]="addingQuestion()" (click)="onAddQuestion()">
               {{ addingQuestion() ? i18n.t('importReview.adding') : i18n.t('importReview.addQuestion') }}
             </button>
             <div class="palette-legend">
               <div class="legend-row"><span class="legend-swatch current"></span> {{ i18n.t('importReview.currentItem') }}</div>
               <div class="legend-row"><span class="legend-swatch promoted"></span> {{ i18n.t('importReview.doneItem') }}</div>
               <div class="legend-row"><span class="legend-swatch outline"><span class="flag-dot" aria-hidden="true"></span></span> {{ i18n.t('importReview.extractionFailed') }}</div>
+              <div class="legend-row"><span class="legend-swatch outline"><span class="flag-dot warn" aria-hidden="true"></span></span> {{ i18n.t('importReview.needsAttention') }}</div>
             </div>
             <p class="palette-summary">{{ i18n.t('importReview.pendingReview', { count: pendingDrafts().length }) }}</p>
           </aside>
@@ -170,13 +193,8 @@ import { I18nService } from '../../core/i18n/i18n.service';
       // rather than gating it behind a min-width media query on :host.
       .runner { display: flex; flex-direction: column; gap: var(--space-lg); background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: var(--space-lg); max-width: 960px; margin: 0 auto; }
       .runner-header { display: flex; align-items: center; gap: var(--space-md); }
-      .back-btn {
-        flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
-        width: var(--touch-min); height: var(--touch-min); padding: 0; background: none; color: var(--text-secondary);
-      }
-      .back-btn:hover { color: var(--text-primary); }
-      .progress-track { flex: 1; height: 6px; border-radius: 999px; background: var(--bg-border); overflow: hidden; }
-      .progress-fill { height: 100%; background: linear-gradient(135deg, var(--color-purple), var(--color-blue)); border-radius: 999px; }
+      .running-banner { max-width: 960px; margin: 0 auto var(--space-md); padding: var(--space-md); border: 1px solid var(--bg-border); border-radius: var(--radius-md); background: var(--bg-surface); }
+      .review-progress { flex: 1; }
       .progress-text { font-size: var(--font-size-xs); color: var(--text-muted); white-space: nowrap; }
 
       .warn-line { color: var(--color-amber); font-size: var(--font-size-sm); }
@@ -194,7 +212,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
         padding: var(--space-lg); border-radius: var(--radius-md); background: var(--bg-elevated); width: 100%;
       }
       .empty-title { font-weight: 600; color: var(--text-primary); margin: 0; }
-      .empty-body { color: var(--text-muted); font-size: var(--font-size-sm); margin: 0; }
 
       .promoted-card {
         display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-sm);
@@ -204,22 +221,8 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .promoted-title { font-weight: 600; color: var(--text-primary); margin: 0; }
 
       .actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
-      .generate-btn {
-        flex: 1; min-width: 200px; display: inline-flex; align-items: center; justify-content: center;
-        min-height: 48px; padding: 0 var(--space-lg); border-radius: var(--radius-md);
-        background: linear-gradient(135deg, var(--color-purple), var(--color-blue));
-        color: #ffffff; font-weight: 600; font-size: var(--font-size-base);
-      }
-      .generate-btn.secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--bg-border); }
-      .generate-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-
-      .btn-ghost-sm {
-        padding: 0 var(--space-md); min-height: 36px; border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border); background: transparent; color: var(--text-secondary);
-        font-size: var(--font-size-sm); font-weight: 500;
-      }
-      .btn-ghost-sm:hover { border-color: var(--color-purple); color: var(--text-primary); }
-      .btn-ghost-sm:disabled { opacity: 0.5; cursor: not-allowed; }
+      .actions .ui-btn { flex: 1; min-width: 200px; min-height: 44px; }
+      .palette .ui-btn-soft { width: 100%; margin-top: var(--space-sm); }
 
       .palette { width: 176px; flex-shrink: 0; background: var(--bg-elevated); border-radius: var(--radius-md); padding: var(--space-md); border: 1px solid var(--bg-border); }
       .palette h4 { margin: 0 0 var(--space-sm); font-size: var(--font-size-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
@@ -228,18 +231,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .palette-dot.current { box-shadow: 0 0 0 2px var(--color-blue) inset; }
       .palette-dot.promoted { background: var(--color-green); border-color: var(--color-green); color: #fff; }
       .palette-dot .flag-dot { position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--color-red); }
-      .add-question-btn {
-        margin-top: var(--space-sm);
-        width: 100%;
-        height: 32px;
-        border-radius: var(--radius-md);
-        border: 1px dashed var(--bg-border);
-        background: transparent;
-        color: var(--text-secondary);
-        font-size: var(--font-size-sm);
-      }
-      .add-question-btn:hover:not(:disabled) { border-color: var(--color-purple); color: var(--text-primary); }
-      .add-question-btn:disabled { opacity: 0.5; cursor: not-allowed; }
       .palette-legend { margin-top: var(--space-md); display: flex; flex-direction: column; gap: 6px; font-size: var(--font-size-xs); color: var(--text-muted); }
       .legend-row { display: flex; align-items: center; gap: 6px; }
       .legend-swatch { position: relative; width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
@@ -247,6 +238,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .legend-swatch.current { background: transparent; border: 2px solid var(--color-blue); }
       .legend-swatch.promoted { background: var(--color-green); }
       .legend-swatch .flag-dot { position: absolute; top: -4px; right: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--color-red); }
+      .flag-dot.warn { background: var(--color-amber); }
       .palette-summary { margin: var(--space-sm) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }
 
       @media (max-width: 640px) {
@@ -261,12 +253,21 @@ export class ImportReviewPageComponent implements OnInit {
   private readonly importExamService = inject(ImportExamService);
   private readonly storage = inject(StorageService);
   private readonly router = inject(Router);
+  protected readonly appSettings = inject(SettingsService);
+  private readonly models = inject(ModelsService);
+
+  reviewModelLabel(): string {
+    const id = this.appSettings.importReviewModel();
+    return this.models.models().find((m) => m.id === id)?.displayName ?? id;
+  }
   private readonly dialog = inject(MatDialog);
   private readonly draftItem = viewChild<ImportDraftItemComponent>('draftItem');
   protected readonly i18n = inject(I18nService);
 
   readonly packId = input.required<string>();
   readonly jobId = input.required<string>();
+  /** The practice exam this upload belongs to — "Back" returns to its upload page. */
+  readonly bankId = input.required<string>();
 
   protected readonly loading = this.reviewService.loading;
   protected readonly drafts = this.reviewService.drafts;
@@ -311,6 +312,10 @@ export class ImportReviewPageComponent implements OnInit {
     }
     return map;
   });
+
+  needsAttention(d: ImportDraftQuestion): boolean {
+    return draftWarnings(d).length > 0;
+  }
 
   isDraftFailed(d: ImportDraftQuestion): boolean {
     return d.extractStatus === 'FAILED' || this.explainErrorsByIndex().has(d.index);
@@ -405,7 +410,13 @@ export class ImportReviewPageComponent implements OnInit {
   }
 
   async onRefineWithAI(): Promise<void> {
-    await this.submit(() => this.reviewService.startExplanations(this.jobId()));
+    await this.submit(() =>
+      this.reviewService.startExplanations(this.jobId(), {
+        modelId: this.appSettings.importReviewModel(),
+        timeoutSeconds: this.appSettings.importReviewTimeoutSeconds(),
+        maxConcurrency: this.appSettings.importReviewConcurrency(),
+      }),
+    );
   }
 
   async onSaveAsIs(): Promise<void> {
@@ -474,6 +485,10 @@ export class ImportReviewPageComponent implements OnInit {
     }
   }
 
+  isRunning(job: Parameters<typeof isImportJobRunning>[0]): boolean {
+    return isImportJobRunning(job);
+  }
+
   onBack(): void {
     // Import-scoped, not Questions — this is how the user gets back to
     // watching this job's progress (see import-exam.component.ts's
@@ -481,6 +496,6 @@ export class ImportReviewPageComponent implements OnInit {
     // starting Phase 2, which used to dump them onto /questions instead
     // with no way to see whether the (still-running) explanation generation
     // succeeded without navigating back here by hand.
-    this.router.navigate(['/import', this.packId()]);
+    this.router.navigate(importPath(this.packId(), this.bankId()));
   }
 }

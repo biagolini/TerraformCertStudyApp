@@ -1,3 +1,5 @@
+import { DraftLogCall } from '../../core/services/import-review.service';
+import { IconComponent } from '../../shared/components/icon.component';
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
@@ -11,6 +13,7 @@ import { DomainBadgeComponent } from '../../shared/components/domain-badge.compo
 import { TruncatePipe } from '../../shared/pipes/truncate.pipe';
 import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.component';
 import { I18nService } from '../../core/i18n/i18n.service';
+import { DraftWarning, draftWarnings } from '../../core/utils/draft-checks.util';
 
 /** Encodes an ImportDraftImage's target+alternativeLetter as one <select>
  * value and back — 'stem' | 'generalComment' | 'unplaced' pass through as-is,
@@ -54,7 +57,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
 @Component({
   selector: 'app-import-draft-item',
   standalone: true,
-  imports: [DomainBadgeComponent, TruncatePipe, FormsModule, MarkdownRendererComponent],
+  imports: [IconComponent, DomainBadgeComponent, TruncatePipe, FormsModule, MarkdownRendererComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="row" [class.failed]="isFailed() || !!explainError()">
@@ -65,10 +68,10 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
           } @else if (!editing()) {
             <span class="title" [class.failed-title]="isFailed()">{{ draft().title | truncate: 120 }}</span>
           } @else {
-            <input type="text" class="title-input" [(ngModel)]="editTitle" [placeholder]="i18n.t('packEditor.name')" />
+            <input type="text" class="ui-input grow" [(ngModel)]="editTitle" [placeholder]="i18n.t('packEditor.name')" />
             <button
               type="button"
-              class="reextract-btn"
+              class="ui-btn ui-btn-ghost ui-btn-icon tight"
               [disabled]="!editStem.trim() || generatingTitle()"
               (click)="$event.stopPropagation(); onGenerateTitle()"
               [attr.aria-label]="i18n.t('importDraft.generateTitleWithAi')"
@@ -86,7 +89,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
           @if (!editing()) {
             <button
               type="button"
-              class="reextract-btn"
+              class="ui-btn ui-btn-ghost ui-btn-icon tight"
               (click)="$event.stopPropagation(); startEdit()"
               [attr.aria-label]="i18n.t('importDraft.editQuestion', { number: draft().index + 1 })"
             >
@@ -97,7 +100,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
             </button>
             <button
               type="button"
-              class="reextract-btn delete-btn"
+              class="ui-btn ui-btn-ghost ui-btn-icon tight delete-btn"
               [disabled]="busy()"
               (click)="$event.stopPropagation(); deleteRequested.emit()"
               [attr.aria-label]="i18n.t('importDraft.deleteQuestion', { number: draft().index + 1 })"
@@ -108,7 +111,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
             </button>
             <button
               type="button"
-              class="reextract-btn"
+              class="ui-btn ui-btn-ghost ui-btn-icon tight"
               [class.active]="hintOpen()"
               [disabled]="busy()"
               (click)="$event.stopPropagation(); toggleHint()"
@@ -134,13 +137,13 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
             @if (titleGenerationError()) {
               <p class="error-line">{{ titleGenerationError() }}</p>
             }
-            <label class="edit-label">
+            <label class="ui-field">
               <span>{{ i18n.t('questionInput.domain') }}</span>
-              <input type="text" class="edit-domain-input" [(ngModel)]="editDomain" [placeholder]="i18n.t('questionInput.domain')" />
+              <input type="text" class="ui-input narrow" [(ngModel)]="editDomain" [placeholder]="i18n.t('questionInput.domain')" />
             </label>
-            <label class="edit-label">
+            <label class="ui-field">
               <span>{{ i18n.t('importDraft.questionStem') }}</span>
-              <textarea class="edit-textarea" rows="5" [(ngModel)]="editStem"></textarea>
+              <textarea class="ui-input" rows="5" [(ngModel)]="editStem"></textarea>
             </label>
             @for (alt of editAlternatives(); track alt.letter) {
               <div class="edit-alt-block">
@@ -150,21 +153,21 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
                     <span>{{ alt.letter }}</span>
                   </label>
                   <textarea
-                    class="edit-textarea"
+                    class="ui-input"
                     rows="2"
                     [ngModel]="alt.text"
                     (ngModelChange)="setEditAltText(alt.letter, $event)"
                   ></textarea>
                   <button
                     type="button"
-                    class="remove-alt-btn"
+                    class="ui-btn ui-btn-ghost ui-btn-icon tight"
                     [disabled]="editAlternatives().length <= 2"
                     [attr.aria-label]="i18n.t('importDraft.removeAlternative', { letter: alt.letter })"
                     (click)="removeAlternative(alt.letter)"
-                  >×</button>
+                  ><app-icon name="x" size="14" /></button>
                 </div>
                 <textarea
-                  class="edit-textarea edit-comment-textarea"
+                  class="ui-input edit-comment-textarea"
                   rows="2"
                   [placeholder]="i18n.t('importDraft.sourceExplanationOptional')"
                   [ngModel]="alt.sourceComment ?? ''"
@@ -172,20 +175,20 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
                 ></textarea>
               </div>
             }
-            <button type="button" class="add-alt-btn" (click)="addAlternative()">{{ i18n.t('importDraft.addAlternative') }}</button>
+            <button type="button" class="ui-btn ui-btn-sm ui-btn-soft self-start" (click)="addAlternative()">{{ i18n.t('importDraft.addAlternative') }}</button>
 
-            <label class="edit-label">
+            <label class="ui-field">
               <span>{{ i18n.t('importDraft.overallSourceExplanation') }}</span>
-              <textarea class="edit-textarea" rows="3" [(ngModel)]="editSourceGeneralComment"></textarea>
+              <textarea class="ui-input" rows="3" [(ngModel)]="editSourceGeneralComment"></textarea>
             </label>
 
             <div class="edit-images">
-              <span class="edit-label-text">{{ i18n.t('importDraft.images') }}</span>
+              <span class="ui-label">{{ i18n.t('importDraft.images') }}</span>
               @for (img of editImages(); track img.key) {
                 <div class="edit-image-row">
                   <div class="edit-image-thumb"><app-markdown-renderer [source]="'![image](' + img.key + ')'" /></div>
                   <select
-                    class="edit-domain-input"
+                    class="ui-input narrow"
                     [ngModel]="encodeTarget(img)"
                     (ngModelChange)="setImageTarget(img.key, $event)"
                   >
@@ -199,13 +202,13 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
                   </select>
                   <button
                     type="button"
-                    class="remove-alt-btn"
+                    class="ui-btn ui-btn-ghost ui-btn-icon tight"
                     [attr.aria-label]="i18n.t('importDraft.removeImage')"
                     (click)="removeImage(img.key)"
-                  >×</button>
+                  ><app-icon name="x" size="14" /></button>
                 </div>
               }
-              <label class="add-image-btn">
+              <label class="ui-btn ui-btn-sm self-start">
                 {{ uploadingImage() ? i18n.t('imageUpload.uploading') : i18n.t('importDraft.addImage') }}
                 <input type="file" accept=".png,.jpg,.jpeg,.gif,.webp" hidden [disabled]="uploadingImage()" (change)="onAddImage($event)" />
               </label>
@@ -215,18 +218,25 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
             </div>
 
             <div class="edit-actions">
-              <button type="button" class="hint-submit" [disabled]="busy()" (click)="saveEdit()">
+              <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" [disabled]="busy()" (click)="saveEdit()">
                 {{ busy() ? i18n.t('importReview.saving') : i18n.t('common.save') }}
               </button>
-              <button type="button" class="btn-cancel" [disabled]="busy()" (click)="cancelEdit()">{{ i18n.t('common.cancel') }}</button>
+              <button type="button" class="ui-btn ui-btn-sm ui-btn-ghost" [disabled]="busy()" (click)="cancelEdit()">{{ i18n.t('common.cancel') }}</button>
             </div>
           </div>
         } @else {
+          @if (warnings().length > 0) {
+            <ul class="warn-list" role="status">
+              @for (w of warnings(); track w.kind) {
+                <li><app-icon name="flag" size="14" /> {{ warningText(w) }}</li>
+              }
+            </ul>
+          }
           @if (isFailed()) {
             <p class="error-line">{{ draft().error }}</p>
           } @else if (explainError()) {
             <p class="error-line">{{ i18n.t('importDraft.explanationFailed', { error: explainError() }) }}</p>
-            <button type="button" class="show-logs-btn" (click)="$event.stopPropagation(); toggleLogs()">
+            <button type="button" class="ui-btn ui-btn-sm ui-btn-ghost self-start" (click)="$event.stopPropagation(); toggleLogs()">
               {{ logsOpen() ? i18n.t('importDraft.hideLogs') : i18n.t('importDraft.showLogs') }}
             </button>
             @if (logsOpen()) {
@@ -235,11 +245,24 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
                   <p class="logs-status">{{ i18n.t('importDraft.loadingLogs') }}</p>
                 } @else if (logsError()) {
                   <p class="error-line">{{ logsError() }}</p>
-                } @else if (logEvents() && logEvents()!.length === 0) {
+                } @else if (logCalls() && logCallsEmpty()) {
                   <p class="logs-status">{{ i18n.t('importDraft.noLogsFound') }}</p>
-                } @else if (logEvents()) {
-                  @for (event of logEvents(); track $index) {
-                    <div class="log-line"><span class="log-ts">{{ formatLogTimestamp(event.timestamp) }}</span> {{ event.message }}</div>
+                } @else if (logCalls()) {
+                  @for (call of logCalls(); track $index; let i = $index) {
+                    <div class="log-call">
+                      {{ i18n.t('importDraft.logAttempt', { n: logCalls()!.length - i }) }}
+                      · {{ formatLogTimestamp(call.at) }}
+                      @if (call.callId) { · callId {{ call.callId }} }
+                    </div>
+                    @for (event of call.events; track $index) {
+                      <div class="log-line">
+                        <span class="log-ts">{{ formatLogTimestamp(event.timestamp) }}</span>
+                        <span class="log-src" [class.agent]="event.source === 'agent'">{{ event.source === 'agent' ? 'agent' : 'lambda' }}</span>
+                        {{ event.message }}
+                      </div>
+                    } @empty {
+                      <p class="logs-status">{{ i18n.t('importDraft.noLogsForCall') }}</p>
+                    }
                   }
                 }
               </div>
@@ -327,12 +350,12 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
           <div class="hint-form" (click)="$event.stopPropagation()">
             <input
               type="text"
-              class="hint-input"
+              class="ui-input grow"
               [placeholder]="i18n.t('importDraft.hintPlaceholder')"
               [(ngModel)]="hintText"
               [disabled]="busy()"
             />
-            <button type="button" class="hint-submit" [disabled]="busy()" (click)="submitReExtract()">
+            <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" [disabled]="busy()" (click)="submitReExtract()">
               {{ busy() ? i18n.t('importDraft.reExtracting') : i18n.t('importDraft.reExtract') }}
             </button>
           </div>
@@ -381,28 +404,27 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
       .failed-title {
         color: var(--color-red);
       }
-      .reextract-btn {
-        flex-shrink: 0;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 24px;
-        height: 24px;
-        padding: 0;
-        background: none;
-        color: var(--text-faint);
-      }
-      .reextract-btn:hover {
-        color: var(--color-blue);
-      }
-      .reextract-btn.active {
-        color: var(--color-blue);
-      }
       .stem {
         font-size: var(--font-size-base);
         color: var(--text-primary);
         line-height: 1.5;
         word-break: break-word;
+      }
+      .warn-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-xs);
+        padding: var(--space-sm) var(--space-md);
+        border: 1px solid var(--color-amber);
+        border-radius: var(--radius-md);
+        color: var(--color-amber);
+        font-size: var(--font-size-sm);
+        list-style: none;
+      }
+      .warn-list li {
+        display: flex;
+        align-items: center;
+        gap: var(--space-xs);
       }
       .error-line {
         font-size: var(--font-size-sm);
@@ -501,20 +523,6 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
         font-size: var(--font-size-xs);
         color: var(--text-faint);
       }
-      .show-logs-btn {
-        align-self: flex-start;
-        padding: 2px var(--space-sm);
-        border-radius: var(--radius-sm);
-        border: 1px solid var(--bg-border);
-        background: var(--bg-input);
-        color: var(--text-secondary);
-        font-size: var(--font-size-xs);
-        font-weight: 600;
-      }
-      .show-logs-btn:hover {
-        border-color: var(--color-purple);
-        color: var(--color-purple);
-      }
       .logs-panel {
         margin-top: var(--space-xs);
         padding: var(--space-sm);
@@ -524,7 +532,7 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
         font-family: 'SF Mono', Menlo, monospace;
         font-size: 11px;
         line-height: 1.5;
-        max-height: 240px;
+        max-height: 420px;
         overflow-y: auto;
       }
       .logs-status {
@@ -538,6 +546,21 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         padding: 2px 0;
       }
+      .log-call {
+        margin-top: var(--space-xs);
+        padding: 2px 0;
+        color: #facc15;
+        font-weight: 700;
+      }
+      .log-src {
+        display: inline-block;
+        min-width: 44px;
+        margin-right: var(--space-xs);
+        color: #93c5fd;
+      }
+      .log-src.agent {
+        color: #f0abfc;
+      }
       .log-ts {
         color: #7cfc7c;
         margin-right: var(--space-xs);
@@ -547,76 +570,10 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
         gap: var(--space-xs);
         margin-top: var(--space-xs);
       }
-      .hint-input {
-        flex: 1;
-        min-width: 0;
-        height: 32px;
-        padding: 0 var(--space-sm);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: var(--bg-input);
-        color: var(--text-primary);
-        font-size: var(--font-size-sm);
-      }
-      .hint-submit {
-        flex-shrink: 0;
-        height: 32px;
-        padding: 0 var(--space-sm);
-        border-radius: var(--radius-md);
-        background: var(--color-purple);
-        color: #ffffff;
-        font-size: var(--font-size-sm);
-        white-space: nowrap;
-      }
-      .hint-submit:disabled,
-      .hint-input:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-      }
-      .title-input {
-        flex: 1;
-        min-width: 0;
-        height: 32px;
-        padding: 0 var(--space-sm);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: var(--bg-input);
-        color: var(--text-primary);
-        font-size: var(--font-size-base);
-        font-weight: 600;
-      }
       .edit-form {
         display: flex;
         flex-direction: column;
         gap: var(--space-sm);
-      }
-      .edit-label {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        font-size: var(--font-size-xs);
-        color: var(--text-muted);
-      }
-      .edit-domain-input {
-        height: 32px;
-        max-width: 260px;
-        padding: 0 var(--space-sm);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: var(--bg-input);
-        color: var(--text-primary);
-        font-size: var(--font-size-sm);
-      }
-      .edit-textarea {
-        width: 100%;
-        padding: var(--space-sm);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: var(--bg-input);
-        color: var(--text-primary);
-        font-size: var(--font-size-sm);
-        font-family: var(--font-family);
-        resize: vertical;
       }
       .edit-alt-row {
         display: flex;
@@ -638,9 +595,6 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
         height: 18px;
         cursor: pointer;
       }
-      .edit-alt-row .edit-textarea {
-        flex: 1;
-      }
       .edit-alt-block {
         display: flex;
         flex-direction: column;
@@ -651,43 +605,6 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
       .edit-comment-textarea {
         margin-left: calc(18px + var(--space-sm));
         font-size: var(--font-size-xs);
-      }
-      .remove-alt-btn {
-        flex-shrink: 0;
-        width: 28px;
-        height: 28px;
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: transparent;
-        color: var(--text-muted);
-        font-size: var(--font-size-base);
-        line-height: 1;
-      }
-      .remove-alt-btn:hover:not(:disabled) {
-        border-color: var(--color-red);
-        color: var(--color-red);
-      }
-      .remove-alt-btn:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-      }
-      .add-alt-btn {
-        align-self: flex-start;
-        height: 32px;
-        padding: 0 var(--space-md);
-        border-radius: var(--radius-md);
-        border: 1px dashed var(--bg-border);
-        background: transparent;
-        color: var(--text-secondary);
-        font-size: var(--font-size-sm);
-      }
-      .add-alt-btn:hover {
-        border-color: var(--color-purple);
-        color: var(--text-primary);
-      }
-      .edit-label-text {
-        font-size: var(--font-size-xs);
-        color: var(--text-muted);
       }
       .edit-images {
         display: flex;
@@ -716,42 +633,17 @@ function nextAlternativeLetter(existing: readonly { letter: string }[]): string 
         color: var(--text-primary);
         font-size: var(--font-size-sm);
       }
-      .add-image-btn {
-        align-self: flex-start;
-        height: 32px;
-        padding: 0 var(--space-md);
-        display: inline-flex;
-        align-items: center;
-        border-radius: var(--radius-md);
-        border: 1px dashed var(--bg-border);
-        background: transparent;
-        color: var(--text-secondary);
-        font-size: var(--font-size-sm);
-        cursor: pointer;
-      }
-      .add-image-btn:hover {
-        border-color: var(--color-purple);
-        color: var(--text-primary);
-      }
       .edit-actions {
         display: flex;
         gap: var(--space-sm);
         margin-top: var(--space-xs);
       }
-      .btn-cancel {
-        flex-shrink: 0;
-        height: 32px;
-        padding: 0 var(--space-md);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: transparent;
-        color: var(--text-secondary);
-        font-size: var(--font-size-sm);
-      }
-      .btn-cancel:hover {
-        border-color: var(--color-purple);
-        color: var(--text-primary);
-      }
+      .grow { flex: 1; min-width: 0; }
+      .narrow { max-width: 260px; }
+      .tight { width: 28px; min-height: 28px; }
+      .self-start { align-self: flex-start; }
+      .ui-btn-icon.active { color: var(--color-blue); }
+      .edit-alt-row .ui-input { flex: 1; }
     `,
   ],
 })
@@ -781,7 +673,8 @@ export class ImportDraftItemComponent {
 
   protected readonly logsOpen = signal(false);
   protected readonly loadingLogs = signal(false);
-  protected readonly logEvents = signal<{ timestamp: number; message: string }[] | null>(null);
+  protected readonly logCalls = signal<DraftLogCall[] | null>(null);
+  protected readonly logCallsEmpty = computed(() => (this.logCalls() ?? []).every((c) => c.events.length === 0));
   protected readonly logsError = signal<string | null>(null);
 
   // Public (not `protected`) — the review page reads this via a viewChild
@@ -801,6 +694,14 @@ export class ImportDraftItemComponent {
   protected readonly titleGenerationError = signal<string | null>(null);
 
   readonly isFailed = computed(() => this.draft().extractStatus === 'FAILED');
+  /** Coherence issues worth a second look (see draft-checks.util.ts). */
+  readonly warnings = computed(() => draftWarnings(this.draft()));
+
+  protected warningText(w: DraftWarning): string {
+    return w.kind === 'correctCount'
+      ? this.i18n.t('importDraft.warn.correctCount', { expected: w.expected, found: w.found })
+      : this.i18n.t('importDraft.warn.' + w.kind);
+  }
 
   /** Images matching one view-mode slot — see ImportDraftImageTarget. */
   imagesFor(target: ImportDraftImage['target'], alternativeLetter?: string): ImportDraftImage[] {
@@ -818,7 +719,7 @@ export class ImportDraftItemComponent {
   async toggleLogs(): Promise<void> {
     const opening = !this.logsOpen();
     this.logsOpen.set(opening);
-    if (!opening || this.logEvents() !== null || this.loadingLogs()) return;
+    if (!opening || this.logCalls() !== null || this.loadingLogs()) return;
     this.loadingLogs.set(true);
     this.logsError.set(null);
     try {
@@ -826,7 +727,8 @@ export class ImportDraftItemComponent {
       if (result.error) {
         this.logsError.set(result.error);
       } else {
-        this.logEvents.set(result.events);
+        // Older responses had only a flat list; wrap it as one call.
+        this.logCalls.set(result.calls.length ? result.calls : [{ callId: null, requestId: result.requestId, at: result.events[0]?.timestamp ?? 0, events: result.events }]);
       }
     } finally {
       this.loadingLogs.set(false);
@@ -834,7 +736,7 @@ export class ImportDraftItemComponent {
   }
 
   formatLogTimestamp(ts: number): string {
-    return new Date(ts).toISOString().slice(11, 23);
+    return ts ? new Date(ts).toLocaleTimeString(this.i18n.lang(), { hour12: false }) : '';
   }
 
   submitReExtract(): void {

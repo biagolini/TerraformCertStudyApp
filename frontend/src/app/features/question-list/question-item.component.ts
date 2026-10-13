@@ -49,7 +49,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
         <div class="domain-control" (click)="$event.stopPropagation()">
           @if (showPicker()) {
             <select
-              class="domain-select"
+              class="ui-input ui-input-sm domain-select"
               [value]="question().domain"
               (change)="onPickDomain($event)"
               (blur)="closePicker()"
@@ -198,16 +198,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .badge-btn app-domain-badge {
         max-width: 100%;
         min-width: 0;
-      }
-      .domain-select {
-        height: 32px;
-        max-width: 100%;
-        padding: 0 var(--space-sm);
-        border-radius: var(--radius-md);
-        border: 1px solid var(--bg-border);
-        background: var(--bg-input);
-        color: var(--text-primary);
-        font-size: var(--font-size-sm);
       }
     `,
   ],
