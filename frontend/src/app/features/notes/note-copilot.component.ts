@@ -7,7 +7,8 @@ import { PacksService } from '../../core/services/packs.service';
 import { toPackContext } from '../../core/models/pack.model';
 import { SettingsService } from '../../core/services/settings.service';
 import { I18nService } from '../../core/i18n/i18n.service';
-import { COPILOT_ACTIONS, COPILOT_ACTION_INSTRUCTIONS, CONCEPT_APPLY_REQUEST, CopilotAction, buildConceptProposalRequest, extractUpdatedNote } from '../../core/utils/assistant-prompt.util';
+import { COPILOT_ACTIONS, COPILOT_ACTION_INSTRUCTIONS, CONCEPT_APPLY_REQUEST, CopilotAction, buildConceptProposalRequest } from '../../core/utils/assistant-prompt.util';
+import { applyNoteEdits, parseNoteEdits } from '../../core/utils/note-edit.util';
 import { ConceptRequest } from '../../core/services/note-integration.service';
 import { examPath } from '../../core/utils/routes.util';
 import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.component';
@@ -20,6 +21,8 @@ interface CopilotMessage {
   label?: string;
   /** The reply that rewrote the note after "Apply to note". */
   applied?: boolean;
+  /** The reply hit the model's output limit and is incomplete. */
+  truncated?: boolean;
 }
 
 /**
@@ -67,13 +70,11 @@ interface CopilotMessage {
               <p>{{ m.label ?? m.content }}</p>
             } @else if (m.applied) {
               <p class="applied"><app-icon name="check" size="14" /> {{ m.label }}</p>
-              @if (undoMarkdown() !== null && $last) {
-                <div class="msg-actions">
-                  <button type="button" class="ui-btn ui-btn-sm" (click)="undo()"><app-icon name="rotate-ccw" size="14" /> {{ i18n.t('notes.undoConcept') }}</button>
-                </div>
-              }
             } @else {
               <app-markdown-renderer [source]="m.content" />
+              @if (m.truncated) {
+                <p class="truncated" role="note"><app-icon name="flag" size="14" /> {{ i18n.t('notes.replyCutOff') }}</p>
+              }
               @if (concept() && $last && !streaming()) {
                 <div class="msg-actions">
                   <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" (click)="applyConcept()"><app-icon name="check" size="14" /> {{ i18n.t('notes.applyConcept') }}</button>
@@ -82,7 +83,9 @@ interface CopilotMessage {
               <div class="msg-actions">
                 <button type="button" class="ui-btn ui-btn-sm" (click)="insert.emit(m.content)">{{ i18n.t('notes.insertAtCursor') }}</button>
                 <button type="button" class="ui-btn ui-btn-sm" (click)="append.emit(m.content)">{{ i18n.t('notes.appendToNote') }}</button>
-                <button type="button" class="ui-btn ui-btn-sm" (click)="confirmReplace.set($index)">{{ i18n.t('notes.replaceNote') }}</button>
+                @if (!m.truncated) {
+                  <button type="button" class="ui-btn ui-btn-sm" (click)="confirmReplace.set($index)">{{ i18n.t('notes.replaceNote') }}</button>
+                }
                 <button type="button" class="ui-btn ui-btn-sm ui-btn-ghost" (click)="copy(m.content)">{{ copied() === $index ? i18n.t('notes.copied') : i18n.t('notes.copy') }}</button>
               </div>
               @if (confirmReplace() === $index) {
@@ -212,6 +215,13 @@ interface CopilotMessage {
       .concept-title {
         font-size: var(--font-size-sm);
       }
+      .truncated {
+        display: flex;
+        align-items: center;
+        gap: var(--space-xs);
+        color: var(--color-amber);
+        font-size: var(--font-size-sm);
+      }
       .applied {
         display: flex;
         align-items: center;
@@ -237,8 +247,8 @@ export class NoteCopilotComponent {
   readonly insert = output<string>();
   readonly append = output<string>();
   readonly replace = output<string>();
-  /** Puts back the exact previous text (Undo). */
-  readonly restore = output<string>();
+  /** A change the AI wants to make, for the editor to show as a diff and the student to approve. */
+  readonly propose = output<{ before: string; after: string }>();
   readonly closed = output<void>();
 
   private readonly thread = viewChild<ElementRef<HTMLElement>>('thread');
@@ -252,8 +262,6 @@ export class NoteCopilotComponent {
   readonly confirmReplace = signal<number | null>(null);
   readonly copied = signal<number | null>(null);
   private controller: AbortController | null = null;
-  /** The note before the last applied concept, for Undo. */
-  readonly undoMarkdown = signal<string | null>(null);
   private conceptStarted: string | null = null;
 
   constructor() {
@@ -271,17 +279,11 @@ export class NoteCopilotComponent {
     });
   }
 
-  /** The student authorized the proposal: get the full updated note and put it in the editor. */
+  /** The student authorized the proposal: get targeted edits and hand the result to the editor as a diff to approve. */
   applyConcept(): void {
     void this.send(CONCEPT_APPLY_REQUEST, this.i18n.t('notes.applyConcept'), true);
   }
 
-  undo(): void {
-    const previous = this.undoMarkdown();
-    if (previous === null) return;
-    this.undoMarkdown.set(null);
-    this.restore.emit(previous);
-  }
 
   backToQuiz(packId: string): void {
     void this.router.navigate(examPath(packId, 'quiz'));
@@ -335,6 +337,7 @@ export class NoteCopilotComponent {
     this.streaming.set(true);
     this.draft.set('');
     let reply = '';
+    let stopReason = '';
     try {
       for await (const chunk of this.bedrock.streamNoteCopilot(
         this.title(),
@@ -344,6 +347,7 @@ export class NoteCopilotComponent {
         this.settings.defaultModel(),
         this.controller.signal,
         this.settings.outputLanguage(),
+        (reason) => (stopReason = reason),
       )) {
         reply += chunk;
         this.draft.set(reply);
@@ -357,15 +361,35 @@ export class NoteCopilotComponent {
       this.streaming.set(false);
       this.draft.set('');
       this.controller = null;
-      if (reply.trim() && apply) {
-        // Only now does the note change, and Undo brings the previous text back.
-        this.undoMarkdown.set(before);
-        this.replace.emit(extractUpdatedNote(reply));
-        this.messages.update((list) => [...list, { role: 'assistant', content: reply.trim(), label: this.i18n.t('notes.conceptApplied'), applied: true }]);
-      } else if (reply.trim()) this.messages.update((list) => [...list, { role: 'assistant', content: reply.trim() }]);
+      const truncated = stopReason === 'max_tokens';
+      if (reply.trim() && apply) this.applyEdits(before, reply.trim(), truncated);
+      else if (reply.trim()) this.messages.update((list) => [...list, { role: 'assistant', content: reply.trim(), truncated }]);
       else this.messages.update((list) => list.slice(0, -1));
       this.scroll();
     }
+  }
+
+  /** Applies the reply's edits to the note, or explains why nothing changed.
+   * The note is never touched by a reply that was cut off, has no complete
+   * edit, or names only sections the note does not have. */
+  private applyEdits(before: string, reply: string, truncated: boolean): void {
+    const edits = truncated ? [] : parseNoteEdits(reply);
+    const result = edits.length ? applyNoteEdits(before, edits) : null;
+    if (!result || result.applied === 0) {
+      const reason = truncated
+        ? this.i18n.t('notes.applyCutOff')
+        : edits.length
+          ? this.i18n.t('notes.applySectionNotFound', { sections: result!.missing.join(', ') })
+          : this.i18n.t('notes.applyNoEdits');
+      this.error.set(reason);
+      this.messages.update((list) => [...list, { role: 'assistant', content: reply, truncated }]);
+      return;
+    }
+    this.propose.emit({ before, after: result.markdown });
+    const label = result.missing.length
+      ? this.i18n.t('notes.changeProposedPartly', { sections: result.missing.join(', ') })
+      : this.i18n.t('notes.changeProposed');
+    this.messages.update((list) => [...list, { role: 'assistant', content: reply, label, applied: true }]);
   }
 
   private scroll(): void {

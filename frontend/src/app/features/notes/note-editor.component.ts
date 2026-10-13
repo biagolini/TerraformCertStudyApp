@@ -23,6 +23,7 @@ import { NoteCopilotComponent } from './note-copilot.component';
 import { ConceptRequest, NoteIntegrationService } from '../../core/services/note-integration.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { noteOutline } from '../../core/utils/note-outline.util';
+import { diffLines } from '../../core/utils/line-diff.util';
 import { readingThemeClass } from '../../core/models/settings.model';
 import { NoteOutlineComponent } from './note-outline.component';
 import { NoteHistoryComponent } from './note-history.component';
@@ -132,8 +133,38 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
           </div>
         }
 
+        @if (lastApproved() !== null && !pendingChange()) {
+          <div class="approved-bar" role="status">
+            <app-icon name="check" size="14" />
+            <span>{{ i18n.t('notes.changeApproved') }}</span>
+            <button type="button" class="ui-btn ui-btn-sm" (click)="undoApproved()"><app-icon name="rotate-ccw" size="14" /> {{ i18n.t('notes.undoConcept') }}</button>
+            <button type="button" class="ui-btn ui-btn-sm ui-btn-ghost ui-btn-icon" (click)="lastApproved.set(null)" [attr.aria-label]="i18n.t('common.close')"><app-icon name="x" size="14" /></button>
+          </div>
+        }
+
         @if (loading()) {
           <p class="ui-muted">{{ i18n.t('common.loading') }}</p>
+        } @else if (pendingChange(); as change) {
+          <section class="review ui-card" [attr.aria-label]="i18n.t('notes.reviewChange')">
+            <header class="review-head">
+              <div>
+                <strong>{{ i18n.t('notes.reviewChange') }}</strong>
+                <span class="ui-faint">{{ i18n.t('notes.reviewCounts', { added: diffCounts().added, removed: diffCounts().removed }) }}</span>
+              </div>
+              <span class="spacer"></span>
+              <button type="button" class="ui-btn ui-btn-sm" (click)="discardChange()">{{ i18n.t('notes.discardChange') }}</button>
+              <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" (click)="approveChange()"><app-icon name="check" /> {{ i18n.t('notes.approveChange') }}</button>
+            </header>
+            <div class="diff" #diffBox>
+              @for (line of diff(); track $index) {
+                <div class="diff-line" [class.add]="line.kind === 'add'" [class.del]="line.kind === 'del'" [attr.data-first-change]="$index === firstChange() ? '' : null">
+                  <span class="sign" aria-hidden="true">{{ line.kind === 'add' ? '+' : line.kind === 'del' ? '−' : ' ' }}</span>
+                  <span class="ui-sr-only">{{ line.kind === 'add' ? i18n.t('notes.lineAdded') : line.kind === 'del' ? i18n.t('notes.lineRemoved') : '' }}</span>
+                  <span class="text">{{ line.text || ' ' }}</span>
+                </div>
+              }
+            </div>
+          </section>
         } @else {
           @if (editing()) {
           <div class="panes" [class.split]="layout() === 'split'">
@@ -188,7 +219,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
           (insert)="insertAtCursor($event)"
           (append)="append($event)"
           (replace)="replaceAll($event)"
-          (restore)="applyBody($event)"
+          (propose)="proposeChange($event)"
           (closed)="copilotOpen.set(false)"
         />
       }
@@ -387,6 +418,80 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
       .error {
         color: var(--color-red);
       }
+      .approved-bar {
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+        padding: var(--space-xs) var(--space-sm);
+        border-radius: var(--radius-md);
+        background: color-mix(in srgb, var(--color-green) 12%, transparent);
+        color: var(--text-primary);
+        font-size: var(--font-size-sm);
+      }
+      .approved-bar span {
+        flex: 1;
+      }
+      .review {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-sm);
+        padding: 0;
+        overflow: hidden;
+      }
+      .review-head {
+        position: sticky;
+        top: calc(var(--header-height) + 48px);
+        z-index: 2;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--space-sm);
+        padding: var(--space-sm) var(--space-md);
+        border-bottom: 1px solid var(--bg-border);
+        background: var(--bg-surface);
+      }
+      .review-head div {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .diff {
+        padding: var(--space-sm) 0;
+        font-family: var(--font-mono);
+        font-size: var(--font-size-sm);
+        line-height: 1.6;
+      }
+      .diff-line {
+        display: flex;
+        gap: var(--space-sm);
+        padding: 0 var(--space-md);
+        white-space: pre-wrap;
+        word-break: break-word;
+        scroll-margin-top: calc(var(--header-height) + 140px);
+      }
+      .diff-line .sign {
+        flex: 0 0 1ch;
+        color: var(--text-faint);
+        user-select: none;
+      }
+      .diff-line .text {
+        flex: 1;
+        min-width: 0;
+      }
+      .diff-line.add {
+        background: color-mix(in srgb, var(--color-green) 16%, transparent);
+      }
+      .diff-line.add .sign {
+        color: var(--color-green);
+      }
+      .diff-line.del {
+        background: color-mix(in srgb, var(--color-red) 14%, transparent);
+        text-decoration: line-through;
+        text-decoration-color: color-mix(in srgb, var(--color-red) 60%, transparent);
+      }
+      .diff-line.del .sign {
+        color: var(--color-red);
+      }
     `,
   ],
 })
@@ -431,6 +536,19 @@ export class NoteEditorComponent implements OnInit, OnDestroy {
   /** Text theme class for the note body; none when it follows the site theme. */
   readonly themeClass = computed(() => readingThemeClass(this.settings.noteReadingTheme()));
   readonly outline = computed(() => noteOutline(this.body()));
+  /** A copilot change waiting for approval, and the text before the last approved one (for Undo). */
+  readonly pendingChange = signal<{ before: string; after: string } | null>(null);
+  readonly lastApproved = signal<string | null>(null);
+  readonly diff = computed(() => {
+    const change = this.pendingChange();
+    return change ? diffLines(change.before, change.after) : [];
+  });
+  readonly diffCounts = computed(() => ({
+    added: this.diff().filter((l) => l.kind === 'add').length,
+    removed: this.diff().filter((l) => l.kind === 'del').length,
+  }));
+  readonly firstChange = computed(() => this.diff().findIndex((l) => l.kind !== 'same'));
+  private readonly diffBox = viewChild<ElementRef<HTMLElement>>('diffBox');
   /** Heading the reader is scrolled to (index among all headings). */
   readonly activeHeading = signal<number | null>(null);
 
@@ -577,6 +695,41 @@ export class NoteEditorComponent implements OnInit, OnDestroy {
 
   append(markdown: string): void {
     this.applyBody(`${this.body().trimEnd()}\n\n${markdown.trim()}\n`);
+  }
+
+  /** The copilot's targeted edit, shown as a diff of the whole note until approved or discarded. */
+  proposeChange(change: { before: string; after: string }): void {
+    this.lastApproved.set(null);
+    this.pendingChange.set(change);
+    requestAnimationFrame(() =>
+      this.diffBox()?.nativeElement.querySelector('[data-first-change]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+    );
+  }
+
+  approveChange(): void {
+    const change = this.pendingChange();
+    if (!change) return;
+    // Built against the text the copilot saw; if the note changed since, the diff is stale.
+    if (change.before !== this.body()) {
+      this.pendingChange.set(null);
+      this.error.set(this.i18n.t('notes.changeStale'));
+      return;
+    }
+    this.pendingChange.set(null);
+    this.lastApproved.set(change.before);
+    this.applyBody(change.after);
+  }
+
+  discardChange(): void {
+    this.pendingChange.set(null);
+  }
+
+  /** Puts back the text from before the last approved change (saved as a new version while reading). */
+  undoApproved(): void {
+    const previous = this.lastApproved();
+    if (previous === null) return;
+    this.lastApproved.set(null);
+    this.applyBody(previous);
   }
 
   replaceAll(markdown: string): void {
