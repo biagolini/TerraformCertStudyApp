@@ -24,6 +24,7 @@ import { ConceptRequest, NoteIntegrationService } from '../../core/services/note
 import { SettingsService } from '../../core/services/settings.service';
 import { noteOutline } from '../../core/utils/note-outline.util';
 import { diffLines } from '../../core/utils/line-diff.util';
+import { diffMarkdown } from '../../core/utils/markdown-diff.util';
 import { readingThemeClass } from '../../core/models/settings.model';
 import { NoteOutlineComponent } from './note-outline.component';
 import { NoteHistoryComponent } from './note-history.component';
@@ -147,23 +148,41 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
         } @else if (pendingChange(); as change) {
           <section class="review ui-card" [attr.aria-label]="i18n.t('notes.reviewChange')">
             <header class="review-head">
-              <div>
+              <div class="review-title">
                 <strong>{{ i18n.t('notes.reviewChange') }}</strong>
                 <span class="ui-faint">{{ i18n.t('notes.reviewCounts', { added: diffCounts().added, removed: diffCounts().removed }) }}</span>
               </div>
               <span class="spacer"></span>
+              <div class="ui-segmented" role="group" [attr.aria-label]="i18n.t('notes.viewMode')">
+                @for (v of reviewViews; track v) {
+                  <button type="button" [class.on]="reviewView() === v" (click)="setReviewView(v)" [attr.aria-pressed]="reviewView() === v">{{ i18n.t('notes.review_' + v) }}</button>
+                }
+              </div>
               <button type="button" class="ui-btn ui-btn-sm" (click)="discardChange()">{{ i18n.t('notes.discardChange') }}</button>
               <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" (click)="approveChange()"><app-icon name="check" /> {{ i18n.t('notes.approveChange') }}</button>
             </header>
-            <div class="diff" #diffBox>
-              @for (line of diff(); track $index) {
-                <div class="diff-line" [class.add]="line.kind === 'add'" [class.del]="line.kind === 'del'" [attr.data-first-change]="$index === firstChange() ? '' : null">
-                  <span class="sign" aria-hidden="true">{{ line.kind === 'add' ? '+' : line.kind === 'del' ? '−' : ' ' }}</span>
-                  <span class="ui-sr-only">{{ line.kind === 'add' ? i18n.t('notes.lineAdded') : line.kind === 'del' ? i18n.t('notes.lineRemoved') : '' }}</span>
-                  <span class="text">{{ line.text || ' ' }}</span>
-                </div>
-              }
-            </div>
+            @if (reviewView() === 'preview') {
+              <article class="preview diff-preview" [class]="themeClass()" #diffBox>
+                @for (seg of diffSegments(); track $index) {
+                  <div class="seg" [class.add]="seg.kind === 'add'" [class.del]="seg.kind === 'del'" [attr.data-first-change]="$index === firstSegment() ? '' : null">
+                    @if (seg.kind !== 'same') {
+                      <span class="seg-tag">{{ seg.kind === 'add' ? i18n.t('notes.segAdded') : i18n.t('notes.segRemoved') }}</span>
+                    }
+                    <app-markdown-renderer [source]="seg.markdown" [document]="true" />
+                  </div>
+                }
+              </article>
+            } @else {
+              <div class="diff" #diffBox>
+                @for (line of diff(); track $index) {
+                  <div class="diff-line" [class.add]="line.kind === 'add'" [class.del]="line.kind === 'del'" [attr.data-first-change]="$index === firstChange() ? '' : null">
+                    <span class="sign" aria-hidden="true">{{ line.kind === 'add' ? '+' : line.kind === 'del' ? '−' : ' ' }}</span>
+                    <span class="ui-sr-only">{{ line.kind === 'add' ? i18n.t('notes.lineAdded') : line.kind === 'del' ? i18n.t('notes.lineRemoved') : '' }}</span>
+                    <span class="text">{{ line.text || ' ' }}</span>
+                  </div>
+                }
+              </div>
+            }
           </section>
         } @else {
           @if (editing()) {
@@ -436,7 +455,8 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
         flex-direction: column;
         gap: var(--space-sm);
         padding: 0;
-        overflow: hidden;
+        /* clip, not hidden: hidden makes this a scroll container and the sticky header would scroll away with it. */
+        overflow: clip;
       }
       .review-head {
         position: sticky;
@@ -450,7 +470,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
         border-bottom: 1px solid var(--bg-border);
         background: var(--bg-surface);
       }
-      .review-head div {
+      .review-head .review-title {
         display: flex;
         flex-direction: column;
         gap: 2px;
@@ -490,6 +510,47 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
         text-decoration-color: color-mix(in srgb, var(--color-red) 60%, transparent);
       }
       .diff-line.del .sign {
+        color: var(--color-red);
+      }
+      .diff-preview {
+        border: 0;
+        border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+      }
+      .seg {
+        position: relative;
+        scroll-margin-top: calc(var(--header-height) + 140px);
+      }
+      .seg.add,
+      .seg.del {
+        margin: var(--space-sm) calc(-1 * var(--space-md));
+        padding: var(--space-lg) var(--space-md) var(--space-sm);
+        border-left: 4px solid;
+        border-radius: var(--radius-sm);
+      }
+      .seg.add {
+        border-color: var(--color-green);
+        background: color-mix(in srgb, var(--color-green) 14%, transparent);
+      }
+      .seg.del {
+        border-color: var(--color-red);
+        background: color-mix(in srgb, var(--color-red) 12%, transparent);
+        text-decoration: line-through;
+        text-decoration-color: color-mix(in srgb, var(--color-red) 70%, transparent);
+      }
+      .seg-tag {
+        position: absolute;
+        top: var(--space-xs);
+        left: var(--space-md);
+        font-size: var(--font-size-xs);
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        text-decoration: none;
+      }
+      .seg.add .seg-tag {
+        color: var(--color-green);
+      }
+      .seg.del .seg-tag {
         color: var(--color-red);
       }
     `,
@@ -548,6 +609,14 @@ export class NoteEditorComponent implements OnInit, OnDestroy {
     removed: this.diff().filter((l) => l.kind === 'del').length,
   }));
   readonly firstChange = computed(() => this.diff().findIndex((l) => l.kind !== 'same'));
+  /** The same change as formatted text, so it reads like the note itself. */
+  readonly diffSegments = computed(() => {
+    const change = this.pendingChange();
+    return change ? diffMarkdown(change.before, change.after) : [];
+  });
+  readonly firstSegment = computed(() => this.diffSegments().findIndex((s) => s.kind !== 'same'));
+  protected readonly reviewViews = ['preview', 'markdown'] as const;
+  readonly reviewView = signal<'preview' | 'markdown'>('preview');
   private readonly diffBox = viewChild<ElementRef<HTMLElement>>('diffBox');
   /** Heading the reader is scrolled to (index among all headings). */
   readonly activeHeading = signal<number | null>(null);
@@ -701,6 +770,15 @@ export class NoteEditorComponent implements OnInit, OnDestroy {
   proposeChange(change: { before: string; after: string }): void {
     this.lastApproved.set(null);
     this.pendingChange.set(change);
+    this.scrollToFirstChange();
+  }
+
+  setReviewView(view: 'preview' | 'markdown'): void {
+    this.reviewView.set(view);
+    this.scrollToFirstChange();
+  }
+
+  private scrollToFirstChange(): void {
     requestAnimationFrame(() =>
       this.diffBox()?.nativeElement.querySelector('[data-first-change]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
     );

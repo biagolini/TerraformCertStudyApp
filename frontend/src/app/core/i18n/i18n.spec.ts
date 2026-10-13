@@ -19,6 +19,7 @@ describe('i18n dictionaries', () => {
       ...['foundational', 'associate', 'professional', 'specialty'].map((l) => `level.${l}`),
       ...['backlog', 'in-progress', 'earned'].map((t) => `track.${t}`),
       ...['edit', 'split'].map((m) => `notes.mode_${m}`),
+      ...['preview', 'markdown'].map((v) => `notes.review_${v}`),
       ...['site', 'light', 'dark', 'sepia'].map((t) => `notes.textTheme_${t}`),
       ...['beginner', 'intermediate', 'advanced', 'lead'].map((e) => `profile.exp_${e}`),
       ...['all', 'answered', 'unanswered', 'flagged'].map((f) => `quizRunner.filter_${f}`),

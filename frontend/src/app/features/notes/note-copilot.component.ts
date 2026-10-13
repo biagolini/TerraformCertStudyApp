@@ -9,6 +9,12 @@ import { SettingsService } from '../../core/services/settings.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { COPILOT_ACTIONS, COPILOT_ACTION_INSTRUCTIONS, CONCEPT_APPLY_REQUEST, CopilotAction, buildConceptProposalRequest } from '../../core/utils/assistant-prompt.util';
 import { applyNoteEdits, parseNoteEdits } from '../../core/utils/note-edit.util';
+
+const EDIT_MARKER = /^\s*===\s*EDIT\s*===\s*$/im;
+
+function hasEditBlocks(content: string): boolean {
+  return EDIT_MARKER.test(content);
+}
 import { ConceptRequest } from '../../core/services/note-integration.service';
 import { examPath } from '../../core/utils/routes.util';
 import { MarkdownRendererComponent } from '../review-viewer/markdown-renderer.component';
@@ -19,7 +25,7 @@ interface CopilotMessage {
   content: string;
   /** Short label shown instead of the long instruction (one-click actions) or the full updated note (applied concept). */
   label?: string;
-  /** The reply that rewrote the note after "Apply to note". */
+  /** The reply's edits were handed to the editor as a highlighted change to approve. */
   applied?: boolean;
   /** The reply hit the model's output limit and is incomplete. */
   truncated?: boolean;
@@ -27,8 +33,10 @@ interface CopilotMessage {
 
 /**
  * Side panel that reads the note being edited and answers through Bedrock
- * (/converse streaming). Replies are Markdown the user can insert at the
- * cursor, append, or use to replace the note; nothing is applied without a click.
+ * (/converse streaming). A reply that changes the note carries edit blocks,
+ * which the editor shows highlighted in the note to approve or discard; other
+ * replies are Markdown the user can insert at the cursor, append, or use to
+ * replace the note. Nothing is applied without a click.
  * The conversation lives only for the editing session (per note id).
  */
 @Component({
@@ -69,13 +77,16 @@ interface CopilotMessage {
             @if (m.role === 'user') {
               <p>{{ m.label ?? m.content }}</p>
             } @else if (m.applied) {
+              @if (explanation(m.content); as text) {
+                <app-markdown-renderer [source]="text" />
+              }
               <p class="applied"><app-icon name="check" size="14" /> {{ m.label }}</p>
             } @else {
               <app-markdown-renderer [source]="m.content" />
               @if (m.truncated) {
                 <p class="truncated" role="note"><app-icon name="flag" size="14" /> {{ i18n.t('notes.replyCutOff') }}</p>
               }
-              @if (concept() && $last && !streaming()) {
+              @if (concept() && $last && !streaming() && !hasEdits(m.content)) {
                 <div class="msg-actions">
                   <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" (click)="applyConcept()"><app-icon name="check" size="14" /> {{ i18n.t('notes.applyConcept') }}</button>
                 </div>
@@ -101,7 +112,12 @@ interface CopilotMessage {
         @if (streaming()) {
           <div class="msg">
             @if (draft()) {
-              <app-markdown-renderer [source]="draft()" />
+              @if (explanation(draft()); as text) {
+                <app-markdown-renderer [source]="text" />
+              }
+              @if (hasEdits(draft())) {
+                <p class="ui-muted">{{ i18n.t('notes.preparingChange') }}</p>
+              }
             } @else {
               <p class="ui-muted">{{ i18n.t('tutor.thinking') }}</p>
             }
@@ -285,6 +301,15 @@ export class NoteCopilotComponent {
   }
 
 
+  /** A reply's prose, without its edit blocks (those are shown in the note as a diff). */
+  explanation(content: string): string {
+    return content.split(EDIT_MARKER)[0].trim();
+  }
+
+  hasEdits(content: string): boolean {
+    return hasEditBlocks(content);
+  }
+
   backToQuiz(packId: string): void {
     void this.router.navigate(examPath(packId, 'quiz'));
   }
@@ -362,7 +387,8 @@ export class NoteCopilotComponent {
       this.draft.set('');
       this.controller = null;
       const truncated = stopReason === 'max_tokens';
-      if (reply.trim() && apply) this.applyEdits(before, reply.trim(), truncated);
+      // Any reply with edit blocks is a change to review, whether asked for with a button or in the student's own words.
+      if (reply.trim() && (apply || hasEditBlocks(reply))) this.applyEdits(before, reply.trim(), truncated);
       else if (reply.trim()) this.messages.update((list) => [...list, { role: 'assistant', content: reply.trim(), truncated }]);
       else this.messages.update((list) => list.slice(0, -1));
       this.scroll();

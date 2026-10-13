@@ -21,7 +21,8 @@ export type Block =
   | { kind: 'h2' | 'h3'; level: number; inline: InlineSegment[] }
   | { kind: 'hr' }
   | { kind: 'p'; inline: InlineSegment[]; muted: boolean }
-  | { kind: 'ul' | 'ol'; items: ListItem[] }
+  /** `start` is the number of an ordered list's first item when it is not 1. */
+  | { kind: 'ul' | 'ol'; items: ListItem[]; start?: number }
   | { kind: 'code'; text: string }
   | { kind: 'quote'; lines: InlineSegment[][] }
   | { kind: 'table'; header: InlineSegment[][]; rows: InlineSegment[][][] };
@@ -105,7 +106,7 @@ export type Block =
             </ul>
           }
           @case ('ol') {
-            <ol class="md-ol">
+            <ol class="md-ol" [attr.start]="asList(block).start ?? null">
               @for (item of asList(block).items; track $index) {
                 <li [attr.data-depth]="item.level || null">
                   <ng-container *ngTemplateOutlet="inline; context: { $implicit: item.inline }" />
@@ -390,8 +391,8 @@ export class MarkdownRendererComponent {
   asParagraph(block: Block): { inline: InlineSegment[]; muted: boolean } {
     return block.kind === 'p' ? { inline: block.inline, muted: block.muted } : { inline: [], muted: false };
   }
-  asList(block: Block): { items: ListItem[] } {
-    return block.kind === 'ul' || block.kind === 'ol' ? { items: block.items } : { items: [] };
+  asList(block: Block): { items: ListItem[]; start?: number } {
+    return block.kind === 'ul' || block.kind === 'ol' ? { items: block.items, start: block.start } : { items: [] };
   }
   asCode(block: Block): string {
     return block.kind === 'code' ? block.text : '';
@@ -435,14 +436,14 @@ function splitRow(line: string): string[] {
 export function parseMarkdown(source: string): Block[] {
   const lines = source.replace(/\r\n/g, '\n').split('\n');
   const blocks: Block[] = [];
-  let list: { kind: 'ul' | 'ol'; items: ListItem[] } | null = null;
+  let list: { kind: 'ul' | 'ol'; items: ListItem[]; start?: number } | null = null;
   // Indentation of each open nesting level in the current list; an item's
   // level is its position here, so 2- and 4-space indents both nest by one.
   let indents: number[] = [];
   let quote: InlineSegment[][] | null = null;
 
   const flush = () => {
-    if (list && list.items.length > 0) blocks.push({ kind: list.kind, items: list.items });
+    if (list && list.items.length > 0) blocks.push({ kind: list.kind, items: list.items, ...(list.start ? { start: list.start } : {}) });
     indents = [];
     if (quote && quote.length > 0) blocks.push({ kind: 'quote', lines: quote });
     list = null;
@@ -517,7 +518,10 @@ export function parseMarkdown(source: string): Block[] {
       const nested = !!list && indents.length > 0 && indent > indents[0];
       // A nested item of the other kind stays inside the current list.
       if (quote || (list && list.kind !== kind && !nested)) flush();
-      if (!list) list = { kind, items: [] };
+      if (!list) {
+        const start = ordered ? parseInt(trimmed, 10) : 1;
+        list = { kind, items: [], ...(start !== 1 ? { start } : {}) };
+      }
       while (indents.length > 0 && indent < indents[indents.length - 1]) indents.pop();
       if (indents.length === 0 || indent > indents[indents.length - 1]) indents.push(indent);
       const level = Math.min(indents.length - 1, 3);

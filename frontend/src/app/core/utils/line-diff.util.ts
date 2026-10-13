@@ -8,8 +8,11 @@ export interface DiffLine {
  * The shared head and tail are skipped before the quadratic part, so a
  * small edit to a long note stays cheap. */
 export function diffLines(before: string, after: string): DiffLine[] {
-  const a = before.split('\n');
-  const b = after.split('\n');
+  return diffItems(before.split('\n'), after.split('\n'));
+}
+
+/** The same diff over any list of strings (lines, or Markdown blocks). */
+export function diffItems(a: readonly string[], b: readonly string[]): DiffLine[] {
   let head = 0;
   while (head < a.length && head < b.length && a[head] === b[head]) head++;
   let tail = 0;

@@ -80,7 +80,7 @@ export const COPILOT_ACTIONS: CopilotAction[] = ['polish', 'summary', 'flashcard
 /** Instruction sent as the user turn for a one-click copilot action. */
 export const COPILOT_ACTION_INSTRUCTIONS: Record<CopilotAction, string> = {
   polish:
-    'Rewrite the whole note with clean Markdown structure (headings, lists, tables where they help), fixing grammar and removing repetition. Keep every technical fact; do not add new claims.',
+    'Polish the note: clean Markdown structure (headings, lists, tables where they help), fixed grammar, no repetition. Keep every technical fact and do not add new claims. Change it with edit blocks, one per passage or section that needs it; if the note is long, start with the sections that need it most.',
   summary:
     'Write an exam-focused summary of the note: the 5 to 10 points most likely to be tested, each with the decisive detail (limits, defaults, "use X when Y"). End with a short "Common traps" list.',
   flashcards:
@@ -103,7 +103,11 @@ Rules:
 - Base your answer on the note. When you add knowledge that is not in the note, keep it accurate and clearly relevant to the certification.
 - Reply in GitHub-flavored Markdown only (headings, lists, tables, fenced code), ready to paste into the note. No preamble such as "Sure, here is" and no closing remarks.
 - Never invent product limits, prices or quotas you are not confident about; say "check the current documentation" instead.
-- No emojis.`;
+- No emojis.
+
+Changing the note: when the student asks you to change, fix, correct, add to, shorten or reorganize the note (or agrees to a change you proposed), do NOT write the changed note out. Write one or two sentences saying what you will change and why, then the edit blocks below. The app highlights the change inside the note (removed text in red, added text in green) and the student approves or discards it there, so do not ask for confirmation and do not repeat the new text outside the blocks. For questions, explanations, summaries or flashcards that are not meant to change the note, answer normally without edit blocks.
+
+${NOTE_EDIT_FORMAT}`;
 }
 
 export function buildNoteContext(title: string, markdown: string): string {
@@ -114,8 +118,8 @@ export function buildNoteContext(title: string, markdown: string): string {
 /**
  * First turn of "fit this question's concept into my summary": the copilot
  * finds the technical concept the question tests, checks whether the note
- * already covers it and, if not, PROPOSES where and what to add — without
- * rewriting the note. The student discusses it and authorizes the edit.
+ * already covers it and, if not, proposes edit blocks, which the editor shows
+ * highlighted in the note for the student to approve.
  */
 export function buildConceptProposalRequest(
   question: Question,
@@ -135,17 +139,16 @@ ${buildTutorContext(question, selected)}${doubts}
 Do this now, WITHOUT rewriting the note:
 1. Name the concept(s) this question really tests, in one or two lines.
 2. Say whether the note already covers them. If it does, quote the passage and say what (if anything) is missing; if nothing is missing, say so and stop.
-3. Otherwise propose the change: say exactly where it goes (quote the heading or the line it would follow, or say it needs a new section and where), then show the Markdown you would add, written in the note's own style and level of detail.
-4. End by asking whether I want you to apply it. Do not output the full note.`;
+3. Otherwise propose the change as edit blocks, in the note's own style and level of detail; prefer adding to or adjusting the passage that already covers the topic over creating a new section. The app shows it highlighted in the note for me to approve.
+Do not output the full note.`;
 }
 
-/** Second turn, once the student authorized it: only the edits, applied by
- * applyNoteEdits (core/utils/note-edit.util.ts). Never the whole note: a long
- * note does not fit in one reply, and a reply cut at the output limit once
- * replaced a note with its first quarter. */
-export const CONCEPT_APPLY_REQUEST = `Apply the change we agreed on now, as targeted edits. Do NOT rewrite or repeat the rest of the note: the app applies your edits to the note itself, shows the student a diff to approve, and keeps everything else exactly as it is.
-
-Reply with one or more blocks and nothing else. To change existing text (preferred for small changes), copy the exact passage to change:
+/** How the copilot writes a change to the note: targeted edit blocks that
+ * applyNoteEdits (core/utils/note-edit.util.ts) applies and the editor shows
+ * as a highlighted diff to approve. Never the whole note: a long note does
+ * not fit in one reply, and a reply cut at the output limit once replaced a
+ * note with its first quarter. */
+const NOTE_EDIT_FORMAT = `To change existing text (preferred for small changes), copy the exact passage to change:
 
 === EDIT ===
 ACTION: replace_text
@@ -169,4 +172,12 @@ Other actions use the same shape as insert_after:
 - replace: rewrites only that section; CONTENT is the whole new section, starting with its heading line. Use it only when most of the section must change.
 - append: adds CONTENT at the end of the note; write SECTION: none.
 
-Keep CONTENT limited to the agreed change, in the note's own style and language. No "Title:" line and no "=== CURRENT NOTE ===" markers.`;
+Keep CONTENT limited to the change, in the note's own style and language. No "Title:" line and no "=== CURRENT NOTE ===" markers.`;
+
+/** Asks again for the edits alone, when a reply described a change in prose
+ * instead of writing edit blocks ("Apply to note"). */
+export const CONCEPT_APPLY_REQUEST = `Apply the change we agreed on now, as targeted edits. Do NOT rewrite or repeat the rest of the note: the app applies your edits to the note itself, shows the student a diff to approve, and keeps everything else exactly as it is.
+
+Reply with one or more edit blocks and nothing else.
+
+${NOTE_EDIT_FORMAT}`;
