@@ -990,6 +990,7 @@ export const ES: Record<string, string> = {
   'notes.reviewChange': 'Revisa el cambio de la IA',
   'notes.reviewCounts': '{{added}} líneas añadidas, {{removed}} eliminadas. Nada cambia hasta que apruebes.',
   'notes.preparingChange': 'Preparando el cambio para resaltarlo en la nota…',
+  'notes.noNewChange': 'Esta respuesta no trae un cambio que la app pueda resaltar. La nota aún muestra la propuesta anterior; usa "Aplicar a la nota" para convertir esta respuesta en un cambio.',
   'notes.review_markdown': 'Markdown',
   'notes.review_preview': 'Con formato',
   'notes.segRemoved': 'Eliminado',

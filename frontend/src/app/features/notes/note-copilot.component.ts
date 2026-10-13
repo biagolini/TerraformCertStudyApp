@@ -86,7 +86,10 @@ interface CopilotMessage {
               @if (m.truncated) {
                 <p class="truncated" role="note"><app-icon name="flag" size="14" /> {{ i18n.t('notes.replyCutOff') }}</p>
               }
-              @if (concept() && $last && !streaming() && !hasEdits(m.content)) {
+              @if ($last && !streaming() && !hasEdits(m.content)) {
+                @if (proposalPending()) {
+                  <p class="truncated" role="note"><app-icon name="flag" size="14" /> {{ i18n.t('notes.noNewChange') }}</p>
+                }
                 <div class="msg-actions">
                   <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" (click)="applyConcept()"><app-icon name="check" size="14" /> {{ i18n.t('notes.applyConcept') }}</button>
                 </div>
@@ -257,9 +260,12 @@ export class NoteCopilotComponent {
 
   readonly noteId = input.required<string>();
   readonly title = input.required<string>();
+  /** The note as the copilot should see it: with a proposal awaiting approval already applied. */
   readonly markdown = input.required<string>();
   /** A mock-exam question whose concept should go into this note: starts with a proposal, edits only on "Apply to note". */
   readonly concept = input<ConceptRequest | null>(null);
+  /** The editor still shows a change from an earlier reply, waiting for approval. */
+  readonly proposalPending = input(false);
   readonly insert = output<string>();
   readonly append = output<string>();
   readonly replace = output<string>();
@@ -295,7 +301,7 @@ export class NoteCopilotComponent {
     });
   }
 
-  /** The student authorized the proposal: get targeted edits and hand the result to the editor as a diff to approve. */
+  /** The last reply described a change in prose: ask for it as edit blocks, to show in the note as a diff to approve. */
   applyConcept(): void {
     void this.send(CONCEPT_APPLY_REQUEST, this.i18n.t('notes.applyConcept'), true);
   }
@@ -303,7 +309,7 @@ export class NoteCopilotComponent {
 
   /** A reply's prose, without its edit blocks (those are shown in the note as a diff). */
   explanation(content: string): string {
-    return content.split(EDIT_MARKER)[0].trim();
+    return content.split(EDIT_MARKER)[0].replace(/^\s*===\s*EXPLANATION\s*===\s*$/im, '').trim();
   }
 
   hasEdits(content: string): boolean {
@@ -373,6 +379,7 @@ export class NoteCopilotComponent {
         this.controller.signal,
         this.settings.outputLanguage(),
         (reason) => (stopReason = reason),
+        this.proposalPending(),
       )) {
         reply += chunk;
         this.draft.set(reply);

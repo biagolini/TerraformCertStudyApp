@@ -96,7 +96,8 @@ export const COPILOT_ACTION_INSTRUCTIONS: Record<CopilotAction, string> = {
 export function buildNoteCopilotSystemPrompt(pack: PackContext, outputLanguage = ''): string {
   return `You are a study copilot embedded in a Markdown note editor. You help a student preparing for a certification exam improve and use their notes.
 ${certContext(pack)}
-${languageRule(outputLanguage, 'Respond in the language the note is written in.')}
+${languageRule(outputLanguage, 'Respond in the language the student writes in.')}
+Text that goes INTO the note (edit CONTENT) is written in the note's own language, unless the student asks for something else; when they do, every sentence of the new text follows that request (technical terms the student wants kept in English stay in English).
 
 You always receive the current note (title and Markdown body) before the student's request.
 Rules:
@@ -110,9 +111,15 @@ Changing the note: when the student asks you to change, fix, correct, add to, sh
 ${NOTE_EDIT_FORMAT}`;
 }
 
-export function buildNoteContext(title: string, markdown: string): string {
+/** `proposalPending`: the body already contains the copilot's last proposed
+ * change, shown to the student and not approved yet, so a follow-up such as
+ * "make it shorter" revises that text in place. */
+export function buildNoteContext(title: string, markdown: string, proposalPending = false): string {
   const body = markdown.trim() || '(the note is empty)';
-  return `=== CURRENT NOTE ===\nTitle: ${title}\n\n${body.slice(0, 60_000)}\n=== END OF NOTE ===`;
+  const pending = proposalPending
+    ? '\n(This text already includes your last proposed change, which the student has not approved yet. To revise that change, edit this text: use replace_text on the passage you proposed.)'
+    : '';
+  return `=== CURRENT NOTE ===\nTitle: ${title}${pending}\n\n${body.slice(0, 60_000)}\n=== END OF NOTE ===`;
 }
 
 /**
@@ -174,9 +181,14 @@ Other actions use the same shape as insert_after:
 
 Keep CONTENT limited to the change, in the note's own style and language. No "Title:" line and no "=== CURRENT NOTE ===" markers.`;
 
+/** Sent with the latest request every turn: in a long conversation, smaller
+ * models drift back to pasting the new text in a code block, which the app
+ * cannot highlight in the note. */
+export const NOTE_EDIT_REMINDER = `(Reminder: if this request changes the note, including a new version of a change you proposed earlier, reply with a short explanation and === EDIT === blocks against the CURRENT NOTE above, never a fenced snippet.)`;
+
 /** Asks again for the edits alone, when a reply described a change in prose
  * instead of writing edit blocks ("Apply to note"). */
-export const CONCEPT_APPLY_REQUEST = `Apply the change we agreed on now, as targeted edits. Do NOT rewrite or repeat the rest of the note: the app applies your edits to the note itself, shows the student a diff to approve, and keeps everything else exactly as it is.
+export const CONCEPT_APPLY_REQUEST = `Apply the change you just described now, as targeted edits. Do NOT rewrite or repeat the rest of the note: the app applies your edits to the note itself, shows the student a diff to approve, and keeps everything else exactly as it is.
 
 Reply with one or more edit blocks and nothing else.
 

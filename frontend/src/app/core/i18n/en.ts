@@ -992,6 +992,7 @@ export const EN: Record<string, string> = {
   'notes.reviewChange': 'Review the AI change',
   'notes.reviewCounts': '{{added}} lines added, {{removed}} removed. Nothing changes until you approve.',
   'notes.preparingChange': 'Preparing the change to highlight in the note…',
+  'notes.noNewChange': 'This reply has no change the app can highlight. The note still shows the previous proposal; use "Apply to note" to turn this reply into a change.',
   'notes.review_markdown': 'Markdown',
   'notes.review_preview': 'Formatted',
   'notes.segRemoved': 'Removed',

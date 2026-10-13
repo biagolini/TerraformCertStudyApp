@@ -1,4 +1,4 @@
-import { buildNoteContext, buildNoteCopilotSystemPrompt, buildTutorContext, buildTutorSystemPrompt } from '../utils/assistant-prompt.util';
+import { NOTE_EDIT_REMINDER, buildNoteContext, buildNoteCopilotSystemPrompt, buildTutorContext, buildTutorSystemPrompt } from '../utils/assistant-prompt.util';
 import { Question } from '../models/question.model';
 import { Injectable, inject } from '@angular/core';
 import { environment } from '../../../environments/environment';
@@ -150,13 +150,14 @@ export class BedrockService {
     signal: AbortSignal,
     outputLanguage?: string,
     onStop?: (reason: string) => void,
+    proposalPending = false,
   ): AsyncGenerator<string, void, void> {
     if (history.length === 0) throw new Error('Ask the copilot something first.');
-    const context = buildNoteContext(title, markdown);
+    const context = buildNoteContext(title, markdown, proposalPending);
     const last = history.length - 1;
     const messages: BedrockMessage[] = history.map((m, i) => ({
       role: m.role,
-      content: [{ text: i === last ? `${context}\n\n=== REQUEST ===\n${m.content}` : m.content }],
+      content: [{ text: i === last ? `${context}\n\n=== REQUEST ===\n${m.content}\n\n${NOTE_EDIT_REMINDER}` : m.content }],
     }));
     yield* this.streamConverse(buildNoteCopilotSystemPrompt(pack, outputLanguage), messages, model, signal, 'noteCopilot', onStop);
   }

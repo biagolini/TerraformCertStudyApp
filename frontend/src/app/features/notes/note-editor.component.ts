@@ -233,8 +233,9 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
         <app-note-copilot
           [noteId]="note().id"
           [title]="title()"
-          [markdown]="body()"
+          [markdown]="pendingChange()?.after ?? body()"
           [concept]="concept()"
+          [proposalPending]="pendingChange() !== null"
           (insert)="insertAtCursor($event)"
           (append)="append($event)"
           (replace)="replaceAll($event)"
@@ -769,7 +770,10 @@ export class NoteEditorComponent implements OnInit, OnDestroy {
   /** The copilot's targeted edit, shown as a diff of the whole note until approved or discarded. */
   proposeChange(change: { before: string; after: string }): void {
     this.lastApproved.set(null);
-    this.pendingChange.set(change);
+    // A follow-up ("shorter", "in Portuguese") revises the pending proposal, since the copilot
+    // was given the note with it applied; the diff stays against the saved note.
+    const pending = this.pendingChange();
+    this.pendingChange.set(pending && change.before === pending.after ? { before: pending.before, after: change.after } : change);
     this.scrollToFirstChange();
   }
 
