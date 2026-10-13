@@ -991,6 +991,8 @@ export const ES: Record<string, string> = {
   'notes.reviewCounts': '{{added}} líneas añadidas, {{removed}} eliminadas. Nada cambia hasta que apruebes.',
   'notes.preparingChange': 'Preparando el cambio para resaltarlo en la nota…',
   'notes.noNewChange': 'Esta respuesta no trae un cambio que la app pueda resaltar. La nota aún muestra la propuesta anterior; usa "Aplicar a la nota" para convertir esta respuesta en un cambio.',
+  'notes.conceptReady': 'La solicitud está lista abajo: edítala si quieres y pulsa Enter.',
+  'notes.editChange': 'Editar antes de aprobar',
   'notes.review_markdown': 'Markdown',
   'notes.review_preview': 'Con formato',
   'notes.segRemoved': 'Eliminado',

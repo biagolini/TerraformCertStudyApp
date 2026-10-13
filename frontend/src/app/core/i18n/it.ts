@@ -991,6 +991,8 @@ export const IT: Record<string, string> = {
   'notes.reviewCounts': '{{added}} righe aggiunte, {{removed}} rimosse. Nulla cambia finché non approvi.',
   'notes.preparingChange': 'Preparazione della modifica da evidenziare nella nota…',
   'notes.noNewChange': 'Questa risposta non contiene una modifica che l\'app possa evidenziare. La nota mostra ancora la proposta precedente; usa "Applica alla nota" per trasformare questa risposta in una modifica.',
+  'notes.conceptReady': 'La richiesta è pronta qui sotto: modificala se vuoi, poi premi Invio.',
+  'notes.editChange': 'Modifica prima di approvare',
   'notes.review_markdown': 'Markdown',
   'notes.review_preview': 'Formattato',
   'notes.segRemoved': 'Rimosso',

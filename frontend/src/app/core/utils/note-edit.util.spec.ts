@@ -89,3 +89,24 @@ describe('parseNoteEdits replace_text', () => {
     expect(parseNoteEdits(text)).toEqual([{ action: 'replace_text', section: null, old: 'Files addressed by key.', content: 'Files addressed by a unique key.' }]);
   });
 });
+
+describe('replace_text without OLD', () => {
+  const note = '## Deploy\n\nIntro.\n\nKey concepts: Application, Deployment Group.\n\nExam tip.\n';
+
+  it('replaces the one paragraph named by SECTION', () => {
+    const reply = '=== EDIT ===\nACTION: replace_text\nSECTION: Key concepts\n=== CONTENT ===\n- **Application**: container.\n- **Deployment Group**: where.\n=== END EDIT ===';
+    const result = applyNoteEdits(note, parseNoteEdits(reply));
+    expect(result.applied).toBe(1);
+    expect(result.markdown).toBe('## Deploy\n\nIntro.\n\n- **Application**: container.\n- **Deployment Group**: where.\n\nExam tip.\n');
+  });
+
+  it('replaces a section body when SECTION is a heading, keeping the heading', () => {
+    const reply = '=== EDIT ===\nACTION: replace_text\nSECTION: ## Deploy\n=== CONTENT ===\nNew body.';
+    expect(applyNoteEdits(note, parseNoteEdits(reply)).markdown).toBe('## Deploy\n\nNew body.\n');
+  });
+
+  it('reports a SECTION that matches no paragraph', () => {
+    const reply = '=== EDIT ===\nACTION: replace_text\nSECTION: Nothing like this\n=== CONTENT ===\nX';
+    expect(applyNoteEdits(note, parseNoteEdits(reply)).missing).toEqual(['Nothing like this']);
+  });
+});

@@ -58,6 +58,9 @@ interface CopilotMessage {
         <div class="concept">
           <span class="ui-label">{{ i18n.t('notes.conceptFrom') }}</span>
           <strong class="concept-title">{{ c.question.title }}</strong>
+          @if (conceptPending()) {
+            <span class="ui-faint concept-hint">{{ i18n.t('notes.conceptReady') }}</span>
+          }
           @if (c.fromQuiz) {
             <button type="button" class="ui-link" (click)="backToQuiz(c.packId)"><app-icon name="arrow-left" size="12" /> {{ i18n.t('notes.backToQuiz') }}</button>
           }
@@ -130,13 +133,13 @@ interface CopilotMessage {
           <p class="error" role="alert">{{ error() }}</p>
         }
       </div>
-      <form class="composer" (ngSubmit)="ask(question)">
+      <form class="composer" (ngSubmit)="ask(question())">
         <label class="ui-sr-only" for="copilot-input">{{ i18n.t('notes.copilotPlaceholder') }}</label>
-        <textarea id="copilot-input" class="ui-input" name="q" rows="2" [(ngModel)]="question" [placeholder]="i18n.t('notes.copilotPlaceholder')" (keydown.enter)="onEnter($event)"></textarea>
+        <textarea #input id="copilot-input" class="ui-input" name="q" [attr.rows]="conceptPending() ? 4 : 2" [(ngModel)]="question" [placeholder]="i18n.t('notes.copilotPlaceholder')" (keydown.enter)="onEnter($event)"></textarea>
         @if (streaming()) {
           <button type="button" class="ui-btn" (click)="stop()">{{ i18n.t('tutor.stop') }}</button>
         } @else {
-          <button type="submit" class="ui-btn ui-btn-accent" [disabled]="!question.trim()">{{ i18n.t('tutor.send') }}</button>
+          <button type="submit" class="ui-btn ui-btn-accent" [disabled]="!question().trim()">{{ i18n.t('tutor.send') }}</button>
         }
       </form>
       <app-ai-disclaimer />
@@ -234,6 +237,9 @@ interface CopilotMessage {
       .concept-title {
         font-size: var(--font-size-sm);
       }
+      .concept-hint {
+        font-size: var(--font-size-xs);
+      }
       .truncated {
         display: flex;
         align-items: center;
@@ -262,7 +268,7 @@ export class NoteCopilotComponent {
   readonly title = input.required<string>();
   /** The note as the copilot should see it: with a proposal awaiting approval already applied. */
   readonly markdown = input.required<string>();
-  /** A mock-exam question whose concept should go into this note: starts with a proposal, edits only on "Apply to note". */
+  /** A mock-exam question whose concept should go into this note: pre-fills the request; the reply proposes edits to approve. */
   readonly concept = input<ConceptRequest | null>(null);
   /** The editor still shows a change from an earlier reply, waiting for approval. */
   readonly proposalPending = input(false);
@@ -276,7 +282,10 @@ export class NoteCopilotComponent {
   private readonly thread = viewChild<ElementRef<HTMLElement>>('thread');
 
   protected readonly actions = COPILOT_ACTIONS;
-  protected question = '';
+  readonly question = signal('');
+  /** A concept request waiting in the composer; the first send carries the question with it. */
+  readonly conceptPending = signal<ConceptRequest | null>(null);
+  private readonly input = viewChild<ElementRef<HTMLTextAreaElement>>('input');
   readonly messages = signal<CopilotMessage[]>([]);
   readonly streaming = signal(false);
   readonly draft = signal('');
@@ -287,17 +296,17 @@ export class NoteCopilotComponent {
   private conceptStarted: string | null = null;
 
   constructor() {
-    // A concept request starts the conversation with the proposal (once per question).
+    // A concept request pre-fills the composer (once per question) instead of
+    // sending right away: the student can adjust the request, or just press Enter.
     effect(() => {
       const c = this.concept();
       if (!c || this.conceptStarted === c.question.id) return;
       this.conceptStarted = c.question.id;
-      untracked(() =>
-        void this.send(
-          buildConceptProposalRequest(c.question, c.selected, c.tutor),
-          this.i18n.t('notes.conceptAsk', { title: c.question.title }),
-        ),
-      );
+      untracked(() => {
+        this.conceptPending.set(c);
+        this.question.set(this.i18n.t('notes.conceptAsk', { title: c.question.title }));
+        requestAnimationFrame(() => this.input()?.nativeElement.focus());
+      });
     });
   }
 
@@ -327,7 +336,14 @@ export class NoteCopilotComponent {
   ask(text: string): void {
     const content = text.trim();
     if (!content) return;
-    this.question = '';
+    this.question.set('');
+    const c = this.conceptPending();
+    if (c) {
+      this.conceptPending.set(null);
+      const request = buildConceptProposalRequest(c.question, c.selected, c.tutor);
+      void this.send(`${request}\n\n=== WHAT THE STUDENT ASKS ===\n${content}`, content);
+      return;
+    }
     void this.send(content);
   }
 
@@ -335,7 +351,7 @@ export class NoteCopilotComponent {
     const e = event as KeyboardEvent;
     if (e.shiftKey) return;
     e.preventDefault();
-    this.ask(this.question);
+    this.ask(this.question());
   }
 
   stop(): void {

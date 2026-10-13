@@ -10,7 +10,8 @@ export type NoteEditAction = 'replace_text' | 'insert_after' | 'replace' | 'appe
 
 export interface NoteEdit {
   action: NoteEditAction;
-  /** Heading line of the target section as the model copied it; null for append and replace_text. */
+  /** Heading line of the target section as the model copied it; null for append and for
+   * replace_text with OLD (without OLD, it names the heading or paragraph to replace). */
   section: string | null;
   content: string;
   /** replace_text only: the exact passage of the note that `content` replaces. */
@@ -40,12 +41,15 @@ export function parseNoteEdits(reply: string): NoteEdit[] {
     const body = parts.slice(1).join('\n').replace(/^\s*===\s*END EDIT\s*===\s*$[\s\S]*/im, '');
     const action = /^\s*ACTION:\s*(replace_text|insert_after|replace|append)\s*$/im.exec(oldSplit[0])?.[1]?.toLowerCase() as NoteEditAction | undefined;
     if (!action) continue;
+    const rawSection = /^\s*SECTION:\s*(.*)$/im.exec(oldSplit[0])?.[1]?.trim() ?? '';
     if (action === 'replace_text') {
       const content = stripFence(body.trim()).trim();
       if (old) edits.push({ action, section: null, old: stripFence(old).trim(), content });
+      // Smaller models sometimes name the passage in SECTION (a heading, or the
+      // first words of a paragraph) instead of copying it under OLD.
+      else if (rawSection && !/^none$/i.test(rawSection)) edits.push({ action, section: rawSection, content });
       continue;
     }
-    const rawSection = /^\s*SECTION:\s*(.*)$/im.exec(header)?.[1]?.trim() ?? '';
     const section = action === 'append' || !rawSection || /^none$/i.test(rawSection) ? null : rawSection;
     if (action !== 'append' && !section) continue;
     const content = stripFence(body.trim()).trim();
@@ -61,6 +65,18 @@ export function applyNoteEdits(markdown: string, edits: NoteEdit[]): NoteEditRes
   const missing: string[] = [];
   for (const edit of edits) {
     const block = edit.content.split('\n');
+    if (edit.action === 'replace_text' && !edit.old) {
+      const range = findSection(lines, edit.section!) ?? findParagraph(lines, edit.section!);
+      if (!range) {
+        missing.push(edit.section!);
+        continue;
+      }
+      const isSection = !!headingOf(lines[range.start]);
+      const replacement = isSection && !headingOf(block[0]) ? [lines[range.start], '', ...block] : block;
+      lines = [...lines.slice(0, range.start), ...replacement, ...(isSection ? [''] : []), ...lines.slice(range.end)];
+      applied++;
+      continue;
+    }
     if (edit.action === 'replace_text') {
       const text = lines.join('\n');
       const at = findPassage(text, edit.old!);
@@ -137,6 +153,30 @@ function findSection(lines: string[], section: string): { start: number; end: nu
     }
   }
   return start >= 0 ? { start, end: lines.length } : null;
+}
+
+/** Lines [start, end) of the one paragraph (blank-line separated, outside code
+ * fences) whose text contains `hint`; null when none or several do. */
+function findParagraph(lines: string[], hint: string): { start: number; end: number } | null {
+  const wanted = normalize(hint.replace(/^#+\s*/, ''));
+  if (!wanted) return null;
+  const found: { start: number; end: number }[] = [];
+  let inFence = false;
+  let start = -1;
+  const close = (end: number) => {
+    if (start >= 0 && normalize(lines.slice(start, end).join(' ')).includes(wanted)) found.push({ start, end });
+    start = -1;
+  };
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim().startsWith('```')) inFence = !inFence;
+    if (inFence || !lines[i].trim() || headingOf(lines[i])) {
+      close(i);
+      continue;
+    }
+    if (start < 0) start = i;
+  }
+  close(lines.length);
+  return found.length === 1 ? found[0] : null;
 }
 
 function stripFence(text: string): string {

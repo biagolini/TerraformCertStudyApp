@@ -158,6 +158,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
                   <button type="button" [class.on]="reviewView() === v" (click)="setReviewView(v)" [attr.aria-pressed]="reviewView() === v">{{ i18n.t('notes.review_' + v) }}</button>
                 }
               </div>
+              <button type="button" class="ui-btn ui-btn-sm" (click)="editChange()"><app-icon name="pencil" /> {{ i18n.t('notes.editChange') }}</button>
               <button type="button" class="ui-btn ui-btn-sm" (click)="discardChange()">{{ i18n.t('notes.discardChange') }}</button>
               <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" (click)="approveChange()"><app-icon name="check" /> {{ i18n.t('notes.approveChange') }}</button>
             </header>
@@ -201,7 +202,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
                 spellcheck="true"
               ></textarea>
             @if (layout() === 'split') {
-              <article class="preview ui-card" [class]="themeClass()">
+              <article #splitPreview class="preview ui-card" [class]="themeClass()">
                 <app-markdown-renderer [source]="body()" [document]="true" />
               </article>
             }
@@ -381,8 +382,19 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
         grid-template-columns: 1fr;
       }
       @media (min-width: 900px) {
+        /* Side by side, each pane scrolls on its own within the viewport: otherwise the
+           textarea stretches to the rendered preview's height and the page scroll is shared. */
         .panes.split {
           grid-template-columns: 1fr 1fr;
+          height: calc(100vh - var(--header-height) - 120px);
+          min-height: 420px;
+        }
+        .panes.split .body,
+        .panes.split .preview {
+          height: 100%;
+          min-height: 0;
+          overflow: auto;
+          resize: none;
         }
       }
       .body {
@@ -568,6 +580,7 @@ export class NoteEditorComponent implements OnInit, OnDestroy {
   readonly deleted = output<void>();
 
   private readonly area = viewChild<ElementRef<HTMLTextAreaElement>>('area');
+  private readonly splitPreview = viewChild<ElementRef<HTMLElement>>('splitPreview');
   private readonly reader = viewChild<ElementRef<HTMLElement>>('reader');
 
   protected readonly layouts: EditLayout[] = ['edit', 'split'];
@@ -800,6 +813,49 @@ export class NoteEditorComponent implements OnInit, OnDestroy {
     this.pendingChange.set(null);
     this.lastApproved.set(change.before);
     this.applyBody(change.after);
+  }
+
+  /** Opens the proposed text in the Markdown editor, beside the preview, at the
+   * first change. Nothing is saved until Save; Cancel goes back to the saved note. */
+  editChange(): void {
+    const change = this.pendingChange();
+    if (!change) return;
+    this.pendingChange.set(null);
+    if (change.before !== this.body()) {
+      this.error.set(this.i18n.t('notes.changeStale'));
+      return;
+    }
+    this.lastApproved.set(null);
+    this.body.set(change.after);
+    this.layout.set('split');
+    this.startEdit();
+    let at = 0;
+    while (at < change.before.length && change.before[at] === change.after[at]) at++;
+    requestAnimationFrame(() => this.revealOffset(at));
+  }
+
+  /** Puts the caret at `offset` and scrolls the Markdown and the preview there. */
+  private revealOffset(offset: number): void {
+    const area = this.area()?.nativeElement;
+    if (!area) return;
+    area.focus({ preventScroll: true });
+    area.setSelectionRange(offset, offset);
+    area.closest('.panes')?.scrollIntoView({ block: 'start' });
+    // A textarea does not scroll to its caret on its own: measure the text before
+    // the caret in an invisible copy with the same width and font.
+    const style = getComputedStyle(area);
+    const mirror = document.createElement('div');
+    for (const prop of ['fontFamily', 'fontSize', 'lineHeight', 'letterSpacing', 'paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth', 'boxSizing'] as const) {
+      mirror.style[prop] = style[prop];
+    }
+    Object.assign(mirror.style, { position: 'absolute', visibility: 'hidden', whiteSpace: 'pre-wrap', overflowWrap: 'break-word', width: `${area.clientWidth}px` });
+    mirror.textContent = area.value.slice(0, offset);
+    document.body.appendChild(mirror);
+    const y = mirror.offsetHeight;
+    mirror.remove();
+    area.scrollTop = Math.max(0, y - area.clientHeight / 3);
+    const preview = this.splitPreview()?.nativeElement;
+    if (preview) preview.scrollTop = Math.max(0, (y / area.scrollHeight) * preview.scrollHeight - preview.clientHeight / 3);
   }
 
   discardChange(): void {
