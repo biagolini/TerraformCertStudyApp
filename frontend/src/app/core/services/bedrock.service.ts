@@ -149,6 +149,7 @@ export class BedrockService {
     model: string | undefined,
     signal: AbortSignal,
     outputLanguage?: string,
+    onStop?: (reason: string) => void,
   ): AsyncGenerator<string, void, void> {
     if (history.length === 0) throw new Error('Ask the copilot something first.');
     const context = buildNoteContext(title, markdown);
@@ -157,7 +158,7 @@ export class BedrockService {
       role: m.role,
       content: [{ text: i === last ? `${context}\n\n=== REQUEST ===\n${m.content}` : m.content }],
     }));
-    yield* this.streamConverse(buildNoteCopilotSystemPrompt(pack, outputLanguage), messages, model, signal, 'noteCopilot');
+    yield* this.streamConverse(buildNoteCopilotSystemPrompt(pack, outputLanguage), messages, model, signal, 'noteCopilot', onStop);
   }
 
   async *streamChatSummary(
@@ -284,6 +285,7 @@ export class BedrockService {
     model: string | undefined,
     signal: AbortSignal,
     action: string,
+    onStop?: (reason: string) => void,
   ): AsyncGenerator<string, void, void> {
     const token = await this.auth.getValidToken();
 
@@ -310,14 +312,16 @@ export class BedrockService {
         pack_id: this.activePackMeta().id,
         pack_name: this.activePackMeta().name,
         pack_version: this.activePackMeta().version,
-        // max_tokens intentionally omitted: Bedrock then defaults to the
-        // model's maximum allowed output (10K for Amazon Nova).
+        // max_tokens omitted: Bedrock then picks a "dynamic default based on
+        // the request context", which is NOT the model's maximum (a Nova Lite
+        // reply was cut at exactly 2,000 tokens). Callers that act on the
+        // whole reply must check the stop reason (onStop) for "max_tokens".
       }),
       signal,
     });
 
     if (!response.ok) throw new Error(await this.extractError(response));
-    yield* this.readNdjsonStream(response);
+    yield* this.readNdjsonStream(response, onStop);
   }
 
   /**
@@ -366,7 +370,8 @@ export class BedrockService {
     return { id: pack.id, name: pack.name, version: pack.version || undefined };
   }
 
-  private async *readNdjsonStream(response: Response): AsyncGenerator<string, void, void> {
+  /** `onStop` receives the END event's stop reason ("end_turn", "max_tokens", …). */
+  private async *readNdjsonStream(response: Response, onStop?: (reason: string) => void): AsyncGenerator<string, void, void> {
     if (!response.body) throw new Error('Streaming is not supported in this environment.');
 
     const reader = response.body.getReader();
@@ -383,11 +388,13 @@ export class BedrockService {
         while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
           const line = buffer.slice(0, newlineIndex);
           buffer = buffer.slice(newlineIndex + 1);
+          reportStop(line, onStop);
           const text = parseNdjsonLine(line);
           if (text) yield text;
         }
       }
       if (buffer.trim()) {
+        reportStop(buffer, onStop);
         const text = parseNdjsonLine(buffer);
         if (text) yield text;
       }
@@ -433,6 +440,17 @@ STRICT OUTPUT RULES:
 - No prefixes such as "Title:", "Question:", or "Scenario:".
 - No trailing punctuation.
 - No explanation or commentary.`;
+}
+
+/** Calls `onStop` with the stop reason when the line is the stream's END event. */
+function reportStop(line: string, onStop?: (reason: string) => void): void {
+  if (!onStop || !line.includes('"END"')) return;
+  try {
+    const evt = JSON.parse(line.trim()) as { type?: string; stopReason?: string };
+    if (evt.type === 'END') onStop(evt.stopReason ?? 'end_turn');
+  } catch {
+    /* not a complete JSON line */
+  }
 }
 
 /**

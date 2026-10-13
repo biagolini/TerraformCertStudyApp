@@ -139,14 +139,34 @@ Do this now, WITHOUT rewriting the note:
 4. End by asking whether I want you to apply it. Do not output the full note.`;
 }
 
-/** Second turn, once the student authorized it: the full updated note, nothing else. */
-export const CONCEPT_APPLY_REQUEST = `Apply the change we agreed on now. Return the COMPLETE updated note body as Markdown inside one single \`\`\`markdown fenced block and nothing outside it. Keep every existing line exactly as it is, except for the agreed insertion or edit. The body only: no "Title:" line and no "=== CURRENT NOTE ===" markers.`;
+/** Second turn, once the student authorized it: only the edits, applied by
+ * applyNoteEdits (core/utils/note-edit.util.ts). Never the whole note: a long
+ * note does not fit in one reply, and a reply cut at the output limit once
+ * replaced a note with its first quarter. */
+export const CONCEPT_APPLY_REQUEST = `Apply the change we agreed on now, as targeted edits. Do NOT rewrite or repeat the rest of the note: the app applies your edits to the note itself, shows the student a diff to approve, and keeps everything else exactly as it is.
 
-/** The note Markdown inside the reply to CONCEPT_APPLY_REQUEST (the fenced block, or the whole reply). */
-export function extractUpdatedNote(reply: string): string {
-  const fence = /```(?:markdown|md)?\s*\n([\s\S]*?)\n```\s*$/i.exec(reply.trim());
-  return (fence ? fence[1] : reply)
-    .replace(/^\s*===\s*(CURRENT NOTE|END OF NOTE)\s*===\s*$/gim, '')
-    .replace(/^\s*Title:[^\n]*\n/, '')
-    .trim();
-}
+Reply with one or more blocks and nothing else. To change existing text (preferred for small changes), copy the exact passage to change:
+
+=== EDIT ===
+ACTION: replace_text
+=== OLD ===
+<the exact passage from the current note, copied verbatim, long enough to occur only once>
+=== CONTENT ===
+<the new text that replaces it>
+=== END EDIT ===
+
+To add new text after a section:
+
+=== EDIT ===
+ACTION: insert_after
+SECTION: <a heading line copied exactly from the current note, including its # marks>
+=== CONTENT ===
+<only the new Markdown>
+=== END EDIT ===
+
+Other actions use the same shape as insert_after:
+- insert_after: adds CONTENT at the end of that section (after its sub-sections, before the next heading of the same or a higher level).
+- replace: rewrites only that section; CONTENT is the whole new section, starting with its heading line. Use it only when most of the section must change.
+- append: adds CONTENT at the end of the note; write SECTION: none.
+
+Keep CONTENT limited to the agreed change, in the note's own style and language. No "Title:" line and no "=== CURRENT NOTE ===" markers.`;
