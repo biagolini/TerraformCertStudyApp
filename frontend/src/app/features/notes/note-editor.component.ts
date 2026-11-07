@@ -7,6 +7,7 @@ import {
   HostListener,
   OnDestroy,
   OnInit,
+  afterNextRender,
   computed,
   inject,
   input,
@@ -52,11 +53,12 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
   selector: 'app-note-editor',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[style.--note-bar-height]': "barHeight() + 'px'" },
   imports: [IconComponent, FormsModule, MarkdownRendererComponent, NoteCopilotComponent, NoteOutlineComponent, NoteHistoryComponent, NoteThemePickerComponent, NoteExportMenuComponent],
   template: `
     <div class="editor-shell" [class.with-copilot]="copilotOpen()">
       <div class="editor-main">
-        <div class="topbar">
+        <div class="topbar" #topbar [class.stuck]="barStuck()">
           <button type="button" class="ui-btn ui-btn-sm" (click)="leave()"><app-icon name="arrow-left" /> {{ i18n.t('notes.backToNotes') }}</button>
           <span class="ui-faint stats">{{ i18n.t('notes.words', { n: words() }) }} · {{ i18n.t('notes.readTime', { n: readMinutes() }) }}</span>
           <span class="save-state" [class.error]="saveState() === 'error'" aria-live="polite">{{ saveLabel() }}</span>
@@ -73,6 +75,10 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
             <button type="button" class="ui-btn ui-btn-sm" [class.ui-btn-soft]="outlineOpen()" (click)="settings.setNoteOutlineOpen(!outlineOpen())" [attr.aria-pressed]="outlineOpen()"><app-icon name="list-ordered" /> {{ i18n.t('notes.outline') }}</button>
             <app-note-theme-picker />
             <app-note-export-menu [title]="title()" [markdown]="body()" />
+            <button type="button" class="ui-btn ui-btn-sm copy" [class.done]="copyState() === 'copied'" [disabled]="loading()" (click)="copyNote()" [title]="copyState() === 'failed' ? i18n.t('notes.copyFailed') : i18n.t('notes.copyNoteHint')">
+              <app-icon [name]="copyState() === 'copied' ? 'check' : 'copy'" /> {{ copyState() === 'copied' ? i18n.t('notes.copied') : i18n.t('notes.copy') }}
+            </button>
+            <span class="ui-sr-only" aria-live="polite">{{ copyState() === 'copied' ? i18n.t('notes.copied') : copyState() === 'failed' ? i18n.t('notes.copyFailed') : '' }}</span>
             <button type="button" class="ui-btn ui-btn-sm" (click)="historyOpen.set(true)"><app-icon name="clock" /> {{ i18n.t('notes.historyButton') }}</button>
             <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" [disabled]="loading()" (click)="startEdit()"><app-icon name="pencil" /> {{ i18n.t('notes.edit') }}</button>
           }
@@ -274,14 +280,34 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
         flex-direction: column;
         gap: var(--space-sm);
         min-width: 0;
+        /* Where the sticky topbar rests: under the app header and the workspace
+           tabs (one row of about 44px). Sitting 2px under the tabs, which paint
+           above it, hides any subpixel seam the content could show through. */
+        --note-bar-top: calc(var(--header-height) + 42px);
+        /* Bottom edge of the stuck topbar; the outline and the review header stick below it.
+           --note-bar-height is measured (the bar wraps to more rows on a phone). */
+        --note-bar-bottom: calc(var(--note-bar-top) + var(--note-bar-height, 48px));
       }
       .topbar {
+        /* Stays in reach while a long note scrolls, like the mock-exam toolbar:
+           on a phone the actions were otherwise a long scroll back up. */
+        position: sticky;
+        top: var(--note-bar-top);
+        z-index: 3;
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         gap: var(--space-sm);
+        padding-top: var(--space-sm);
         padding-bottom: var(--space-sm);
         border-bottom: 1px solid var(--bg-border);
+        background: var(--bg-base);
+      }
+      .topbar.stuck {
+        box-shadow: var(--shadow-sm);
+      }
+      .copy.done {
+        color: var(--color-green);
       }
       .stats {
         font-family: var(--font-mono);
@@ -423,12 +449,12 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
         align-items: start;
       }
       .outline-slot {
-        /* Stays in view while the note scrolls, just under the header and tabs. */
+        /* Stays in view while the note scrolls, just under the sticky topbar. */
         position: sticky;
-        top: calc(var(--header-height) + 56px);
+        top: calc(var(--note-bar-bottom) + var(--space-sm));
         z-index: 2;
         display: flex;
-        max-height: calc(100dvh - var(--header-height) - 72px);
+        max-height: calc(100dvh - var(--note-bar-bottom) - 2 * var(--space-sm));
       }
       .outline-slot app-note-outline {
         display: flex;
@@ -473,7 +499,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
       }
       .review-head {
         position: sticky;
-        top: calc(var(--header-height) + 48px);
+        top: var(--note-bar-bottom);
         z-index: 2;
         display: flex;
         flex-wrap: wrap;
@@ -582,6 +608,13 @@ export class NoteEditorComponent implements OnInit, OnDestroy {
   private readonly area = viewChild<ElementRef<HTMLTextAreaElement>>('area');
   private readonly splitPreview = viewChild<ElementRef<HTMLElement>>('splitPreview');
   private readonly reader = viewChild<ElementRef<HTMLElement>>('reader');
+  private readonly topbar = viewChild.required<ElementRef<HTMLElement>>('topbar');
+  /** The topbar is pinned under the header (adds its shadow). */
+  readonly barStuck = signal(false);
+  /** Measured topbar height, so the outline and the review header stick just below it. */
+  readonly barHeight = signal(48);
+  readonly copyState = signal<'idle' | 'copied' | 'failed'>('idle');
+  private copyResetTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly layouts: EditLayout[] = ['edit', 'split'];
   readonly editing = signal(false);
@@ -658,14 +691,39 @@ export class NoteEditorComponent implements OnInit, OnDestroy {
       if (this.scrollFrame) return;
       this.scrollFrame = requestAnimationFrame(() => {
         this.scrollFrame = 0;
+        this.updateBarStuck();
         this.trackActiveHeading();
       });
     };
     window.addEventListener('scroll', onScroll, { passive: true });
-    inject(DestroyRef).onDestroy(() => {
+    const destroyRef = inject(DestroyRef);
+    destroyRef.onDestroy(() => {
       window.removeEventListener('scroll', onScroll);
       if (this.scrollFrame) cancelAnimationFrame(this.scrollFrame);
+      if (this.copyResetTimer) clearTimeout(this.copyResetTimer);
     });
+    afterNextRender(() => {
+      const bar = this.topbar().nativeElement;
+      this.barHeight.set(bar.offsetHeight);
+      // The bar wraps to more rows on a narrow screen or when its labels change language.
+      if (typeof ResizeObserver === 'undefined') return;
+      const observer = new ResizeObserver(() => this.barHeight.set(bar.offsetHeight));
+      observer.observe(bar);
+      destroyRef.onDestroy(() => observer.disconnect());
+    });
+  }
+
+  /** Copies the note body as Markdown, the same text the Markdown export writes. */
+  async copyNote(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(this.body());
+      this.copyState.set('copied');
+    } catch {
+      // Clipboard API unavailable (insecure context or denied permission).
+      this.copyState.set('failed');
+    }
+    if (this.copyResetTimer) clearTimeout(this.copyResetTimer);
+    this.copyResetTimer = setTimeout(() => this.copyState.set('idle'), 2000);
   }
 
   async ngOnInit(): Promise<void> {
@@ -888,7 +946,9 @@ export class NoteEditorComponent implements OnInit, OnDestroy {
   scrollToHeading(index: number): void {
     const target = this.headingElements()[index];
     if (!target) return;
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Land the heading below the sticky topbar, not under it.
+    const y = target.getBoundingClientRect().top + window.scrollY - this.stickyLine() - 12;
+    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
     this.activeHeading.set(index);
   }
 
@@ -1011,11 +1071,23 @@ export class NoteEditorComponent implements OnInit, OnDestroy {
     if (this.editing() || !this.outlineOpen()) return;
     const headings = this.headingElements();
     if (headings.length === 0) return;
-    const line = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-height')) || 56) + 80;
+    const line = this.stickyLine() + 24;
     let active: number | null = null;
     headings.forEach((h, i) => {
       if (h.getBoundingClientRect().top <= line) active = i;
     });
     this.activeHeading.set(active ?? 0);
+  }
+
+  /** Viewport y of the stuck topbar's bottom edge: content above it is hidden. */
+  private stickyLine(): number {
+    const bar = this.topbar().nativeElement;
+    return (parseFloat(getComputedStyle(bar).top) || 0) + bar.offsetHeight;
+  }
+
+  private updateBarStuck(): void {
+    const bar = this.topbar().nativeElement;
+    const top = parseFloat(getComputedStyle(bar).top) || 0;
+    this.barStuck.set(bar.getBoundingClientRect().top <= top + 1);
   }
 }

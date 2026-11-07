@@ -972,6 +972,8 @@ export const ES: Record<string, string> = {
   'notes.copilotSubtitle': 'Amazon Bedrock · lee la nota que editas',
   'notes.copilotTitle': 'Copiloto de estudio',
   'notes.copy': 'Copiar',
+  'notes.copyFailed': 'No se pudo copiar: el navegador bloqueó el portapapeles',
+  'notes.copyNoteHint': 'Copia la nota completa en Markdown, para pegarla donde quieras',
   'notes.deleteConfirm': '¿Eliminar esta nota y sus imágenes? No se puede deshacer.',
   'notes.deleteFailed': 'No se pudo eliminar la nota.',
   'notes.deleteNote': 'Eliminar nota',

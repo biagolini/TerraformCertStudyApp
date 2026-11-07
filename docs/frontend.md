@@ -155,11 +155,12 @@ The review system prompt is built in [`core/services/bedrock.service.ts`](../fro
 
 ## Study Notes
 
-`features/notes/note-editor.component.ts` opens a note in reading mode (rendered Markdown with an optional sticky heading index, `note-outline.component.ts`). "Edit" switches to the Markdown editor; nothing is written until "Save", since every save of the body is an S3 object version listed and restorable in `note-history.component.ts` (newest 250 kept).
+`features/notes/note-editor.component.ts` opens a note in reading mode (rendered Markdown with an optional sticky heading index, `note-outline.component.ts`). Its action bar (back, outline, theme, export, copy, history, edit, copilot, delete) is sticky under the workspace tabs, like the mock-exam toolbar, so the actions stay in reach on a phone while a long note scrolls; the component measures the bar's height into `--note-bar-height` so the heading index and the review bar stick just below it. "Edit" switches to the Markdown editor; nothing is written until "Save", since every save of the body is an S3 object version listed and restorable in `note-history.component.ts` (newest 250 kept).
 
 - **Images:** the toolbar's "Insert image" button, pasting a screenshot, or dropping image files into the text uploads each image (`NotesService.uploadImage`) and inserts `![name](note/{noteId}/{file})` at the cursor, the same reference syntax question images use. File names are sanitized before upload (`core/utils/upload-filename.util.ts`) because screenshots are often named with spaces and accents.
 - **Text theme:** `note-theme-picker.component.ts` sets `AppSettings.noteReadingTheme` (site, light, dark, sepia), applied as a `.reading-theme-*` token class on the note body only.
 - **Export** (`note-export-menu.component.ts`, `note-export.ts`): Markdown downloads a `.md`, or a `.zip` with the `.md` and an `img/` folder the links point to when the note has images. Word builds a `.docx` with the images embedded, in Word's "Office" theme with green banded headings. The `docx` library is imported on demand, so it is a lazy chunk and not part of the initial bundle.
+- **Copy** puts the note body on the clipboard as Markdown (the same text the Markdown export writes), to paste in another app or browser. Images keep their stored keys, so they only resolve inside this app.
 
 ## AI Assistants in the Workspace
 

@@ -974,6 +974,8 @@ export const EN: Record<string, string> = {
   'notes.copilotSubtitle': 'Amazon Bedrock · reads the note you are editing',
   'notes.copilotTitle': 'Study copilot',
   'notes.copy': 'Copy',
+  'notes.copyFailed': 'Could not copy: the browser blocked clipboard access',
+  'notes.copyNoteHint': 'Copy the whole note as Markdown, to paste anywhere',
   'notes.deleteConfirm': 'Delete this note and its images? This cannot be undone.',
   'notes.deleteFailed': 'Could not delete the note.',
   'notes.deleteNote': 'Delete note',
