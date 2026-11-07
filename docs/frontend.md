@@ -213,7 +213,7 @@ Deployment is part of the Terraform run. `frontend_deploy.tf` gates it behind `f
 `deploy_frontend.sh` does three things:
 
 1. Generates `src/environments/environment.ts` from Terraform outputs passed as env vars (API stage URL, Cognito user pool id, client id, Cognito domain, frontend domain).
-2. Runs `npm install --legacy-peer-deps` and `npx ng build --configuration=production --base-href="/"`.
+2. Runs `npm install --legacy-peer-deps` and `npx ng build --configuration=production --base-href="/" --define "BUILD_TIME='<UTC now>'"`. `BUILD_TIME` is read by `core/build-info.ts` and shown in Settings ("App version") in Brasília time, so a phone can tell a stale cached copy from the latest deploy; builds that do not define it (`ng serve`, tests, a plain `ng build`) show "Development build".
 3. Syncs `dist/` to the S3 bucket with `--delete`, giving hashed assets a one-year immutable `Cache-Control`, then uploads `index.html` separately with `no-cache, no-store, must-revalidate` so a new release is picked up immediately.
 
 In short: `terraform apply` provisions infrastructure and, with `frontend_deploy_enabled = true`, rebuilds the SPA, replaces the S3 contents, and invalidates the CDN cache in the same run.

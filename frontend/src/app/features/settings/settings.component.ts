@@ -12,6 +12,7 @@ import { ModelsService } from '../../core/services/models.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { StorageService } from '../../core/services/storage.service';
 import { I18nService } from '../../core/i18n/i18n.service';
+import { BUILD_TIME_ISO, formatBuildTime } from '../../core/build-info';
 
 @Component({
   selector: 'app-settings',
@@ -469,6 +470,14 @@ import { I18nService } from '../../core/i18n/i18n.service';
           <p class="helper">{{ i18n.t('settings.quizToolbarRowsHelp') }}</p>
         </section>
 
+        <section class="block">
+          <header class="section-header">
+            <h3>{{ i18n.t('settings.appVersion') }}</h3>
+            <p class="helper">{{ i18n.t('settings.appVersionHelp') }}</p>
+          </header>
+          <p class="build-time">{{ buildTime() }}</p>
+        </section>
+
       </div>
 
     </div>
@@ -485,6 +494,10 @@ import { I18nService } from '../../core/i18n/i18n.service';
         color: var(--text-primary);
         border: 1px solid var(--bg-border);
         border-radius: var(--radius-lg);
+      }
+      .build-time {
+        font-family: var(--font-mono);
+        font-size: var(--font-size-sm);
       }
       .password summary {
         cursor: pointer;
@@ -640,6 +653,13 @@ export class SettingsComponent {
   private readonly storage = inject(StorageService);
   protected readonly auth = inject(AuthService);
   protected readonly i18n = inject(I18nService);
+
+  /** Compile time of the running bundle, to spot a stale cached copy on a phone. */
+  protected readonly buildTime = computed(() =>
+    BUILD_TIME_ISO
+      ? this.i18n.t('settings.appVersionBuilt', { time: formatBuildTime(BUILD_TIME_ISO, this.i18n.lang()) })
+      : this.i18n.t('settings.appVersionDev'),
+  );
 
   protected readonly currentUserEmail = this.auth.currentUserEmail;
 

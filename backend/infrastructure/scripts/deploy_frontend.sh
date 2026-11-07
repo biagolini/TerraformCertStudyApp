@@ -30,7 +30,10 @@ echo "  -> environment.ts generated"
 echo "[2/3] Building Angular app..."
 cd "$FRONTEND_DIR"
 npm install --silent --legacy-peer-deps
-npx ng build --configuration=production --base-href="/"
+# Compile time (UTC) baked into the bundle, shown in Settings so a phone can
+# tell a stale cached copy from the latest deploy (see core/build-info.ts).
+BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+npx ng build --configuration=production --base-href="/" --define "BUILD_TIME='$BUILD_TIME'"
 
 # --- Step 3: Sync to S3 with proper cache headers ---
 echo "[3/3] Syncing build to S3 bucket: $S3_BUCKET"
