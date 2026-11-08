@@ -49,6 +49,8 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
  * NoteHistoryComponent). AI copilot changes made while reading are saved at
  * once, as that is an explicit action too.
  */
+const NOTE_UPLOAD_MAX_BYTES = 1024 * 1024;
+
 @Component({
   selector: 'app-note-editor',
   standalone: true,
@@ -82,6 +84,8 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
             <button type="button" class="ui-btn ui-btn-sm" (click)="historyOpen.set(true)"><app-icon name="clock" /> {{ i18n.t('notes.historyButton') }}</button>
             <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" [disabled]="loading()" (click)="startEdit()"><app-icon name="pencil" /> {{ i18n.t('notes.edit') }}</button>
           }
+          <button type="button" class="ui-btn ui-btn-sm" [disabled]="loading() || saveState() === 'saving'" (click)="mdInput.click()" [title]="i18n.t('notes.uploadMdHint')"><app-icon name="upload" /> {{ i18n.t('notes.uploadMd') }}</button>
+          <input #mdInput type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden (change)="onMarkdownFile($event)" />
           <button type="button" class="ui-btn ui-btn-sm ui-btn-soft" (click)="copilotOpen.set(!copilotOpen())" [attr.aria-pressed]="copilotOpen()"><app-icon name="sparkles" /> {{ i18n.t('notes.copilot') }}</button>
           <button type="button" class="ui-btn ui-btn-sm ui-btn-danger" (click)="confirmDelete.set(true)" [attr.aria-label]="i18n.t('notes.deleteNote')"><app-icon name="trash" /></button>
         </div>
@@ -92,6 +96,14 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
             <button type="button" class="ui-btn ui-btn-sm" (click)="confirmLeave.set(false)">{{ i18n.t('notes.keepEditing') }}</button>
             <button type="button" class="ui-btn ui-btn-sm ui-btn-danger" (click)="discardAndLeave()">{{ i18n.t('notes.discardChanges') }}</button>
             <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" (click)="saveAndLeave()">{{ i18n.t('common.save') }}</button>
+          </div>
+        }
+
+        @if (pendingUpload(); as up) {
+          <div class="confirm" role="alert">
+            <span>{{ i18n.t('notes.uploadDiscardsEdits', { file: up.fileName }) }}</span>
+            <button type="button" class="ui-btn ui-btn-sm" (click)="pendingUpload.set(null)">{{ i18n.t('common.cancel') }}</button>
+            <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" (click)="saveUpload(up.body, up.fileName)">{{ i18n.t('notes.uploadReplace') }}</button>
           </div>
         }
 
@@ -614,6 +626,8 @@ export class NoteEditorComponent implements OnInit, OnDestroy {
   /** Measured topbar height, so the outline and the review header stick just below it. */
   readonly barHeight = signal(48);
   readonly copyState = signal<'idle' | 'copied' | 'failed'>('idle');
+  /** An uploaded .md waiting for confirmation because it would drop unsaved edits. */
+  readonly pendingUpload = signal<{ fileName: string; body: string } | null>(null);
   private copyResetTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly layouts: EditLayout[] = ['edit', 'split'];
@@ -781,6 +795,46 @@ export class NoteEditorComponent implements OnInit, OnDestroy {
     this.error.set(null);
     this.saveState.set('idle');
     this.editing.set(false);
+  }
+
+  /** Upload of a .md file: it becomes the note body as a new saved version
+   * (the previous one stays restorable in History). Unsaved edits are only
+   * dropped after the student confirms. */
+  async onMarkdownFile(event: Event): Promise<void> {
+    const inputEl = event.target as HTMLInputElement;
+    const file = inputEl.files?.[0];
+    inputEl.value = '';
+    if (!file) return;
+    this.error.set(null);
+    // Same cap the data API enforces on a note body (1 MB), checked here to fail fast.
+    if (file.size > NOTE_UPLOAD_MAX_BYTES) {
+      this.error.set(this.i18n.t('notes.uploadTooLarge'));
+      return;
+    }
+    if (!/\.(md|markdown|txt)$/i.test(file.name)) {
+      this.error.set(this.i18n.t('notes.uploadWrongType'));
+      return;
+    }
+    const body = (await file.text()).replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+    if (this.dirty()) {
+      this.pendingUpload.set({ fileName: file.name, body });
+      return;
+    }
+    await this.saveUpload(body, file.name);
+  }
+
+  async saveUpload(body: string, fileName: string): Promise<void> {
+    this.pendingUpload.set(null);
+    this.pendingChange.set(null);
+    this.lastApproved.set(null);
+    const s = this.saved();
+    // A note still without a title takes the file name.
+    if (!s.title.trim()) this.title.set(fileName.replace(/\.(md|markdown|txt)$/i, '').trim());
+    else this.title.set(s.title);
+    this.tagsText.set(s.tags);
+    this.body.set(body);
+    // Saved: back to reading. Failed: keep it as a draft in the editor so Save can retry.
+    this.editing.set(!(await this.persist()));
   }
 
   onBody(value: string): void {
