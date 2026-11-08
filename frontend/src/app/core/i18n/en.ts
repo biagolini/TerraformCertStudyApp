@@ -669,6 +669,7 @@ export const EN: Record<string, string> = {
   'quizRunner.copyQuestionRevealed': 'Copy question with the answer and comments',
   'quizRunner.copied': 'Copied',
   'quizRunner.copyFailed': 'Could not copy: the browser blocked clipboard access',
+  'quizRunner.toSummaryHiddenHint': 'Open one of your summary notes on this question. The copilot is not given the answer, so it will not reveal it',
   'quizRunner.copyComments': 'Comments',
   'quizRunner.copyQuestionHeading': 'Question',
   'quizRunner.copyOptionsHeading': 'Options',

@@ -667,6 +667,7 @@ export const PT: Record<string, string> = {
   'quizRunner.copyQuestionRevealed': 'Copiar questão com resposta e comentários',
   'quizRunner.copied': 'Copiado',
   'quizRunner.copyFailed': 'Não foi possível copiar: o navegador bloqueou a área de transferência',
+  'quizRunner.toSummaryHiddenHint': 'Abre uma das suas notas de resumo com esta questão. O copiloto não recebe a resposta, então não a revela',
   'quizRunner.copyComments': 'Comentários',
   'quizRunner.copyQuestionHeading': 'Questão',
   'quizRunner.copyOptionsHeading': 'Alternativas',

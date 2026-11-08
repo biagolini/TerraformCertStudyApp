@@ -667,6 +667,7 @@ export const ES: Record<string, string> = {
   'quizRunner.copyQuestionRevealed': 'Copiar pregunta con respuesta y comentarios',
   'quizRunner.copied': 'Copiado',
   'quizRunner.copyFailed': 'No se pudo copiar: el navegador bloqueó el portapapeles',
+  'quizRunner.toSummaryHiddenHint': 'Abre una de tus notas de resumen con esta pregunta. El copiloto no recibe la respuesta, así que no la revela',
   'quizRunner.copyComments': 'Comentarios',
   'quizRunner.copyQuestionHeading': 'Pregunta',
   'quizRunner.copyOptionsHeading': 'Alternativas',

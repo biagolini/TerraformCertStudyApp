@@ -667,6 +667,7 @@ export const IT: Record<string, string> = {
   'quizRunner.copyQuestionRevealed': 'Copia domanda con risposta e commenti',
   'quizRunner.copied': 'Copiato',
   'quizRunner.copyFailed': 'Impossibile copiare: il browser ha bloccato l\'accesso agli appunti',
+  'quizRunner.toSummaryHiddenHint': 'Apre una delle tue note di riepilogo su questa domanda. Il copilota non riceve la risposta, quindi non la rivela',
   'quizRunner.copyComments': 'Commenti',
   'quizRunner.copyQuestionHeading': 'Domanda',
   'quizRunner.copyOptionsHeading': 'Alternative',

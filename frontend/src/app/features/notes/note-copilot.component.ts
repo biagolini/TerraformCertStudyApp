@@ -340,7 +340,7 @@ export class NoteCopilotComponent {
     const c = this.conceptPending();
     if (c) {
       this.conceptPending.set(null);
-      const request = buildConceptProposalRequest(c.question, c.selected, c.tutor);
+      const request = buildConceptProposalRequest(c.question, c.selected, c.tutor, c.answerHidden);
       void this.send(`${request}\n\n=== WHAT THE STUDENT ASKS ===\n${content}`, content);
       return;
     }

@@ -1,5 +1,10 @@
 import { IconComponent } from '../../shared/components/icon.component';
 import { TutorDialogComponent } from '../tutor/tutor-dialog.component';
+import { SummaryNotePickerComponent } from '../notes/summary-note-picker.component';
+import { Router } from '@angular/router';
+import { NoteIntegrationService } from '../../core/services/note-integration.service';
+import { PacksService } from '../../core/services/packs.service';
+import { examPath } from '../../core/utils/routes.util';
 import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { correctLetters, Question } from '../../core/models/question.model';
@@ -21,7 +26,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 @Component({
   selector: 'app-quiz-runner',
   standalone: true,
-  imports: [IconComponent, AiDisclaimerComponent, DomainBadgeComponent, MarkdownRendererComponent, QuizAnnotatedTextComponent, FormsModule, TutorDialogComponent],
+  imports: [IconComponent, AiDisclaimerComponent, DomainBadgeComponent, MarkdownRendererComponent, QuizAnnotatedTextComponent, FormsModule, TutorDialogComponent, SummaryNotePickerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (question(); as q) {
@@ -396,16 +401,21 @@ import { I18nService } from '../../core/i18n/i18n.service';
               <button type="button" class="ui-btn" (click)="quiz.leave()" [title]="i18n.t('quizRunner.saveAndExitHint')">{{ i18n.t('quizRunner.saveAndExit') }}</button>
               <button type="button" class="ui-btn ui-btn-danger" (click)="requestFinish()">{{ i18n.t('quizRunner.endExam') }}</button>
             </div>
-            @if (isInstant()) {
-              <button
-                type="button"
-                class="ui-btn ui-btn-sm tutor-btn"
-                [disabled]="!answer().checked"
-                [title]="answer().checked ? i18n.t('tutor.askHint') : i18n.t('tutor.answerFirst')"
-                [attr.aria-pressed]="tutorOpen()"
-                (click)="tutorOpen.set(!tutorOpen())"
-              ><app-icon name="sparkles" /> {{ i18n.t('tutor.ask') }}</button>
-            }
+            <div class="assist-row">
+              @if (isInstant()) {
+                <button
+                  type="button"
+                  class="ui-btn ui-btn-sm"
+                  [disabled]="!answer().checked"
+                  [title]="answer().checked ? i18n.t('tutor.askHint') : i18n.t('tutor.answerFirst')"
+                  [attr.aria-pressed]="tutorOpen()"
+                  (click)="tutorOpen.set(!tutorOpen())"
+                ><app-icon name="sparkles" /> {{ i18n.t('tutor.ask') }}</button>
+              }
+              <button type="button" class="ui-btn ui-btn-sm" (click)="summaryPickerOpen.set(true)" [title]="i18n.t(instantChecked() ? 'tutor.toSummaryHint' : 'quizRunner.toSummaryHiddenHint')">
+                <app-icon name="file-text" size="14" /> {{ i18n.t('tutor.toSummary') }}
+              </button>
+            </div>
           </div>
 
           <aside class="palette">
@@ -509,6 +519,9 @@ import { I18nService } from '../../core/i18n/i18n.service';
           </div>
         </div>
       </div>
+    }
+    @if (summaryPickerOpen()) {
+      <app-summary-note-picker (picked)="toSummary($event)" (closed)="summaryPickerOpen.set(false)" />
     }
     @if (tutorOpen() && question(); as q) {
       <app-tutor-dialog [question]="q" [selected]="answer().selected" [locked]="!answer().checked" (closed)="tutorOpen.set(false)" />
@@ -674,7 +687,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .palette-dot.overtime { box-shadow: inset 0 -3px 0 var(--color-amber); }
       .overtime-swatch { box-shadow: inset 0 -3px 0 var(--color-amber); }
       .palette-jump { width: 100%; margin-top: var(--space-sm); }
-      .tutor-btn { margin-top: var(--space-sm); align-self: flex-start; }
+      .assist-row { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-top: var(--space-sm); }
       /* Room for the docked tutor panel (440px) on screens wide enough to show both. */
       @media (min-width: 1200px) {
         .runner.with-tutor { margin-right: 460px; }
@@ -716,6 +729,9 @@ export class QuizRunnerComponent {
   private readonly bedrock = inject(BedrockService);
   private readonly appSettings = inject(SettingsService);
   private readonly viewport = inject(ViewportService);
+  private readonly notesBridge = inject(NoteIntegrationService);
+  private readonly packs = inject(PacksService);
+  private readonly router = inject(Router);
   protected readonly i18n = inject(I18nService);
 
   protected readonly question = this.quiz.currentQuestion;
@@ -742,6 +758,7 @@ export class QuizRunnerComponent {
   protected readonly instantChecked = computed(() => this.isInstant() && this.answer().checked);
   protected readonly finishConfirm = signal(false);
   protected readonly tutorOpen = signal(false);
+  protected readonly summaryPickerOpen = signal(false);
   protected readonly navFilters = ['all', 'answered', 'unanswered', 'flagged'] as const;
   protected readonly navFilter = signal<'all' | 'answered' | 'unanswered' | 'flagged'>('all');
   protected readonly perQuestionBudget = computed(() => {
@@ -1283,6 +1300,30 @@ export class QuizRunnerComponent {
     }
     if (this.copyResetTimer) clearTimeout(this.copyResetTimer);
     this.copyResetTimer = setTimeout(() => this.copyState.set('idle'), 2000);
+  }
+
+  /** Opens a summary note on this question at any point, not only after the
+   * tutor: pauses the exam and hands the question to that note's copilot.
+   * Until the answer is shown (unchecked, or any strict-mode question) the
+   * copilot gets the question without its answer key, so it cannot leak it. */
+  toSummary(noteId: string): void {
+    this.summaryPickerOpen.set(false);
+    const q = this.question();
+    if (!q) return;
+    const revealed = this.instantChecked();
+    const packId = this.packs.activePack().id;
+    this.notesBridge.request({
+      noteId,
+      packId,
+      question: q,
+      selected: revealed ? this.answer().selected : [],
+      tutor: revealed ? (this.quiz.tutorById()[q.id] ?? []) : [],
+      fromQuiz: true,
+      answerHidden: !revealed,
+    });
+    if (!this.quiz.paused()) this.quiz.pause();
+    this.tutorOpen.set(false);
+    void this.router.navigate(examPath(packId, 'notes', noteId));
   }
 
   onNextInstant(): void {

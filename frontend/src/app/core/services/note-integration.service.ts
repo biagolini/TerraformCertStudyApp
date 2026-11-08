@@ -13,6 +13,9 @@ export interface ConceptRequest {
   tutor: readonly TutorMessage[];
   /** Came from a running mock exam, so the notes page offers the way back. */
   fromQuiz: boolean;
+  /** The student has not seen this question's answer yet (unanswered, or a
+   * strict exam before the end): the copilot is not given the answer key. */
+  answerHidden?: boolean;
 }
 
 /**

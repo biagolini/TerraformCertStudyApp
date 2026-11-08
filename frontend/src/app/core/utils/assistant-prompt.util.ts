@@ -132,7 +132,9 @@ export function buildConceptProposalRequest(
   question: Question,
   selected: readonly string[],
   tutor: readonly { role: 'user' | 'assistant'; content: string }[],
+  answerHidden = false,
 ): string {
+  if (answerHidden) return buildHiddenAnswerConceptRequest(question);
   const doubts = tutor.length
     ? `\n\n=== WHAT THE STUDENT ASKED THE TUTOR ABOUT IT ===\n${tutor
         .map((m) => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.content}`)
@@ -145,6 +147,32 @@ ${buildTutorContext(question, selected)}${doubts}
 
 Do this now, WITHOUT rewriting the note:
 1. Name the concept(s) this question really tests, in one or two lines.
+2. Say whether the note already covers them. If it does, quote the passage and say what (if anything) is missing; if nothing is missing, say so and stop.
+3. Otherwise propose the change as edit blocks, in the note's own style and level of detail; prefer adding to or adjusting the passage that already covers the topic over creating a new section. The app shows it highlighted in the note for me to approve.
+Do not output the full note.`;
+}
+
+/**
+ * The same request sent from a mock-exam question the student has not
+ * answered yet (or, in a strict exam, whose answer is not shown until the
+ * end). The answer key and the stored explanations are left out of the
+ * context on purpose: telling the model not to reveal the answer is not
+ * enough on its own, so it is never given it.
+ */
+function buildHiddenAnswerConceptRequest(question: Question): string {
+  const alternatives = question.alternatives.map((a) => `${a.letter}. ${a.text}`).join('\n');
+  return `I am in the middle of a mock exam and have NOT seen the answer to this question yet. Help me fold the TECHNICAL CONCEPT it is about into this summary note. The goal is to record the concept, not the question: never copy the scenario or the alternatives into the note.
+
+=== QUESTION (${question.domain}) ===
+${question.stem}
+
+=== ALTERNATIVES ===
+${alternatives}
+
+Do not say, hint or rank which alternative is correct, in your reply or in the note: write the concept neutrally (what each service or feature is and when it applies), so neither gives the answer away.
+
+Do this now, WITHOUT rewriting the note:
+1. Name the concept(s) the question is about, in one or two lines.
 2. Say whether the note already covers them. If it does, quote the passage and say what (if anything) is missing; if nothing is missing, say so and stop.
 3. Otherwise propose the change as edit blocks, in the note's own style and level of detail; prefer adding to or adjusting the passage that already covers the topic over creating a new section. The app shows it highlighted in the note for me to approve.
 Do not output the full note.`;
