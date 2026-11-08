@@ -1043,6 +1043,7 @@ export const IT: Record<string, string> = {
   'notes.uploadMdHint': 'Sostituisce la nota con un file Markdown, salvato come nuova versione (quella attuale resta nella Cronologia)',
   'notes.uploadDiscardsEdits': 'Caricare {{file}} sostituisce la nota e scarta le modifiche non salvate.',
   'notes.uploadReplace': 'Sostituisci e salva',
+  'notes.uploadSaved': '{{file}} caricato e salvato come nuova versione. Quella precedente è nella Cronologia.',
   'notes.uploadTooLarge': 'Il file è troppo grande (massimo 1 MB).',
   'notes.uploadWrongType': 'Scegli un file Markdown (.md, .markdown o .txt).',
   'notes.keepEditing': 'Continua a modificare',

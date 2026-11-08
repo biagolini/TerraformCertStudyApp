@@ -1045,6 +1045,7 @@ export const EN: Record<string, string> = {
   'notes.uploadMdHint': 'Replace the note with a Markdown file, saved as a new version (the current one stays in History)',
   'notes.uploadDiscardsEdits': 'Uploading {{file}} replaces the note and discards your unsaved edits.',
   'notes.uploadReplace': 'Replace and save',
+  'notes.uploadSaved': '{{file}} uploaded and saved as a new version. The previous one is in History.',
   'notes.uploadTooLarge': 'The file is too large (1 MB max).',
   'notes.uploadWrongType': 'Choose a Markdown file (.md, .markdown or .txt).',
   'notes.keepEditing': 'Keep editing',

@@ -152,6 +152,15 @@ const NOTE_UPLOAD_MAX_BYTES = 1024 * 1024;
           </div>
         }
 
+        @if (uploadedFile(); as file) {
+          <div class="approved-bar" role="status">
+            <app-icon name="check" size="14" />
+            <span>{{ i18n.t('notes.uploadSaved', { file }) }}</span>
+            <button type="button" class="ui-btn ui-btn-sm" (click)="historyOpen.set(true)"><app-icon name="clock" size="14" /> {{ i18n.t('notes.historyButton') }}</button>
+            <button type="button" class="ui-btn ui-btn-sm ui-btn-ghost ui-btn-icon" (click)="uploadedFile.set(null)" [attr.aria-label]="i18n.t('common.close')"><app-icon name="x" size="14" /></button>
+          </div>
+        }
+
         @if (lastApproved() !== null && !pendingChange()) {
           <div class="approved-bar" role="status">
             <app-icon name="check" size="14" />
@@ -628,6 +637,8 @@ export class NoteEditorComponent implements OnInit, OnDestroy {
   readonly copyState = signal<'idle' | 'copied' | 'failed'>('idle');
   /** An uploaded .md waiting for confirmation because it would drop unsaved edits. */
   readonly pendingUpload = signal<{ fileName: string; body: string } | null>(null);
+  /** File name of the last upload, once the API confirmed it stored the new version. */
+  readonly uploadedFile = signal<string | null>(null);
   private copyResetTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly layouts: EditLayout[] = ['edit', 'split'];
@@ -778,6 +789,7 @@ export class NoteEditorComponent implements OnInit, OnDestroy {
 
   startEdit(): void {
     this.confirmLeave.set(false);
+    this.uploadedFile.set(null);
     this.saveState.set('idle');
     this.editing.set(true);
     requestAnimationFrame(() => this.area()?.nativeElement.focus());
@@ -825,6 +837,7 @@ export class NoteEditorComponent implements OnInit, OnDestroy {
 
   async saveUpload(body: string, fileName: string): Promise<void> {
     this.pendingUpload.set(null);
+    this.uploadedFile.set(null);
     this.pendingChange.set(null);
     this.lastApproved.set(null);
     const s = this.saved();
@@ -833,8 +846,12 @@ export class NoteEditorComponent implements OnInit, OnDestroy {
     else this.title.set(s.title);
     this.tagsText.set(s.tags);
     this.body.set(body);
-    // Saved: back to reading. Failed: keep it as a draft in the editor so Save can retry.
-    this.editing.set(!(await this.persist()));
+    // Saved: back to reading, with a confirmation (persist resolves only after the
+    // API stored the body). Failed: keep it as a draft in the editor so Save can retry;
+    // the error line says why.
+    const ok = await this.persist();
+    this.editing.set(!ok);
+    if (ok) this.uploadedFile.set(fileName);
   }
 
   onBody(value: string): void {
