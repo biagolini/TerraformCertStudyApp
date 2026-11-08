@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { filter, map } from 'rxjs';
+import { Location } from '@angular/common';
+import { filter, map, tap } from 'rxjs';
 import { PacksService } from './core/services/packs.service';
 import { AuthService } from './core/services/auth.service';
 import { ThemeService } from './core/services/theme.service';
@@ -108,12 +109,12 @@ import { IconComponent } from './shared/components/icon.component';
             <!-- A failing sync must never be invisible, even with the button turned off. -->
             <app-sync-status />
           }
-          <a routerLink="/settings" routerLinkActive="active" class="icon-btn" [attr.aria-label]="i18n.t('app.openSettings')" [title]="i18n.t('app.openSettings')">
+          <button type="button" class="icon-btn" [class.active]="onSettings()" (click)="toggleSettings()" [attr.aria-pressed]="onSettings()" [attr.aria-label]="onSettings() ? i18n.t('app.closeSettings') : i18n.t('app.openSettings')" [title]="onSettings() ? i18n.t('app.closeSettings') : i18n.t('app.openSettings')">
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
               <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M12 8.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z"/>
               <path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M19.4 13.5l1.6 1-2 3.4-1.9-.6a7.6 7.6 0 01-2 1.2l-.5 2H10.4l-.5-2a7.6 7.6 0 01-2-1.2l-1.9.6-2-3.4 1.6-1A7.6 7.6 0 014.5 12c0-.5.1-1 .2-1.5l-1.6-1 2-3.4 1.9.6a7.6 7.6 0 012-1.2l.5-2h4.2l.5 2c.7.3 1.4.7 2 1.2l1.9-.6 2 3.4-1.6 1c.1.5.2 1 .2 1.5s-.1 1-.2 1.5z"/>
             </svg>
-          </a>
+          </button>
         </nav>
       </header>
 
@@ -132,10 +133,17 @@ export class AppComponent {
   protected readonly themeService = inject(ThemeService);
   protected readonly i18n = inject(I18nService);
 
+  private readonly location = inject(Location);
+  /** Last page outside Settings reached inside the app, where closing Settings returns. */
+  private settingsReturnUrl: string | null = null;
+
   private readonly url = toSignal(
     this.router.events.pipe(
       filter((e): e is NavigationEnd => e instanceof NavigationEnd),
       map((e) => e.urlAfterRedirects),
+      tap((u) => {
+        if (!isSettingsUrl(u)) this.settingsReturnUrl = u;
+      }),
     ),
     { initialValue: this.router.url },
   );
@@ -156,7 +164,27 @@ export class AppComponent {
     return color ? withAlpha(color, 0.16) : 'rgba(108, 92, 231, 0.16)';
   });
 
+  readonly onSettings = computed(() => isSettingsUrl(this.url()));
+
+  /** The gear opens Settings and, pressed again, closes it, so a long Settings
+   * page needs no scroll back up to a Back button. */
+  toggleSettings(): void {
+    if (!this.onSettings()) {
+      void this.router.navigateByUrl('/settings');
+    } else if (this.settingsReturnUrl !== null) {
+      // Settings was opened from a page in this tab: step back in history to it.
+      this.location.back();
+    } else {
+      // Opened directly (deep link or reload): there is no page to step back to.
+      void this.router.navigateByUrl('/', { replaceUrl: true });
+    }
+  }
+
   onLogout(): void {
     this.auth.logout();
   }
+}
+
+function isSettingsUrl(url: string): boolean {
+  return /^\/settings(?:[/?#]|$)/.test(url);
 }

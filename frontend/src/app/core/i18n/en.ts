@@ -28,6 +28,7 @@ export const EN: Record<string, string> = {
   // App shell (header)
   'app.tapToSwitchPack': 'Tap to switch pack',
   'app.openPackSwitcher': 'Open pack switcher',
+  'app.closeSettings': 'Close settings',
   'app.openSettings': 'Open settings',
   'app.signOut': 'Sign out',
   'app.examPacksDialog': 'Exam packs',

@@ -26,6 +26,7 @@ export const PT: Record<string, string> = {
   // App shell (header)
   'app.tapToSwitchPack': 'Toque para trocar de pacote',
   'app.openPackSwitcher': 'Abrir seletor de pacotes',
+  'app.closeSettings': 'Fechar configurações',
   'app.openSettings': 'Abrir configurações',
   'app.signOut': 'Sair',
   'app.examPacksDialog': 'Pacotes de exame',

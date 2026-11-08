@@ -1,6 +1,6 @@
 import { IconComponent } from '../../shared/components/icon.component';
 import { RouterLink } from '@angular/router';
-import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NAV_ITEMS, NavTabId } from '../../core/models/nav-item.model';
 import { MAX_QUIZ_TOOLBAR_ROWS, QuizToolId } from '../../core/models/quiz-tool.model';
@@ -23,7 +23,6 @@ import { BUILD_TIME_ISO, formatBuildTime } from '../../core/build-info';
     <div class="drawer">
       <header class="drawer-header">
         <h2>{{ i18n.t('settings.title') }}</h2>
-        <button type="button" class="ui-btn ui-btn-sm" (click)="closed.emit()"><app-icon name="arrow-left" /> {{ i18n.t('common.back') }}</button>
       </header>
 
       <div class="drawer-body">
@@ -689,7 +688,6 @@ export class SettingsComponent {
     return Math.max(1, Math.min(MAX_QUIZ_TOOLBAR_ROWS, visible));
   });
 
-  readonly closed = output<void>();
 
   protected readonly headerActions = this.settings.headerActions;
   protected readonly availableHeaderActions = computed(() => {
