@@ -4,7 +4,7 @@ inclusion: always
 
 # How to Work on This Project
 
-Rules for how I want work done here. These rules mirror the project's `CLAUDE.md` (used by Claude Code); if the two ever disagree, `CLAUDE.md` wins, and a rule changed in one should be changed in the other. Project documentation is NOT here: it lives in `docs/` (see the index below) and should be read on demand, not carried in context.
+Rules for how I want work done here. These rules mirror the project's `CLAUDE.md` (used by Claude Code); if the two ever disagree, `CLAUDE.md` wins, and a rule changed in one should be changed in the other. Keep both 100% in English. `CLAUDE.md` also inherits the shared conventions of the root `CLAUDE.md` in the parent folder, outside this repo (state bucket, account profiles, project layout); this project's files only cover what is specific to it. Project documentation is NOT here: it lives in `docs/` (see the index below) and should be read on demand, not carried in context.
 
 ## Expect Inconsistencies, and Report Them
 

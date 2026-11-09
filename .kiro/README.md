@@ -40,9 +40,9 @@ The same rules exist for Claude Code in the root `CLAUDE.md`. The two are kept e
 |---|---|
 | `prompt` | Agent identity and working style. Kept deliberately thin, since conventions live in steering rather than being duplicated here |
 | `tools` | Available tools (read/write files, run commands, AWS access, MCP tools) |
-| `toolsSettings` | Per-tool settings; read-only AWS and shell operations are auto-approved |
+| `toolsSettings` | Per-tool settings; read-only AWS and shell operations are auto-approved, plus the same command allowlist as `.claude/settings.json` (`terraform version/fmt/validate/plan/init`, `npm start/test/run`, `git status/diff/log/show`). `terraform apply` is deliberately not on it |
 | `resources` | Files always loaded into context: the steering rules |
-| `hooks` | `agentSpawn` runs `terraform version` and `node --version` to confirm both toolchains are present |
+| `hooks` | `agentSpawn` prints one line with the Terraform and Node versions (the same command and 15 s timeout as Claude Code's `SessionStart` hook) to confirm both toolchains are present |
 
 Note: custom agents do not load steering automatically, which is why `resources` declares `file://.kiro/steering/**/*.md` explicitly.
 

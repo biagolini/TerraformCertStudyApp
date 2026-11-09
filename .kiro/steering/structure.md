@@ -20,7 +20,8 @@ TerraformCertStudyApp/
 Notes that save a wrong guess:
 
 - The deployment environment is `production`, not `dev`, and it is the only one.
-- Lambda source is in `backend/infrastructure/lambda/<function>/`, not next to the `.tf`.
+- Lambda source is in `backend/infrastructure/lambda/<function>/`, not next to the `.tf`: `converse` (Bedrock `converse_stream`, NDJSON), `data` (DynamoDB CRUD and model discovery), `review` (streams `/review` from the AgentCore review agent), `import_*` (AI exam import steps: preprocess, extract, explain, finalize, orchestrated by Step Functions), `mcp_aws_docs` (AWS documentation lookup used by the review agent).
+- `frontend/src/app/shared/` holds reusable components (theme-toggle, sync-status, domain-badge and others) and pipes.
 - The AgentCore review agent lives in `backend/infrastructure/agent/review_agent/` and ships as a container image.
 - Frontend feature code is one folder per screen under `frontend/src/app/features/`; shared state is in `core/services/`. Global pages: home, profile, settings, costs, backup, login. Workspace tabs (`/exam/:packId/...`): banks, questions, import (hub, per-exam upload, review), quiz, performance, notes, transcripts, chat, export.
 - The app is certification-centric: Home (`/`) lists certifications (`Pack` in code), and each one has a workspace at `/exam/:packId` whose tabs are child routes. Settings and Profile are routes, not overlays.

@@ -10,4 +10,5 @@ inclusion: always
 - Captures use neutral sample data only: masked email, "Instructor A/B" authors with example.com links, a sample certification instead of the one the user studies, other certifications removed from the switcher. Sample content may be set in the page's memory for a capture, never saved to the user's account.
 - When a design token changes in `_variables.scss`, update `design-system/styles.css` to match.
 - Each preview file's first line is an `<!-- @dsCard group="..." -->` marker that builds the Design System pane's card index; keep it as line 1.
-- The folder is published to a claude.ai/design project named "Cert Study Assistant" and kept in sync by hand (the sync runs from Claude Code). This repo is public: never commit that project's URL or id.
+- The folder is published to a claude.ai/design project named "Cert Study Assistant" and kept in sync by hand (the sync runs from Claude Code, through its `DesignSync` tool: `list_projects` to find the project, `finalize_plan` with the changed paths, then `write_files`). This repo is public: never commit that project's URL or id; look it up by name each time instead of hardcoding it.
+- One-off full-screen mockups (not token-level, not kept in sync) use Claude Code's `/design` skill instead, which publishes a separate, disposable artifact rather than updating this project.
