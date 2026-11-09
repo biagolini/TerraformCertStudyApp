@@ -1193,7 +1193,6 @@ export const PT: Record<string, string> = {
   'settings.passwordRules': 'Pelo menos 8 caracteres, seguindo a política de senha da conta.',
   'settings.appVersion': 'Versão do app',
   'settings.appVersionHelp': 'Quando a versão que você está usando foi compilada. Se for mais antiga que o último deploy, recarregue a página ou limpe o cache do navegador.',
-  'settings.appVersionBuilt': 'Compilada em {{time}} (horário de Brasília)',
   'settings.appVersionDev': 'Build de desenvolvimento (sem data de compilação)',
   'settings.privacyNote': 'Seus dados ficam apenas no armazenamento AWS privado deste app, separados por conta; imagens só são acessíveis por links assinados temporários.',
   'settings.theme': 'Tema',

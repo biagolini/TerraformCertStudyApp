@@ -656,7 +656,7 @@ export class SettingsComponent {
   /** Compile time of the running bundle, to spot a stale cached copy on a phone. */
   protected readonly buildTime = computed(() =>
     BUILD_TIME_ISO
-      ? this.i18n.t('settings.appVersionBuilt', { time: formatBuildTime(BUILD_TIME_ISO, this.i18n.lang()) })
+      ? formatBuildTime(BUILD_TIME_ISO)
       : this.i18n.t('settings.appVersionDev'),
   );
 

@@ -1195,7 +1195,6 @@ export const EN: Record<string, string> = {
   'settings.passwordRules': 'At least 8 characters, following your account\'s password policy.',
   'settings.appVersion': 'App version',
   'settings.appVersionHelp': 'When the version you are using was built. If it is older than the last deploy, reload the page or clear the browser cache.',
-  'settings.appVersionBuilt': 'Built on {{time}} (Brasília time)',
   'settings.appVersionDev': 'Development build (no build time)',
   'settings.privacyNote': 'Your data lives only in this app\'s private AWS storage, partitioned by your account; images are reachable only through short-lived signed links.',
   'settings.theme': 'Theme',

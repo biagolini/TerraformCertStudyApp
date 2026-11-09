@@ -14,14 +14,17 @@ export const BUILD_TIME_ISO: string | null = typeof BUILD_TIME === 'string' && B
 /** Brasília time regardless of the phone's own time zone, so two devices show the same value. */
 export const BUILD_TIME_ZONE = 'America/Sao_Paulo';
 
-export function formatBuildTime(iso: string, locale: string): string {
-  return new Intl.DateTimeFormat(locale, {
+/** Fixed English, not translated: "Built on 2026-11-09 at 10:26 (Brasília time)". */
+export function formatBuildTime(iso: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: BUILD_TIME_ZONE,
-    day: '2-digit',
-    month: '2-digit',
     year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit',
-  }).format(new Date(iso));
+    hourCycle: 'h23',
+  }).formatToParts(new Date(iso));
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? '';
+  return `Built on ${part('year')}-${part('month')}-${part('day')} at ${part('hour')}:${part('minute')} (Brasília time)`;
 }
