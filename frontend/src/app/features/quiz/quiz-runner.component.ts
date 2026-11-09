@@ -5,7 +5,7 @@ import { Router } from '@angular/router';
 import { NoteIntegrationService } from '../../core/services/note-integration.service';
 import { PacksService } from '../../core/services/packs.service';
 import { examPath } from '../../core/utils/routes.util';
-import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { correctLetters, Question } from '../../core/models/question.model';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
@@ -47,12 +47,12 @@ import { I18nService } from '../../core/i18n/i18n.service';
                 [attr.aria-label]="questionClockTitle(c)"
               >
                 <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                {{ clockLabel(c) }}
+                <span class="clock-time" [style.min-width.ch]="clockWidthCh()"><span class="clock-sign" [class.on]="c.overtime">+</span>{{ clockTime(c) }}</span>
               </button>
             } @else {
               <span class="clock-pill" [class.overtime]="c.overtime">
                 <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                {{ clockLabel(c) }}
+                <span class="clock-time" [style.min-width.ch]="clockWidthCh()"><span class="clock-sign" [class.on]="c.overtime">+</span>{{ clockTime(c) }}</span>
               </span>
             }
             <button
@@ -165,7 +165,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
                       type="button"
                       class="tool-btn"
                       [disabled]="isLast()"
-                      (click)="quiz.next()"
+                      (click)="goNext()"
                       [attr.aria-label]="i18n.t('quizRunner.nextQuestion')"
                     >
                       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M5 12h13m0 0l-5-5m5 5l-5 5"/></svg>
@@ -388,7 +388,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
                     (click)="quiz.checkAnswer()"
                   >{{ i18n.t('quizRunner.checkAnswer') }}</button>
                   @if (!isLast()) {
-                    <button type="button" class="ui-btn" (click)="quiz.next()">{{ i18n.t('importReview.next') }}</button>
+                    <button type="button" class="ui-btn" (click)="goNext()">{{ i18n.t('importReview.next') }}</button>
                   }
                 } @else {
                   <button type="button" class="ui-btn ui-btn-primary" (click)="onNextInstant()">
@@ -396,7 +396,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
                   </button>
                 }
               } @else if (!isLast()) {
-                <button type="button" class="ui-btn" (click)="quiz.next()">{{ i18n.t('importReview.next') }}</button>
+                <button type="button" class="ui-btn" (click)="goNext()">{{ i18n.t('importReview.next') }}</button>
               }
               <button type="button" class="ui-btn" (click)="quiz.leave()" [title]="i18n.t('quizRunner.saveAndExitHint')">{{ i18n.t('quizRunner.saveAndExit') }}</button>
               <button type="button" class="ui-btn ui-btn-danger" (click)="requestFinish()">{{ i18n.t('quizRunner.endExam') }}</button>
@@ -520,6 +520,9 @@ import { I18nService } from '../../core/i18n/i18n.service';
         </div>
       </div>
     }
+    @if (timeUpFlash()) {
+      <div class="time-up-flash" aria-hidden="true" (animationend)="timeUpFlash.set(false)"></div>
+    }
     @if (summaryPickerOpen()) {
       <app-summary-note-picker (picked)="toSummary($event)" (closed)="summaryPickerOpen.set(false)" />
     }
@@ -536,6 +539,12 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .progress-text { font-size: var(--font-size-xs); color: var(--text-muted); white-space: nowrap; }
       .score-pill { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-secondary); background: var(--bg-elevated); padding: 4px var(--space-md); border-radius: var(--radius-pill); white-space: nowrap; }
       .clock-pill { display: inline-flex; align-items: center; gap: 4px; font-size: var(--font-size-sm); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-secondary); background: var(--bg-elevated); padding: 4px var(--space-md); border-radius: var(--radius-pill); white-space: nowrap; }
+      /* The "+" of overtime keeps its slot (hidden) while counting down, and the
+       * digits keep the width of the full budget, so the pill does not widen
+       * when the clock turns to overtime and push the question layout around. */
+      .clock-time { display: inline-block; text-align: right; }
+      .clock-sign { visibility: hidden; }
+      .clock-sign.on { visibility: visible; }
       .clock-pill.overtime { color: #fff; background: var(--color-red); }
       .copy-row { display: flex; justify-content: flex-end; margin-top: var(--space-xs); }
       .clock-unavailable { display: flex; align-items: center; gap: 6px; margin: calc(-1 * var(--space-sm)) 0 0; font-size: var(--font-size-xs); color: var(--text-muted); }
@@ -687,6 +696,28 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .palette-dot.overtime { box-shadow: inset 0 -3px 0 var(--color-amber); }
       .overtime-swatch { box-shadow: inset 0 -3px 0 var(--color-amber); }
       .palette-jump { width: 100%; margin-top: var(--space-sm); }
+      /* One-second red blink around the whole screen when the clock runs out,
+       * then nothing: the pill alone keeps showing the overtime. Never blocks taps. */
+      .time-up-flash {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        pointer-events: none;
+        box-shadow: inset 0 0 0 6px var(--color-red);
+        opacity: 0;
+        animation: time-up-blink 1s ease-in-out forwards;
+      }
+      @keyframes time-up-blink {
+        0%, 50%, 100% { opacity: 0; }
+        25%, 75% { opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        /* No blinking: a steady border for the same second. */
+        @keyframes time-up-blink {
+          0%, 99% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+      }
       .assist-row { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-top: var(--space-sm); }
       /* Room for the docked tutor panel (440px) on screens wide enough to show both. */
       @media (min-width: 1200px) {
@@ -759,6 +790,9 @@ export class QuizRunnerComponent {
   protected readonly finishConfirm = signal(false);
   protected readonly tutorOpen = signal(false);
   protected readonly summaryPickerOpen = signal(false);
+  /** Shows the one-second red border when the clock crosses zero (see the effect in the constructor). */
+  protected readonly timeUpFlash = signal(false);
+  private lastClock: { key: string; overtime: boolean } | null = null;
   protected readonly navFilters = ['all', 'answered', 'unanswered', 'flagged'] as const;
   protected readonly navFilter = signal<'all' | 'answered' | 'unanswered' | 'flagged'>('all');
   protected readonly perQuestionBudget = computed(() => {
@@ -882,6 +916,23 @@ export class QuizRunnerComponent {
 
   constructor() {
     const destroyRef = inject(DestroyRef);
+
+    // Blink once when the clock crosses zero while it is being watched: the
+    // question's own clock in instant mode, the exam clock otherwise. Opening a
+    // question already in overtime, or resuming one, does not blink again.
+    effect(() => {
+      const c = this.clock();
+      const key = this.isInstant() ? (this.question()?.id ?? '') : 'exam';
+      const prev = this.lastClock;
+      this.lastClock = c ? { key, overtime: c.overtime } : null;
+      if (c?.overtime && prev && prev.key === key && !prev.overtime && !this.quiz.paused()) {
+        untracked(() => {
+          this.timeUpFlash.set(true);
+          // animationend clears it too; this covers a tab that was hidden mid-animation.
+          setTimeout(() => this.timeUpFlash.set(false), 1200);
+        });
+      }
+    });
     console.log(`[QuizRunner] loaded — build marker: ${QuizRunnerComponent.BUILD_MARKER}`);
 
     effect(() => {
@@ -921,10 +972,17 @@ export class QuizRunnerComponent {
     () => !this.isInstant() && this.quiz.timeLimitReachedAt() !== null && !this.timeUpDismissed(),
   );
 
-  clockLabel(c: { remainingSeconds: number; overtime: boolean }): string {
-    // The "+" tells counting-up overtime apart from a countdown at a glance.
-    return (c.overtime ? '+' : '') + formatClock(Math.abs(c.remainingSeconds));
+  /** Time shown in the pill; the "+" in front (its own span) tells overtime apart from a countdown. */
+  clockTime(c: { remainingSeconds: number }): string {
+    return formatClock(Math.abs(c.remainingSeconds));
   }
+
+  /** Digits of the full budget (per question in instant mode, whole exam otherwise),
+   * the widest the countdown gets, so the pill keeps one width. */
+  protected readonly clockWidthCh = computed(() => {
+    const budget = this.isInstant() ? this.quiz.perQuestionSeconds() : this.quiz.totalSeconds();
+    return Math.max(4, formatClock(budget).length);
+  });
 
   protected readonly resetTimeConfirm = signal(false);
 
@@ -1331,7 +1389,18 @@ export class QuizRunnerComponent {
       if (this.answeredCount() < this.progress().total) this.requestFinish();
       else this.quiz.finish();
     } else {
-      this.quiz.next();
+      this.goNext();
     }
+  }
+
+  /** Next question from a button. When the page is scrolled far enough down
+   * that the toolbar floats, the new question would open mid-page, so the page
+   * scrolls back to where the question starts. Near the top it stays put. */
+  goNext(): void {
+    const scrolledDown = this.toolbarStuck();
+    this.quiz.next();
+    if (!scrolledDown) return;
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
   }
 }
