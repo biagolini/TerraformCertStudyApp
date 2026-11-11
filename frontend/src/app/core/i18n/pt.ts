@@ -660,6 +660,8 @@ export const PT: Record<string, string> = {
   'quizRunner.answeredOfTotal': '{{answered}} de {{total}} respondidas',
   'quizRunner.flaggedCount': '{{count}} marcada(s) para revisão',
   'quizRunner.pause': 'Pausar',
+  'quizRunner.hideNavigator': 'Ocultar o navegador de itens',
+  'quizRunner.showNavigator': 'Mostrar o navegador de itens',
   'quizRunner.resume': 'Continuar',
   'quizRunner.pauseExam': 'Pausar',
   'quizRunner.pauseExamHint': 'Pausa este simulado e volta para a lista de simulados, onde você pode continuar este ou outro depois.',

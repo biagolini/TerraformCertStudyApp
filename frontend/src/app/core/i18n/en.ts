@@ -662,6 +662,8 @@ export const EN: Record<string, string> = {
   'quizRunner.answeredOfTotal': '{{answered}} of {{total}} answered',
   'quizRunner.flaggedCount': '{{count}} marked for review',
   'quizRunner.pause': 'Pause',
+  'quizRunner.hideNavigator': 'Hide the item navigator',
+  'quizRunner.showNavigator': 'Show the item navigator',
   'quizRunner.resume': 'Resume',
   'quizRunner.pauseExam': 'Pause',
   'quizRunner.pauseExamHint': 'Pause this mock exam and go back to the mock exam list, where you can resume it or another one later.',

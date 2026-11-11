@@ -5,7 +5,7 @@ import { Router } from '@angular/router';
 import { NoteIntegrationService } from '../../core/services/note-integration.service';
 import { PacksService } from '../../core/services/packs.service';
 import { examPath } from '../../core/utils/routes.util';
-import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, Injector, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { correctLetters, Question } from '../../core/models/question.model';
 import { AiDisclaimerComponent } from '../../shared/components/ai-disclaimer.component';
@@ -69,6 +69,15 @@ import { I18nService } from '../../core/i18n/i18n.service';
             </button>
           }
           @if (isInstant()) {
+            <button
+              type="button"
+              class="pause-btn"
+              [class.on]="navigatorOpen()"
+              (click)="appSettings.setQuizNavigatorOpen(!navigatorOpen())"
+              [attr.aria-pressed]="navigatorOpen()"
+              [attr.aria-label]="navigatorOpen() ? i18n.t('quizRunner.hideNavigator') : i18n.t('quizRunner.showNavigator')"
+              [title]="navigatorOpen() ? i18n.t('quizRunner.hideNavigator') : i18n.t('quizRunner.showNavigator')"
+            ><app-icon name="layout-grid" size="16" /></button>
             <span class="score-pill">{{ i18n.t('quizRunner.score', { percent: formatPercent(), correct: score().correct, answered: score().answered }) }}</span>
           }
         </header>
@@ -418,6 +427,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             </div>
           </div>
 
+          @if (!isInstant() || navigatorOpen()) {
           <aside class="palette">
             <h4>{{ i18n.t('importReview.itemNavigator') }}</h4>
             <div class="palette-filters" role="group" [attr.aria-label]="i18n.t('quizRunner.navigatorFilter')">
@@ -470,6 +480,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
               <p class="palette-summary">{{ i18n.t('quizRunner.flaggedCount', { count: quiz.flaggedCount() }) }}</p>
             }
           </aside>
+          }
         </div>
         }
       </section>
@@ -556,6 +567,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .time-spent.bad { color: var(--color-red); background: rgba(214, 48, 49, 0.14); }
       .pause-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 1px solid var(--bg-border); background: var(--bg-input); color: var(--text-secondary); cursor: pointer; flex-shrink: 0; }
       .pause-btn:hover { border-color: var(--color-purple); color: var(--color-purple); }
+      .pause-btn.on { border-color: var(--color-purple); color: var(--color-purple); }
 
       .paused-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-lg); border-radius: var(--radius-md); background: var(--bg-elevated); border: 1px solid var(--bg-border); }
       .paused-banner p { margin: 0; font-size: var(--font-size-sm); color: var(--text-primary); }
@@ -758,7 +770,10 @@ export class QuizRunnerComponent {
   protected readonly quiz = inject(QuizService);
   private readonly questionsService = inject(QuestionsService);
   private readonly bedrock = inject(BedrockService);
-  private readonly appSettings = inject(SettingsService);
+  protected readonly appSettings = inject(SettingsService);
+  private readonly injector = inject(Injector);
+  /** Instant mode only: the navigator can be hidden, and the choice is saved in the user's settings. */
+  protected readonly navigatorOpen = this.appSettings.quizNavigatorOpen;
   private readonly viewport = inject(ViewportService);
   private readonly notesBridge = inject(NoteIntegrationService);
   private readonly packs = inject(PacksService);
@@ -1400,7 +1415,10 @@ export class QuizRunnerComponent {
     const scrolledDown = this.toolbarStuck();
     this.quiz.next();
     if (!scrolledDown) return;
-    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+    // Scroll only after the next question has rendered, and without smooth
+    // behavior: scrolling while the old (longer) question was still on screen
+    // got cancelled or clamped when the page height changed under it (WebKit
+    // drops a smooth scroll on that layout change), so the page stayed down.
+    afterNextRender(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }), { injector: this.injector });
   }
 }

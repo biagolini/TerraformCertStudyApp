@@ -242,6 +242,12 @@ export class SettingsService {
   }
 
   readonly noteOutlineOpen = computed(() => this.state().noteOutlineOpen ?? false);
+  readonly quizNavigatorOpen = computed(() => this.state().quizNavigatorOpen ?? true);
+
+  setQuizNavigatorOpen(open: boolean): void {
+    if (open === this.quizNavigatorOpen()) return;
+    this.update((s) => ({ ...s, quizNavigatorOpen: open }));
+  }
   readonly noteOutlineDepth = computed(() => this.state().noteOutlineDepth ?? NOTE_OUTLINE_DEFAULT_DEPTH);
 
   readonly noteReadingTheme = computed<NoteReadingTheme>(() => {

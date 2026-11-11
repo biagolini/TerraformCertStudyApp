@@ -61,6 +61,9 @@ export interface AppSettings {
   exportPresets?: Record<string, ExportPreset>;
   /** Note last chosen to receive concepts from mock-exam questions, per certification (pack id). */
   summaryNotes?: Record<string, string>;
+  /** Instant-feedback mock exam: whether the question navigator (answered and
+   * graded questions) is shown beside the question. Missing means shown. */
+  quizNavigatorOpen?: boolean;
   /** Study note preview: whether the heading index panel is open, and how
    * many heading levels it lists (default 3). */
   noteOutlineOpen?: boolean;

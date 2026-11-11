@@ -660,6 +660,8 @@ export const IT: Record<string, string> = {
   'quizRunner.answeredOfTotal': '{{answered}} di {{total}} con risposta',
   'quizRunner.flaggedCount': '{{count}} contrassegnate per la revisione',
   'quizRunner.pause': 'Pausa',
+  'quizRunner.hideNavigator': 'Nascondi il navigatore elementi',
+  'quizRunner.showNavigator': 'Mostra il navigatore elementi',
   'quizRunner.resume': 'Riprendi',
   'quizRunner.pauseExam': 'Pausa',
   'quizRunner.pauseExamHint': 'Mette in pausa questo quiz e torna alla lista dei quiz, dove puoi riprendere questo o un altro più tardi.',
