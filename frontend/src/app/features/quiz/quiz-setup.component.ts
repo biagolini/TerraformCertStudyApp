@@ -6,6 +6,7 @@ import { MAX_IN_PROGRESS_ATTEMPTS, QuizAttempt } from '../../core/models/quiz-at
 import { QuizMode, QuizScope } from '../../core/models/quiz.model';
 import { PacksService } from '../../core/services/packs.service';
 import { BanksService } from '../../core/services/banks.service';
+import { bankLabel } from '../../core/models/bank.model';
 import { BankPickerComponent, everyBankSelected } from '../../shared/components/bank-picker.component';
 import { ProfileService } from '../../core/services/profile.service';
 import { QuizAttemptsService } from '../../core/services/quiz-attempts.service';
@@ -35,6 +36,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
             <div class="resume-row">
               <div class="resume-meta">
                 <span class="resume-exam">{{ attempt.examName }}</span>
+                <span class="resume-sub resume-banks">{{ banksOf(attempt) }}</span>
                 <span class="resume-sub">
                   {{ attempt.mode === 'instant' ? i18n.t('quizSetup.instantFeedback') : i18n.t('quizSetup.examSimulation') }}
                   · {{ i18n.t('quizSetup.answeredOf', { answered: answeredCount(attempt), total: attempt.answers.length }) }}
@@ -242,6 +244,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .resume-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
       .resume-exam { font-weight: 600; font-size: var(--font-size-base); color: var(--text-primary); }
       .resume-sub { font-size: var(--font-size-xs); color: var(--text-muted); }
+      .resume-banks { color: var(--text-secondary); font-weight: 600; }
       .resume-actions { display: flex; gap: var(--space-sm); flex-shrink: 0; }
 
       .conflict-banner {
@@ -370,6 +373,20 @@ export class QuizSetupComponent {
    * read 0 for every exam-mode session, which is graded only at finish(). */
   answeredCount(attempt: QuizAttempt): number {
     return attempt.answers.filter((a) => a.selected.length > 0).length;
+  }
+
+  /** Which banks the session draws from, so two open sessions of the same
+   * certification can be told apart. Older attempts without bankIds, and
+   * sessions over every bank, read "All banks". */
+  banksOf(attempt: QuizAttempt): string {
+    const ids = attempt.bankIds?.length ? attempt.bankIds : (attempt.settings?.bankIds ?? []);
+    if (ids.length === 0) return this.i18n.t('quizSetup.resumeAllBanks');
+    return ids
+      .map((id) => {
+        const bank = this.banks.getById(id);
+        return bank ? bankLabel(bank, this.i18n.t('banks.untitled')) : this.i18n.t('quizSetup.resumeDeletedBank');
+      })
+      .join(', ');
   }
 
   formatStartedAt(startedAt: number): string {

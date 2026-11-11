@@ -90,7 +90,7 @@ All services live in `core/services/` and are `{ providedIn: 'root' }` singleton
 | `LightboxService` | App-wide image viewer state |
 
 Icons: every icon is `<app-icon name="…">` (`shared/components/icon.component.ts`, outline SVGs); emojis and Unicode pictographs are not used (`scripts/check-no-emoji.mjs`, see `.kiro/steering/ui-icons.md`).
-| `QuizService` / `QuizAttemptsService` | Quiz run state (bank selection, clock, answers, annotations, flags, tutor Q&A, pass mark) and persisted attempts; up to 5 in-progress attempts can be open and switched between via "Save and exit". A session left open in one certification is parked when another certification's mock-exam tab opens |
+| `QuizService` / `QuizAttemptsService` | Quiz run state (bank selection, clock, answers, annotations, flags, tutor Q&A, pass mark) and persisted attempts; up to 5 in-progress attempts can be open and switched between via "Save and exit". A session left open in one certification is parked when another certification's mock-exam tab opens. The resume list names the banks each session draws from (`QuizAttempt.bankIds`, or "All banks") |
 | `ChatService` | Chat session CRUD, message append/streaming, summary management |
 | `ScriptsService` | Transcript CRUD |
 | `SettingsService` | User preferences (interface language, nav order, quiz toolbar layout, translation target) |

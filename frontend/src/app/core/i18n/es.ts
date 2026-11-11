@@ -604,6 +604,8 @@ export const ES: Record<string, string> = {
   'quizSetup.inProgressCount': 'En curso ({{count}}/{{max}})',
   'quizSetup.inProgressLimitReached': 'Ya tienes {{max}} simulacros en curso. Termina o descarta uno de ellos para iniciar uno nuevo.',
   'quizSetup.startedAt': 'Iniciado el {{date}}',
+  'quizSetup.resumeAllBanks': 'Todos los bancos',
+  'quizSetup.resumeDeletedBank': 'Banco eliminado',
   'quizSetup.stoppedAtQuestion': 'se detuvo en la pregunta {{index}}',
   'quizSetup.scope': 'Alcance',
   'quizSetup.thisPack': 'Este paquete',
