@@ -6,6 +6,7 @@ import { DEFAULT_QUIZ_TOOL_ORDER, QuizToolId } from './quiz-tool.model';
 import { DEFAULT_HEADER_ACTIONS, HeaderActionId } from './header-action.model';
 import { InterfaceLanguage } from './i18n.model';
 import { ExportPreset } from './export-preset.model';
+import { NoteSort } from './note.model';
 
 export type ReviewMode = 'generate' | 'manual';
 
@@ -68,6 +69,8 @@ export interface AppSettings {
    * many heading levels it lists (default 3). */
   noteOutlineOpen?: boolean;
   noteOutlineDepth?: number;
+  /** Order of the notes list; missing means last modified first. */
+  noteSort?: NoteSort;
   /** Color theme of study note text; 'site' (default) follows the site theme. */
   noteReadingTheme?: NoteReadingTheme;
   /** Schema version of layout defaults already applied to this user's stored

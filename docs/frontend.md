@@ -155,6 +155,8 @@ The review system prompt is built in [`core/services/bedrock.service.ts`](../fro
 
 ## Study Notes
 
+The notes list (`notes-page.component.ts`) filters by search text and tag and sorts through `note-sort-menu.component.ts`: last modified, date created, title (locale-aware, ignoring case and accents) or word count, ascending or descending (`sortNotes` in `core/models/note.model.ts`). The choice is saved in `AppSettings.noteSort` (default last modified, newest first, the order before sorting existed).
+
 `features/notes/note-editor.component.ts` opens a note in reading mode (rendered Markdown with an optional sticky heading index, `note-outline.component.ts`). Its action bar (back, outline, theme, export, copy, history, edit, upload .md, copilot, delete) is sticky under the workspace tabs, like the mock-exam toolbar, so the actions stay in reach on a phone while a long note scrolls; the component measures the bar's height into `--note-bar-height` so the heading index and the review bar stick just below it. "Edit" switches to the Markdown editor; nothing is written until "Save", since every save of the body is an S3 object version listed and restorable in `note-history.component.ts` (newest 250 kept).
 
 - **Images:** the toolbar's "Insert image" button, pasting a screenshot, or dropping image files into the text uploads each image (`NotesService.uploadImage`) and inserts `![name](note/{noteId}/{file})` at the cursor, the same reference syntax question images use. File names are sanitized before upload (`core/utils/upload-filename.util.ts`) because screenshots are often named with spaces and accents.

@@ -20,6 +20,7 @@ import {
 import { HeaderActionId, resolveHeaderActions } from '../models/header-action.model';
 import { InterfaceLanguage } from '../models/i18n.model';
 import { ExportPreset } from '../models/export-preset.model';
+import { DEFAULT_NOTE_SORT, NOTE_SORT_FIELDS, NoteSort } from '../models/note.model';
 import { StorageService } from './storage.service';
 import { NOTE_OUTLINE_DEFAULT_DEPTH } from '../utils/note-outline.util';
 
@@ -243,6 +244,17 @@ export class SettingsService {
 
   readonly noteOutlineOpen = computed(() => this.state().noteOutlineOpen ?? false);
   readonly quizNavigatorOpen = computed(() => this.state().quizNavigatorOpen ?? true);
+
+  readonly noteSort = computed<NoteSort>(() => {
+    const s = this.state().noteSort;
+    return s && NOTE_SORT_FIELDS.includes(s.field) && (s.dir === 'asc' || s.dir === 'desc') ? s : DEFAULT_NOTE_SORT;
+  });
+
+  setNoteSort(sort: NoteSort): void {
+    const current = this.noteSort();
+    if (sort.field === current.field && sort.dir === current.dir) return;
+    this.update((s) => ({ ...s, noteSort: { field: sort.field, dir: sort.dir } }));
+  }
 
   setQuizNavigatorOpen(open: boolean): void {
     if (open === this.quizNavigatorOpen()) return;

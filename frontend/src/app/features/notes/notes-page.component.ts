@@ -6,13 +6,16 @@ import { NotesService } from '../../core/services/notes.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { examPath } from '../../core/utils/routes.util';
 import { NoteEditorComponent } from './note-editor.component';
+import { NoteSortMenuComponent } from './note-sort-menu.component';
+import { SettingsService } from '../../core/services/settings.service';
+import { sortNotes } from '../../core/models/note.model';
 
 /** /exam/:packId/notes[/:noteId] — note list, or the editor when a note is open. */
 @Component({
   selector: 'app-notes-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, FormsModule, RouterLink, NoteEditorComponent],
+  imports: [IconComponent, FormsModule, RouterLink, NoteEditorComponent, NoteSortMenuComponent],
   template: `
     @if (noteId(); as id) {
       @if (notes.getById(id); as note) {
@@ -37,10 +40,13 @@ import { NoteEditorComponent } from './note-editor.component';
 
         @if (notes.notes().length > 0) {
           <div class="tools">
+            <div class="search-row">
             <label class="ui-search">
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M11 18a7 7 0 100-14 7 7 0 000 14zm9 2l-4-4"/></svg>
               <input class="ui-input" type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" [placeholder]="i18n.t('notes.search')" [attr.aria-label]="i18n.t('notes.search')" />
             </label>
+            <app-note-sort-menu />
+            </div>
             @if (tags().length > 0) {
               <div class="ui-chip-row">
                 @for (t of tags(); track t) {
@@ -96,6 +102,15 @@ import { NoteEditorComponent } from './note-editor.component';
         flex-direction: column;
         gap: var(--space-sm);
       }
+      .search-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--space-sm);
+      }
+      .search-row .ui-search {
+        flex: 1 1 240px;
+      }
       .note-card {
         display: flex;
         flex-direction: column;
@@ -127,6 +142,7 @@ export class NotesPageComponent {
   protected readonly notes = inject(NotesService);
   private readonly router = inject(Router);
   protected readonly i18n = inject(I18nService);
+  private readonly settings = inject(SettingsService);
 
   readonly packId = input.required<string>();
   readonly noteId = input<string | null>(null);
@@ -141,10 +157,11 @@ export class NotesPageComponent {
   readonly filtered = computed(() => {
     const q = this.query().trim().toLowerCase();
     const tag = this.tag();
-    return this.notes
+    const matching = this.notes
       .notes()
       .filter((n) => !tag || n.tags.includes(tag))
       .filter((n) => !q || `${n.title} ${n.excerpt} ${n.tags.join(' ')}`.toLowerCase().includes(q));
+    return sortNotes(matching, this.settings.noteSort(), this.i18n.lang());
   });
 
   listLink(): string[] {

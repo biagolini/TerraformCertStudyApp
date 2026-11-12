@@ -25,6 +25,8 @@ describe('i18n dictionaries', () => {
       ...['all', 'answered', 'unanswered', 'flagged'].map((f) => `quizRunner.filter_${f}`),
       ...['polish', 'summary', 'flashcards', 'quiz', 'explain', 'outline'].map((a) => `copilot.${a}`),
       ...['banks', 'quiz', 'performance', 'notes', 'transcripts', 'chat', 'export'].map((n) => `nav.${n}`),
+      ...['updatedAt', 'createdAt', 'title', 'wordCount'].map((f) => `notes.sort_${f}`),
+      ...['date', 'alpha', 'count'].flatMap((k) => ['asc', 'desc'].map((d) => `notes.sortDir_${k}_${d}`)),
     ];
     expect(dynamic.filter((k) => !(k in EN))).toEqual([]);
   });

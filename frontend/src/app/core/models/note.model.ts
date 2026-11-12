@@ -17,6 +17,34 @@ export interface Note {
   updatedAt: number;
 }
 
+export type NoteSortField = 'updatedAt' | 'createdAt' | 'title' | 'wordCount';
+export type NoteSortDir = 'asc' | 'desc';
+export interface NoteSort {
+  field: NoteSortField;
+  dir: NoteSortDir;
+}
+export const NOTE_SORT_FIELDS: NoteSortField[] = ['updatedAt', 'createdAt', 'title', 'wordCount'];
+/** The list's order before sorting existed: last modified first. */
+export const DEFAULT_NOTE_SORT: NoteSort = { field: 'updatedAt', dir: 'desc' };
+
+/** Notes in the chosen order. Titles compare by locale, ignoring case and accents;
+ * ties fall back to the last modified first, so the order is stable. */
+export function sortNotes(notes: readonly Note[], sort: NoteSort, locale: string): Note[] {
+  const sign = sort.dir === 'asc' ? 1 : -1;
+  const collator = new Intl.Collator(locale, { sensitivity: 'base', numeric: true });
+  const compare = (a: Note, b: Note): number => {
+    switch (sort.field) {
+      case 'title':
+        return collator.compare(a.title.trim(), b.title.trim());
+      case 'wordCount':
+        return a.wordCount - b.wordCount;
+      default:
+        return a[sort.field] - b[sort.field];
+    }
+  };
+  return [...notes].sort((a, b) => sign * compare(a, b) || b.updatedAt - a.updatedAt);
+}
+
 export const NOTE_EXCERPT_LENGTH = 240;
 
 export function noteExcerpt(markdown: string): string {
