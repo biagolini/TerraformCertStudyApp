@@ -652,7 +652,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .star-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; background: none; color: var(--text-faint); flex-shrink: 0; }
       .star-btn:hover { color: var(--color-amber); }
       .star-btn.active { color: var(--color-amber); }
-      .q-stem { font-size: var(--font-size-base); line-height: 1.55; color: var(--text-primary); margin: 0 0 var(--space-lg); }
+      .q-stem { font-size: var(--font-size-base); line-height: 1.55; color: var(--text-primary); margin: 0 0 var(--space-lg); overflow-wrap: anywhere; }
       .multi-hint { font-size: var(--font-size-xs); color: var(--text-muted); margin: 0 0 var(--space-sm); }
 
       .option-card {
@@ -676,11 +676,11 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .your-answer { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 var(--space-xs); padding: 2px var(--space-sm); border-radius: var(--radius-pill); font-size: var(--font-size-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
       .your-answer.ok { color: var(--color-green); background: rgba(0, 184, 148, 0.14); }
       .your-answer.bad { color: var(--color-red); background: rgba(214, 48, 49, 0.14); }
-      .option-text { display: block; font-size: var(--font-size-base); color: var(--text-primary); line-height: 1.5; }
-      .option-comment { margin: var(--space-sm) 0 0; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); background: var(--bg-elevated); border-left: 2px solid var(--bg-border); font-size: var(--font-size-sm); color: var(--text-muted); line-height: 1.5; }
+      .option-text { display: block; font-size: var(--font-size-base); color: var(--text-primary); line-height: 1.5; overflow-wrap: anywhere; }
+      .option-comment { margin: var(--space-sm) 0 0; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); background: var(--bg-elevated); border-left: 2px solid var(--bg-border); font-size: var(--font-size-sm); color: var(--text-muted); line-height: 1.5; overflow-wrap: anywhere; }
       .option-comment-label { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; color: var(--text-faint); font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
       .option-status { flex-shrink: 0; margin-top: 3px; }
-      .general-comment { margin: var(--space-md) 0 0; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); background: var(--bg-elevated); border-left: 2px solid var(--color-purple); font-size: var(--font-size-sm); color: var(--text-muted); line-height: 1.5; }
+      .general-comment { margin: var(--space-md) 0 0; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); background: var(--bg-elevated); border-left: 2px solid var(--color-purple); font-size: var(--font-size-sm); color: var(--text-muted); line-height: 1.5; overflow-wrap: anywhere; }
 
       .runner-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-sm); margin-top: var(--space-lg); }
       .spacer { flex: 1; }

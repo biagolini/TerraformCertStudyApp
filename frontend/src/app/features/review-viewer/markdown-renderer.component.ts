@@ -162,6 +162,11 @@ export type Block =
         color: var(--text-primary);
         font-size: var(--font-size-base);
         line-height: 1.6;
+        /* A word longer than the line (a URL, an ARN, a long identifier) breaks
+           instead of setting the minimum width of everything around it: a single
+           CodeDeployDefault.LambdaCanary10Percent5Minutes pushed a whole mock-exam
+           question past a phone's screen. Code blocks keep their own scroll. */
+        overflow-wrap: anywhere;
       }
       .md-h2 {
         font-size: var(--font-size-xl);
@@ -285,6 +290,7 @@ export type Block =
         background: none;
         padding: 0;
         white-space: pre;
+        overflow-wrap: normal;
       }
       .md-quote {
         border-left: 3px solid var(--pack-color, var(--color-purple));
@@ -349,6 +355,7 @@ export type Block =
         font-style: italic;
       }
       code {
+        overflow-wrap: anywhere;
         background: var(--bg-elevated);
         padding: 1px 5px;
         border-radius: var(--radius-sm);
