@@ -345,7 +345,11 @@ textarea.ui-input {
     &:last-child {
       border-right: 0;
     }
-    &:hover:not(:disabled) {
+    // Hover must not reach the selected segment, the way the active .ui-chip
+    // keeps its inverse colors: this rule outranks `.on` by specificity, and a
+    // phone keeps :hover after a tap, so in the light theme the selected
+    // segment got near-black text on a near-black fill.
+    &:hover:not(:disabled):not(.on):not(.active) {
       color: var(--text-primary);
     }
     &.on,
