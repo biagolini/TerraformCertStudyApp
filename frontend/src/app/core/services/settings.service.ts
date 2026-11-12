@@ -20,7 +20,7 @@ import {
 import { HeaderActionId, resolveHeaderActions } from '../models/header-action.model';
 import { InterfaceLanguage } from '../models/i18n.model';
 import { ExportPreset } from '../models/export-preset.model';
-import { DEFAULT_NOTE_SORT, NOTE_SORT_FIELDS, NoteSort } from '../models/note.model';
+import { DEFAULT_NOTE_SORT, NOTE_LIST_VIEWS, NOTE_SORT_FIELDS, NoteListView, NoteSort } from '../models/note.model';
 import { StorageService } from './storage.service';
 import { NOTE_OUTLINE_DEFAULT_DEPTH } from '../utils/note-outline.util';
 
@@ -249,6 +249,16 @@ export class SettingsService {
     const s = this.state().noteSort;
     return s && NOTE_SORT_FIELDS.includes(s.field) && (s.dir === 'asc' || s.dir === 'desc') ? s : DEFAULT_NOTE_SORT;
   });
+
+  readonly noteListView = computed<NoteListView>(() => {
+    const view = this.state().noteListView;
+    return view && NOTE_LIST_VIEWS.includes(view) ? view : 'cards';
+  });
+
+  setNoteListView(view: NoteListView): void {
+    if (view === this.noteListView()) return;
+    this.update((s) => ({ ...s, noteListView: view }));
+  }
 
   setNoteSort(sort: NoteSort): void {
     const current = this.noteSort();

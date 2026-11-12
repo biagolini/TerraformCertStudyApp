@@ -8,7 +8,7 @@ import { examPath } from '../../core/utils/routes.util';
 import { NoteEditorComponent } from './note-editor.component';
 import { NoteSortMenuComponent } from './note-sort-menu.component';
 import { SettingsService } from '../../core/services/settings.service';
-import { sortNotes } from '../../core/models/note.model';
+import { NOTE_LIST_VIEWS, sortNotes } from '../../core/models/note.model';
 
 /** /exam/:packId/notes[/:noteId] — note list, or the editor when a note is open. */
 @Component({
@@ -46,6 +46,13 @@ import { sortNotes } from '../../core/models/note.model';
               <input class="ui-input" type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" [placeholder]="i18n.t('notes.search')" [attr.aria-label]="i18n.t('notes.search')" />
             </label>
             <app-note-sort-menu />
+            <div class="ui-segmented view-toggle" role="group" [attr.aria-label]="i18n.t('notes.viewAs')">
+              @for (v of views; track v) {
+                <button type="button" [class.on]="view() === v" [attr.aria-pressed]="view() === v" (click)="settings.setNoteListView(v)" [attr.aria-label]="i18n.t('notes.view_' + v)" [title]="i18n.t('notes.view_' + v)">
+                  <app-icon [name]="v === 'cards' ? 'layout-grid' : 'list'" size="16" />
+                </button>
+              }
+            </div>
             </div>
             @if (tags().length > 0) {
               <div class="ui-chip-row">
@@ -64,6 +71,47 @@ import { sortNotes } from '../../core/models/note.model';
             <p>{{ i18n.t('notes.emptyBody') }}</p>
             <button type="button" class="ui-btn ui-btn-primary" [disabled]="creating()" (click)="create()"><app-icon name="plus" /> {{ i18n.t('notes.newNote') }}</button>
           </section>
+        } @else if (view() === 'table') {
+          @if (filtered().length === 0) {
+            <p class="ui-muted">{{ i18n.t('notes.noMatch') }}</p>
+          } @else {
+            <div class="ui-card table-wrap">
+              <table class="note-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{{ i18n.t('notes.sort_title') }}</th>
+                    <th scope="col" class="col-tags">{{ i18n.t('notes.tags') }}</th>
+                    <th scope="col" class="num">{{ i18n.t('notes.sort_wordCount') }}</th>
+                    <th scope="col" class="col-created">{{ i18n.t('notes.sort_createdAt') }}</th>
+                    <th scope="col">{{ i18n.t('notes.sort_updatedAt') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (n of filtered(); track n.id) {
+                    <!-- The whole row opens the note; the title link keeps it reachable by keyboard. -->
+                    <tr (click)="open(n.id)">
+                      <td class="col-title">
+                        <a [routerLink]="noteLink(n.id)" (click)="$event.stopPropagation()">{{ n.title || i18n.t('notes.untitled') }}</a>
+                        <span class="ui-faint ui-clamp-2 row-excerpt">{{ n.excerpt || i18n.t('notes.emptyNote') }}</span>
+                      </td>
+                      <td class="col-tags">
+                        @if (n.tags.length) {
+                          <div class="ui-chip-row">
+                            @for (t of n.tags; track t) {
+                              <span class="ui-chip">#{{ t }}</span>
+                            }
+                          </div>
+                        }
+                      </td>
+                      <td class="num">{{ n.wordCount }}</td>
+                      <td class="col-created">{{ formatDate(n.createdAt) }}</td>
+                      <td>{{ formatDate(n.updatedAt) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
         } @else {
           <div class="ui-grid">
             @for (n of filtered(); track n.id) {
@@ -111,6 +159,75 @@ import { sortNotes } from '../../core/models/note.model';
       .search-row .ui-search {
         flex: 1 1 240px;
       }
+      .view-toggle > button {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 10px;
+      }
+      .table-wrap {
+        padding: 0;
+        /* A narrow phone scrolls the table sideways instead of squeezing the title. */
+        overflow-x: auto;
+      }
+      .note-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: var(--font-size-sm);
+      }
+      .note-table th,
+      .note-table td {
+        padding: var(--space-sm) var(--space-md);
+        text-align: left;
+        vertical-align: top;
+        border-bottom: 1px solid var(--bg-border);
+      }
+      .note-table thead th {
+        font-size: var(--font-size-xs);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-faint);
+        white-space: nowrap;
+      }
+      .note-table tbody tr {
+        cursor: pointer;
+        transition: background var(--transition-fast);
+      }
+      .note-table tbody tr:hover {
+        background: var(--bg-subtle);
+      }
+      .note-table tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      .note-table td:not(.col-title):not(.col-tags) {
+        white-space: nowrap;
+        color: var(--text-muted);
+      }
+      .col-title {
+        min-width: 220px;
+      }
+      .col-title a {
+        display: block;
+        font-weight: 700;
+        color: var(--text-primary);
+        text-decoration: none;
+      }
+      .col-title a:hover {
+        color: var(--color-purple);
+      }
+      .row-excerpt {
+        font-size: var(--font-size-xs);
+      }
+      .num {
+        text-align: right !important;
+        font-variant-numeric: tabular-nums;
+      }
+      @media (max-width: 640px) {
+        .col-created,
+        .col-tags {
+          display: none;
+        }
+      }
       .note-card {
         display: flex;
         flex-direction: column;
@@ -142,7 +259,10 @@ export class NotesPageComponent {
   protected readonly notes = inject(NotesService);
   private readonly router = inject(Router);
   protected readonly i18n = inject(I18nService);
-  private readonly settings = inject(SettingsService);
+  protected readonly settings = inject(SettingsService);
+  protected readonly views = NOTE_LIST_VIEWS;
+  /** Cards or table; saved in the user's settings, so it follows them across visits and browsers. */
+  readonly view = this.settings.noteListView;
 
   readonly packId = input.required<string>();
   readonly noteId = input<string | null>(null);
@@ -170,6 +290,10 @@ export class NotesPageComponent {
 
   noteLink(id: string): string[] {
     return examPath(this.packId(), 'notes', id);
+  }
+
+  open(id: string): void {
+    void this.router.navigate(this.noteLink(id));
   }
 
   toList(): void {

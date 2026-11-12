@@ -23,6 +23,9 @@ export interface NoteSort {
   field: NoteSortField;
   dir: NoteSortDir;
 }
+/** How the notes list is shown: cards (default) or a table. */
+export type NoteListView = 'cards' | 'table';
+export const NOTE_LIST_VIEWS: NoteListView[] = ['cards', 'table'];
 export const NOTE_SORT_FIELDS: NoteSortField[] = ['updatedAt', 'createdAt', 'title', 'wordCount'];
 /** The list's order before sorting existed: last modified first. */
 export const DEFAULT_NOTE_SORT: NoteSort = { field: 'updatedAt', dir: 'desc' };
