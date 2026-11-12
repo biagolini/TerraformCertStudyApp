@@ -545,8 +545,15 @@ import { I18nService } from '../../core/i18n/i18n.service';
     `
       :host { display: block; }
       .runner { display: flex; flex-direction: column; gap: var(--space-lg); background: var(--bg-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: var(--space-lg); max-width: 960px; margin: 0 auto; }
-      .runner-header { display: flex; align-items: center; gap: var(--space-md); }
-      .bar { flex: 1; }
+      /* Wraps to a second row when the items do not fit (a phone in instant mode
+       * shows progress, clock, pause, navigator and score), instead of pushing
+       * the score off the screen. The bar keeps a minimum width, so it never
+       * shrinks to nothing on the first row. */
+      .runner-header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm) var(--space-md); }
+      .bar { flex: 1 1 120px; }
+      .runner-header > * { flex-shrink: 0; }
+      .runner-header > .bar { flex-shrink: 1; }
+      .clock-pill svg { flex-shrink: 0; }
       .progress-text { font-size: var(--font-size-xs); color: var(--text-muted); white-space: nowrap; }
       .score-pill { font-size: var(--font-size-sm); font-weight: 600; color: var(--text-secondary); background: var(--bg-elevated); padding: 4px var(--space-md); border-radius: var(--radius-pill); white-space: nowrap; }
       .clock-pill { display: inline-flex; align-items: center; gap: 4px; font-size: var(--font-size-sm); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-secondary); background: var(--bg-elevated); padding: 4px var(--space-md); border-radius: var(--radius-pill); white-space: nowrap; }
