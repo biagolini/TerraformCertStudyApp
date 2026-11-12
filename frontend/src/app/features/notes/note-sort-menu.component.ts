@@ -60,9 +60,13 @@ import { IconComponent } from '../../shared/components/icon.component';
       .menu {
         position: absolute;
         top: calc(100% + 4px);
-        right: 0;
+        /* Opens toward the right from the button's left edge: on a phone the
+           button wraps to the start of its row, and a right-anchored menu ran
+           off the left of the screen. The width never exceeds the viewport. */
+        left: 0;
         z-index: 20;
         width: 260px;
+        max-width: calc(100vw - 2 * var(--space-md));
         display: flex;
         flex-direction: column;
         padding: var(--space-xs);
