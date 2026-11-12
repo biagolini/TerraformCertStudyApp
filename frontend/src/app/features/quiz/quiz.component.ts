@@ -30,9 +30,14 @@ import { QuizSetupComponent } from './quiz-setup.component';
   styles: [
     `
       // Spans both columns of the workspace grid (ExamWorkspaceComponent).
+      // min-width: 0 because a grid item defaults to its min-content width: a
+      // wide image or table in a question stretched the whole column past the
+      // screen, and the shell's overflow-x: clip hid the excess with no way to
+      // scroll. With it, images shrink to fit and tables scroll on their own.
       :host {
         display: block;
         grid-column: 1 / -1;
+        min-width: 0;
       }
     `,
   ],
