@@ -291,6 +291,18 @@ import { BUILD_TIME_ISO, formatBuildTime } from '../../core/build-info';
             ><span class="thumb"></span></button>
             <span>{{ i18n.t('settings.useAccommodationByDefault') }}</span>
           </label>
+          <label class="switch-row">
+            <button
+              type="button"
+              class="ui-switch"
+              [class.on]="verdictFlash()"
+              (click)="settings.setQuizVerdictFlash(!verdictFlash())"
+              role="switch"
+              [attr.aria-checked]="verdictFlash()"
+              [attr.aria-label]="i18n.t('settings.verdictFlash')"
+            ><span class="thumb"></span></button>
+            <span>{{ i18n.t('settings.verdictFlash') }}</span>
+          </label>
         </section>
 
         <section class="block">
@@ -647,11 +659,12 @@ import { BUILD_TIME_ISO, formatBuildTime } from '../../core/build-info';
   ],
 })
 export class SettingsComponent {
-  private readonly settings = inject(SettingsService);
+  protected readonly settings = inject(SettingsService);
   private readonly modelsService = inject(ModelsService);
   private readonly storage = inject(StorageService);
   protected readonly auth = inject(AuthService);
   protected readonly i18n = inject(I18nService);
+  protected readonly verdictFlash = this.settings.quizVerdictFlash;
 
   /** Compile time of the running bundle, to spot a stale cached copy on a phone. */
   protected readonly buildTime = computed(() =>

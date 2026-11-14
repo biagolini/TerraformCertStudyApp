@@ -65,6 +65,8 @@ export interface AppSettings {
   /** Instant-feedback mock exam: whether the question navigator (answered and
    * graded questions) is shown beside the question. Missing means shown. */
   quizNavigatorOpen?: boolean;
+  /** Instant-feedback mock exam: brief centered right/wrong badge after "Check answer". Missing means on. */
+  quizVerdictFlash?: boolean;
   /** Study note preview: whether the heading index panel is open, and how
    * many heading levels it lists (default 3). */
   noteOutlineOpen?: boolean;

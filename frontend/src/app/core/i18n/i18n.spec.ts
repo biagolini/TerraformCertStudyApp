@@ -27,6 +27,7 @@ describe('i18n dictionaries', () => {
       ...['banks', 'quiz', 'performance', 'notes', 'transcripts', 'chat', 'export'].map((n) => `nav.${n}`),
       ...['updatedAt', 'createdAt', 'title', 'wordCount'].map((f) => `notes.sort_${f}`),
       ...['cards', 'table'].map((v) => `notes.view_${v}`),
+      ...['correct', 'partial', 'incorrect'].map((v) => `quizRunner.verdict_${v}`),
       ...['date', 'alpha', 'count'].flatMap((k) => ['asc', 'desc'].map((d) => `notes.sortDir_${k}_${d}`)),
     ];
     expect(dynamic.filter((k) => !(k in EN))).toEqual([]);

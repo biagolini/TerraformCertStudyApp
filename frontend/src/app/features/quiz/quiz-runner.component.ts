@@ -162,7 +162,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
                       type="button"
                       class="tool-btn"
                       [disabled]="answer().checked || answer().selected.length === 0"
-                      (click)="quiz.checkAnswer()"
+                      (click)="onCheckAnswer()"
                       [attr.aria-label]="i18n.t('quizRunner.checkAnswer')"
                     >
                       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7"/></svg>
@@ -394,7 +394,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
                     type="button"
                     class="ui-btn"
                     [disabled]="answer().selected.length === 0"
-                    (click)="quiz.checkAnswer()"
+                    (click)="onCheckAnswer()"
                   >{{ i18n.t('quizRunner.checkAnswer') }}</button>
                   @if (!isLast()) {
                     <button type="button" class="ui-btn" (click)="goNext()">{{ i18n.t('importReview.next') }}</button>
@@ -531,6 +531,13 @@ import { I18nService } from '../../core/i18n/i18n.service';
         </div>
       </div>
     }
+    @if (verdictFlash(); as v) {
+      <!-- Quick verdict right after "Check answer"; the option colors and comments stay as the lasting feedback. -->
+      <div class="verdict-flash" [class.good]="v === 'correct'" [class.partial]="v === 'partial'" [class.bad]="v === 'incorrect'" aria-hidden="true" (animationend)="verdictFlash.set(null)">
+        <app-icon [name]="v === 'incorrect' ? 'x' : 'check'" size="56" />
+      </div>
+    }
+    <span class="ui-sr-only" aria-live="polite">{{ verdictAnnouncement() }}</span>
     @if (timeUpFlash()) {
       <div class="time-up-flash" aria-hidden="true" (animationend)="timeUpFlash.set(false)"></div>
     }
@@ -723,6 +730,40 @@ import { I18nService } from '../../core/i18n/i18n.service';
       .palette-jump { width: 100%; margin-top: var(--space-sm); }
       /* One-second red blink around the whole screen when the clock runs out,
        * then nothing: the pill alone keeps showing the overtime. Never blocks taps. */
+      /* Centered badge for about 1.2 s: pops in, holds, fades. Never blocks taps. */
+      .verdict-flash {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 112px;
+        height: 112px;
+        border-radius: 50%;
+        pointer-events: none;
+        color: var(--inverse-fg);
+        box-shadow: var(--shadow-lg);
+        opacity: 0;
+        animation: verdict-pop 1.2s ease-out forwards;
+      }
+      .verdict-flash.good { background: var(--color-green); }
+      .verdict-flash.partial { background: var(--color-amber); }
+      .verdict-flash.bad { background: var(--color-red); }
+      @keyframes verdict-pop {
+        0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+        15% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+        25% { transform: translate(-50%, -50%) scale(1); }
+        75% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        @keyframes verdict-pop {
+          0%, 80% { opacity: 1; transform: translate(-50%, -50%); }
+          100% { opacity: 0; transform: translate(-50%, -50%); }
+        }
+      }
       .time-up-flash {
         position: fixed;
         inset: 0;
@@ -820,6 +861,10 @@ export class QuizRunnerComponent {
   protected readonly summaryPickerOpen = signal(false);
   /** Shows the one-second red border when the clock crosses zero (see the effect in the constructor). */
   protected readonly timeUpFlash = signal(false);
+  /** Verdict badge shown for a moment after "Check answer". Partial credit gets its own amber state. */
+  protected readonly verdictFlash = signal<'correct' | 'partial' | 'incorrect' | null>(null);
+  protected readonly verdictAnnouncement = signal('');
+  private verdictTimer: ReturnType<typeof setTimeout> | null = null;
   private lastClock: { key: string; overtime: boolean } | null = null;
   protected readonly navFilters = ['all', 'answered', 'unanswered', 'flagged'] as const;
   protected readonly navFilter = signal<'all' | 'answered' | 'unanswered' | 'flagged'>('all');
@@ -944,6 +989,9 @@ export class QuizRunnerComponent {
 
   constructor() {
     const destroyRef = inject(DestroyRef);
+    destroyRef.onDestroy(() => {
+      if (this.verdictTimer) clearTimeout(this.verdictTimer);
+    });
 
     // Blink once when the clock crosses zero while it is being watched: the
     // question's own clock in instant mode, the exam clock otherwise. Opening a
@@ -1425,6 +1473,23 @@ export class QuizRunnerComponent {
     } else {
       this.goNext();
     }
+  }
+
+  onCheckAnswer(): void {
+    const wasChecked = this.answer().checked;
+    this.quiz.checkAnswer();
+    const a = this.answer();
+    if (wasChecked || !a.checked) return;
+    const verdict = a.correct ? 'correct' : a.score > 0 ? 'partial' : 'incorrect';
+    this.verdictAnnouncement.set(this.i18n.t(`quizRunner.verdict_${verdict}`));
+    // Turned off in Settings: the option colors alone give the feedback.
+    if (!this.appSettings.quizVerdictFlash()) return;
+    this.verdictFlash.set(null);
+    // Re-created on the next frame so a second check in a row replays the animation.
+    requestAnimationFrame(() => this.verdictFlash.set(verdict));
+    if (this.verdictTimer) clearTimeout(this.verdictTimer);
+    // animationend clears it too; this covers a tab hidden mid-animation.
+    this.verdictTimer = setTimeout(() => this.verdictFlash.set(null), 1500);
   }
 
   /** Next question from a button. When the page is scrolled far enough down

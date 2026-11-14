@@ -266,6 +266,13 @@ export class SettingsService {
     this.update((s) => ({ ...s, noteSort: { field: sort.field, dir: sort.dir } }));
   }
 
+  readonly quizVerdictFlash = computed(() => this.state().quizVerdictFlash ?? true);
+
+  setQuizVerdictFlash(on: boolean): void {
+    if (on === this.quizVerdictFlash()) return;
+    this.update((s) => ({ ...s, quizVerdictFlash: on }));
+  }
+
   setQuizNavigatorOpen(open: boolean): void {
     if (open === this.quizNavigatorOpen()) return;
     this.update((s) => ({ ...s, quizNavigatorOpen: open }));
