@@ -586,12 +586,18 @@ import { I18nService } from '../../core/i18n/i18n.service';
        * on a narrow phone screen, and frees up more vertical room for the
        * question itself. */
       .annotate-toolbar { display: flex; flex-direction: column; gap: var(--space-xs); }
+      /* Always sticky, so the browser pins it the moment its top edge reaches the
+       * header and releases it when scrolling back up. Turning sticky on only
+       * after a sentinel left the viewport let the first row slide under the
+       * header first, then jump into place. Padding and background are constant
+       * so pinning does not shift anything; .stuck only adds the shadow. */
+      .annotate-toolbar { position: sticky; top: var(--header-height); z-index: 9; background: var(--bg-surface); padding: var(--space-sm) 0; }
       .toolbar-row { display: flex; gap: var(--space-xs); }
       /* top matches --header-height, not 0 — the page's own .app-header is
        * ALSO position:sticky/top:0/z-index:10 (app.component.scss), so
        * sticking to 0 here landed the toolbar underneath/behind the header
        * at the same offset instead of just below it. */
-      .annotate-toolbar.stuck { position: sticky; top: var(--header-height); z-index: 9; background: var(--bg-surface); box-shadow: var(--shadow-sm); padding: var(--space-sm) 0; }
+      .annotate-toolbar.stuck { box-shadow: var(--shadow-sm); }
       .tool-btn {
         flex: 1 1 0;
         min-width: 0;
@@ -981,9 +987,15 @@ export class QuizRunnerComponent {
     afterNextRender(() => {
       const sentinel = this.toolbarSentinelRef()?.nativeElement;
       if (!sentinel) return;
-      const observer = new IntersectionObserver(([entry]) => this.toolbarStuck.set(!entry.isIntersecting), {
-        threshold: 0,
-      });
+      // The sentinel sits right above the toolbar. Shrinking the observed area by
+      // the header height makes "stuck" flip exactly when the toolbar reaches its
+      // pinned spot under the header, not after it would have left the screen.
+      // Only a sentinel above that line counts: below the viewport is not stuck.
+      const header = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-height')) || 56;
+      const observer = new IntersectionObserver(
+        ([entry]) => this.toolbarStuck.set(!entry.isIntersecting && entry.boundingClientRect.top < (entry.rootBounds?.top ?? header)),
+        { threshold: 0, rootMargin: `-${header}px 0px 0px 0px` },
+      );
       observer.observe(sentinel);
       destroyRef.onDestroy(() => observer.disconnect());
     });
