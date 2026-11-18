@@ -18,6 +18,7 @@ This folder contains the local [Kiro CLI](https://kiro.dev) configuration. These
     ├── terraform.md             ← Terraform conventions
     ├── structure.md             ← where things live
     ├── ui-icons.md              ← icons and visual symbols (no emojis)
+    ├── ui-consistency.md        ← reuse existing controls and patterns before creating new UI
     ├── frontend.md              ← Angular conventions, design tokens, i18n, sync
     └── design-system.md         ← design-system mirror rules
 ```
@@ -68,6 +69,8 @@ Note: custom agents do not load steering automatically, which is why `resources`
 ```bash
 kiro-cli chat --agent local-agent
 ```
+
+Run it from the repository root. Steering and the agent's `resources` are resolved relative to the directory where Kiro starts; started from `frontend/`, or with another agent, the project rules are silently absent. The `agentSpawn` hook prints a warning when `.kiro/steering` is not found.
 
 Kiro will detect the local agent, load the MCP servers, load the steering rules into context, and run the version hooks.
 

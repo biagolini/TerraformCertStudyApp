@@ -17,7 +17,8 @@
   "hooks": {
     "agentSpawn": [
       { "command": "terraform version" },
-      { "command": "node --version" }
+      { "command": "node --version" },
+      { "command": "test -d .kiro/steering && echo 'steering: workspace rules loaded' || echo 'WARNING: .kiro/steering not found from this directory. Restart Kiro from the repository root, or the project rules are NOT in context.'" }
     ]
   }
 }

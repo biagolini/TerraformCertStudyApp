@@ -22,7 +22,7 @@ Routes live in `src/app/app.routes.ts`. Every page is lazy-loaded with `loadComp
 | `/settings` | `SettingsPageComponent` (wraps `SettingsComponent`) |
 | `/costs` | `CostsPageComponent` |
 | `/exam/:packId` | `ExamWorkspaceComponent`, the certification workspace; children below |
-| `…/banks` | `BanksPageComponent` (banks grouped by author) |
+| `…/banks` | `BanksPageComponent` (banks grouped by author; ordered through `bank-sort-menu.component.ts`: name in natural order, number of questions or last updated, ascending or descending, `sortBanks` in `core/models/bank.model.ts`; saved in `AppSettings.bankSort`, default name A to Z) |
 | `…/banks/:bankId[/:questionId]` | `QuestionsPageComponent` (`bankId` = `all` for every bank) |
 | `…/import[?author=]`, `…/import/:bankId` and `…/import/:bankId/:jobId` | `ImportHubPageComponent` (pick author + practice exam, import history), `ImportExamPageComponent` (upload and process files of that one exam), `ImportReviewPageComponent` |
 | `…/quiz` | `QuizComponent` (setup, runner, results, history) |
