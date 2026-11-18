@@ -39,10 +39,12 @@ const STRIP_SIZE = 4;
           <h1>{{ i18n.t('home.title') }}</h1>
           <p>{{ i18n.t('home.subtitle') }}</p>
         </div>
-        <button type="button" class="ui-btn ui-btn-primary" (click)="openNew(null)"><app-icon name="plus" /> {{ i18n.t('home.addCertification') }}</button>
+        @if (packs.packs().length === 0) {
+          <button type="button" class="ui-btn ui-btn-primary" (click)="openNew(null)"><app-icon name="plus" /> {{ i18n.t('home.addCertification') }}</button>
+        }
       </header>
 
-      @if (strip().length > 0) {
+      @if (packs.packs().length === 0 && strip().length > 0) {
         <section class="suggest" [class.collapsed]="collapsed()" [attr.aria-label]="i18n.t('home.suggestedTitle')">
           <div class="suggest-head">
             <span class="suggest-icon" aria-hidden="true"><app-icon name="sparkles" size="18" /></span>
@@ -129,6 +131,7 @@ const STRIP_SIZE = 4;
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M11 18a7 7 0 100-14 7 7 0 000 14zm9 2l-4-4"/></svg>
               <input class="ui-input" type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" [placeholder]="i18n.t('common.search')" [attr.aria-label]="i18n.t('home.searchMine')" />
             </label>
+            <button type="button" class="ui-btn ui-btn-soft ui-btn-icon add-inline" (click)="openNew(null)" [attr.aria-label]="i18n.t('home.addCertification')" [title]="i18n.t('home.addCertification')"><app-icon name="plus" size="18" /></button>
             <span class="ui-faint push">{{ i18n.t('home.activeCount', { shown: cards().length, total: packs.packs().length }) }}</span>
           </div>
           <div class="ui-grid study-grid">
@@ -370,7 +373,17 @@ const STRIP_SIZE = 4;
       .active-head {
         display: flex;
         align-items: center;
-        gap: var(--space-md);
+        gap: var(--space-sm);
+      }
+      .add-inline {
+        flex-shrink: 0;
+        color: var(--text-secondary);
+        background: var(--bg-elevated);
+        border-color: var(--bg-border);
+      }
+      .add-inline:hover:not(:disabled) {
+        color: var(--color-amber);
+        border-color: var(--color-amber);
       }
       .study-grid {
         grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr));

@@ -30,3 +30,23 @@ export function bankLabel(bank: Pick<QuestionBank, 'author' | 'version'>, fallba
   const parts = [bank.author.trim(), bank.version.trim()].filter(Boolean);
   return parts.length ? parts.join(' · ') : fallback;
 }
+
+export type BankSortField = 'name' | 'questions' | 'updatedAt';
+export type BankSortDir = 'asc' | 'desc';
+export interface BankSort {
+  field: BankSortField;
+  dir: BankSortDir;
+}
+export const BANK_SORT_FIELDS: BankSortField[] = ['name', 'questions', 'updatedAt'];
+/** Banks open by name, A to Z (names compare in natural order: "Set 2" before "Set 10"). */
+export const DEFAULT_BANK_SORT: BankSort = { field: 'name', dir: 'asc' };
+
+/** Banks in the chosen order; ties fall back to the name, so the order is stable. */
+export function sortBanks<T extends { bank: QuestionBank; total: number }>(items: readonly T[], sort: BankSort, locale: string): T[] {
+  const sign = sort.dir === 'asc' ? 1 : -1;
+  const collator = new Intl.Collator(locale, { sensitivity: 'base', numeric: true });
+  const byName = (a: T, b: T) => collator.compare((a.bank.version ?? '').trim(), (b.bank.version ?? '').trim());
+  const compare = (a: T, b: T): number =>
+    sort.field === 'questions' ? a.total - b.total : sort.field === 'updatedAt' ? a.bank.updatedAt - b.bank.updatedAt : byName(a, b);
+  return [...items].sort((a, b) => sign * compare(a, b) || byName(a, b));
+}

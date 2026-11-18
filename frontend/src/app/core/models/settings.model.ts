@@ -6,6 +6,7 @@ import { DEFAULT_QUIZ_TOOL_ORDER, QuizToolId } from './quiz-tool.model';
 import { DEFAULT_HEADER_ACTIONS, HeaderActionId } from './header-action.model';
 import { InterfaceLanguage } from './i18n.model';
 import { ExportPreset } from './export-preset.model';
+import { BankSort } from './bank.model';
 import { NoteListView, NoteSort } from './note.model';
 
 export type ReviewMode = 'generate' | 'manual';
@@ -73,6 +74,8 @@ export interface AppSettings {
   noteOutlineDepth?: number;
   /** Order of the notes list; missing means last modified first. */
   noteSort?: NoteSort;
+  /** Order of the question banks list; missing means by name, A to Z. */
+  bankSort?: BankSort;
   /** Notes list layout; missing means cards. */
   noteListView?: NoteListView;
   /** Color theme of study note text; 'site' (default) follows the site theme. */

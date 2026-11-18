@@ -20,6 +20,7 @@ import {
 import { HeaderActionId, resolveHeaderActions } from '../models/header-action.model';
 import { InterfaceLanguage } from '../models/i18n.model';
 import { ExportPreset } from '../models/export-preset.model';
+import { BANK_SORT_FIELDS, BankSort, DEFAULT_BANK_SORT } from '../models/bank.model';
 import { DEFAULT_NOTE_SORT, NOTE_LIST_VIEWS, NOTE_SORT_FIELDS, NoteListView, NoteSort } from '../models/note.model';
 import { StorageService } from './storage.service';
 import { NOTE_OUTLINE_DEFAULT_DEPTH } from '../utils/note-outline.util';
@@ -249,6 +250,17 @@ export class SettingsService {
     const s = this.state().noteSort;
     return s && NOTE_SORT_FIELDS.includes(s.field) && (s.dir === 'asc' || s.dir === 'desc') ? s : DEFAULT_NOTE_SORT;
   });
+
+  readonly bankSort = computed<BankSort>(() => {
+    const s = this.state().bankSort;
+    return s && BANK_SORT_FIELDS.includes(s.field) && (s.dir === 'asc' || s.dir === 'desc') ? s : DEFAULT_BANK_SORT;
+  });
+
+  setBankSort(sort: BankSort): void {
+    const current = this.bankSort();
+    if (sort.field === current.field && sort.dir === current.dir) return;
+    this.update((s) => ({ ...s, bankSort: { field: sort.field, dir: sort.dir } }));
+  }
 
   readonly noteListView = computed<NoteListView>(() => {
     const view = this.state().noteListView;

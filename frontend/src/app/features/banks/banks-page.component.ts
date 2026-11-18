@@ -4,9 +4,11 @@ import { BanksService, groupByAuthorWithRegistered } from '../../core/services/b
 import { QuestionsService } from '../../core/services/questions.service';
 import { PacksService } from '../../core/services/packs.service';
 import { I18nService } from '../../core/i18n/i18n.service';
-import { QuestionBank, bankLabel } from '../../core/models/bank.model';
+import { QuestionBank, bankLabel, sortBanks } from '../../core/models/bank.model';
 import { IconComponent } from '../../shared/components/icon.component';
 import { ALL_BANKS, examPath, questionPath } from '../../core/utils/routes.util';
+import { BankSortMenuComponent } from './bank-sort-menu.component';
+import { SettingsService } from '../../core/services/settings.service';
 import { BankEditorComponent } from './bank-editor.component';
 import { AuthorsDialogComponent } from './authors-dialog.component';
 import { AuthorsService } from '../../core/services/authors.service';
@@ -23,7 +25,7 @@ interface BankCard {
   selector: 'app-banks-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, BankEditorComponent, AuthorsDialogComponent, IconComponent],
+  imports: [RouterLink, BankSortMenuComponent, BankEditorComponent, AuthorsDialogComponent, IconComponent],
   template: `
     <div class="ui-page">
       <header class="ui-page-head">
@@ -32,6 +34,7 @@ interface BankCard {
           <p>{{ i18n.t('banks.subtitle') }}</p>
         </div>
         <div class="ui-actions">
+          <app-bank-sort-menu />
           <button type="button" class="ui-btn" (click)="authorsOpen.set(true)"><app-icon name="user" /> {{ i18n.t('authors.title') }}</button>
           <a class="ui-btn" [routerLink]="importLink()"><app-icon name="upload" /> {{ i18n.t('banks.importAi') }}</a>
           <a class="ui-btn ui-btn-primary" [routerLink]="allLink()" [queryParams]="{ add: 1 }"><app-icon name="plus" /> {{ i18n.t('banks.addQuestion') }}</a>
@@ -216,6 +219,7 @@ interface BankCard {
 export class BanksPageComponent {
   private readonly banks = inject(BanksService);
   private readonly authors = inject(AuthorsService);
+  private readonly settings = inject(SettingsService);
   private readonly questions = inject(QuestionsService);
   private readonly packs = inject(PacksService);
   private readonly router = inject(Router);
@@ -250,12 +254,14 @@ export class BanksPageComponent {
   /** Every author with banks here or registered, each with its banks' cards. */
   readonly sections = computed(() => {
     const cards = this.cards();
+    const sort = this.settings.bankSort();
+    const locale = this.i18n.lang();
     return groupByAuthorWithRegistered(
       this.banks.banks(),
       this.authors.authors().map((a) => a.name),
     ).map((g) => {
       const own = g.banks.map((bank) => cards.find((c) => c.bank.id === bank.id)!).filter(Boolean);
-      return { author: g.author, cards: own, questions: own.reduce((n, c) => n + c.total, 0) };
+      return { author: g.author, cards: sortBanks(own, sort, locale), questions: own.reduce((n, c) => n + c.total, 0) };
     });
   });
 
